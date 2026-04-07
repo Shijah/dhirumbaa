@@ -1283,30 +1283,26 @@ function RosterView({ user, isMobile }) {
 
 // ─── Flight Tracker ───────────────────────────────────────────────────────────
 
-const AIRLINE_NAMES = {
-  EK:'Emirates', BA:'British Airways', SQ:'Singapore Airlines',
-  QR:'Qatar Airways', EY:'Etihad', TK:'Turkish Airlines',
-  MH:'Malaysia Airlines', AI:'Air India', UL:'SriLankan',
-  LX:'Swiss', OS:'Austrian', VS:'Virgin Atlantic',
-  '3U':'Sichuan Airlines', H4:'HiSky', PG:'Bangkok Airways',
-  '6E':'IndiGo', B4:'ZanAir', JD:'Beijing Capital',
-}
-const getAirline = (flight) => {
-  const code = flight.replace(/[0-9]/g,'').trim()
-  return AIRLINE_NAMES[code] || code
+const IATA_TO_ICAO = {
+  EK:'UAE', BA:'BAW', SQ:'SIA', QR:'QTR', EY:'ETD', TK:'THY',
+  MH:'MAS', AI:'AIC', UL:'ALK', LX:'SWR', OS:'AUA', VS:'VIR',
+  '3U':'CSC', H4:'HSK', PG:'BKP', '6E':'IGO', B4:'ZAN', JD:'CBJ',
+  SU:'AFL', JL:'JAL', NH:'ANA', CX:'CPA', KL:'KLM', AF:'AFR', LH:'DLH',
+  UX:'AEA', IB:'IBE', AZ:'AZA', WY:'OMA', GF:'GFA', MS:'MSR',
 }
 
-const MOCK = [
-  { flight:'EK658',  airline:'Emirates',          orig:'DXB', dest:'MLE', orig_name:'Dubai',     dest_name:'Malé', aircraft:'B777-300ER', lat:12.5, lon:68.2, alt:37000, gspeed:488, track:160, on_ground:false, departed:true,  eta_offset: 8520,  dep_offset:-6300  },
-  { flight:'BA060',  airline:'British Airways',   orig:'LHR', dest:'MLE', orig_name:'London',    dest_name:'Malé', aircraft:'B787-9',     lat:25.0, lon:48.5, alt:39000, gspeed:512, track:125, on_ground:false, departed:true,  eta_offset:14400,  dep_offset:-18000 },
-  { flight:'SQ431',  airline:'Singapore Airlines',orig:'SIN', dest:'MLE', orig_name:'Singapore', dest_name:'Malé', aircraft:'A350-900',   lat:4.2,  lon:73.5, alt:0,     gspeed:0,   track:0,   on_ground:true,  departed:true,  eta_offset:-3600,  dep_offset:-10800 },
-]
+const toCallsign = (flight) => {
+  const code = flight.replace(/[0-9]/g,'').trim().toUpperCase()
+  const num  = flight.replace(/[^0-9]/g,'').trim()
+  return (IATA_TO_ICAO[code] || code) + num
+}
 
 const fmtTime = ts => {
   if (!ts) return '—'
   const d = new Date(ts * 1000)
   return d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', timeZone:'Indian/Maldives' })
 }
+
 const fmtDur = secs => {
   if (secs <= 0) return 'Landed'
   const h = Math.floor(secs / 3600)
@@ -1314,91 +1310,97 @@ const fmtDur = secs => {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
-function FlightCard({ f, isMobile, onRemove }) {
+const MLE_LAT = 4.1755, MLE_LON = 73.5293
+const distToMLE = (lat, lon) => {
+  const R = 6371
+  const dLat = (MLE_LAT - lat) * Math.PI / 180
+  const dLon = (MLE_LON - lon) * Math.PI / 180
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat*Math.PI/180)*Math.cos(MLE_LAT*Math.PI/180)*Math.sin(dLon/2)**2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+}
+
+function FlightCard({ flight, data, isMobile, onRemove }) {
   const now = Date.now() / 1000
-  const isLanded  = f.on_ground && f.departed && f.eta_ts < now
-  const isAir     = !f.on_ground && f.departed
-  const isSched   = !f.departed
-  const statusCfg = isLanded ? { label:'Landed',    bg:'#065F46', color:'#34D399', dot:'#34D399' }
-                  : isAir    ? { label:'Airborne',   bg:'#1E3A5F', color:'#60A5FA', dot:'#60A5FA' }
-                  :            { label:'Scheduled',  bg:'#292524', color:'#A8A29E', dot:'#A8A29E' }
-  const progress  = isLanded ? 100 : isAir ? Math.min(97, Math.max(3, ((now - f.dep_ts) / (f.eta_ts - f.dep_ts)) * 100)) : 0
-  const remaining = f.eta_ts ? Math.max(0, f.eta_ts - now) : 0
-  const boatTs    = f.eta_ts ? f.eta_ts - 57 * 60 : null
-  const boatDue   = boatTs && boatTs > now
+  const hasData = data && data.lat
+  const isGround = hasData && data.alt < 200
+  const isAir = hasData && !isGround
+  const kmLeft = hasData ? distToMLE(data.lat, data.lon) : null
+  const speedKmh = hasData ? data.gspeed * 1.852 : null
+  const etaSecs = (kmLeft && speedKmh && speedKmh > 0) ? kmLeft / speedKmh * 3600 : null
+  const etaTs = etaSecs ? now + etaSecs : null
+  const boatTs = etaTs ? etaTs - 57 * 60 : null
+  const remaining = etaSecs || 0
+  const progress = isAir && etaSecs ? Math.min(95, Math.max(5, 100 - (etaSecs / 7200 * 100))) : isGround ? 100 : 0
+
+  const statusCfg = isGround ? { label:'Landed', bg:'#065F46', color:'#34D399' }
+                  : isAir    ? { label:'Airborne', bg:'#1E3A5F', color:'#60A5FA' }
+                  :            { label:'Scheduled', bg:'#292524', color:'#A8A29E' }
+
+  const airline = flight.replace(/[0-9]/g,'').toUpperCase()
+  const NAMES = { EK:'Emirates', BA:'British Airways', SQ:'Singapore Airlines', QR:'Qatar Airways', EY:'Etihad', TK:'Turkish Airlines', MH:'Malaysia Airlines', AI:'Air India', UL:'SriLankan Airlines', MH:'Malaysia Airlines' }
 
   return (
     <div style={{ background:'#0F1210', border:'0.5px solid rgba(255,255,255,0.08)', borderRadius:12, overflow:'hidden', marginBottom:14 }}>
-      {/* Card header */}
       <div style={{ padding:'14px 18px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'0.5px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-          <div>
-            <div style={{ fontSize:22, fontWeight:700, color:'#fff', letterSpacing:'-0.5px', lineHeight:1 }}>{f.flight.slice(0,2)} <span style={{ color:B.gold }}>{f.flight.slice(2)}</span></div>
-            <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginTop:3 }}>{f.airline} · {f.aircraft}</div>
+        <div>
+          <div style={{ fontSize:22, fontWeight:700, color:'#fff', letterSpacing:'-0.5px' }}>
+            {flight.slice(0,2).toUpperCase()} <span style={{ color:B.gold }}>{flight.slice(2)}</span>
+          </div>
+          <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginTop:3 }}>
+            {NAMES[airline] || airline} · {hasData ? `${data.alt?.toLocaleString()} ft · ${data.gspeed} kts` : 'Awaiting data'}
           </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <div style={{ background:statusCfg.bg, border:`0.5px solid ${statusCfg.color}30`, borderRadius:99, padding:'4px 12px', display:'flex', alignItems:'center', gap:6 }}>
-            <div style={{ width:6, height:6, borderRadius:'50%', background:statusCfg.dot }} />
-            <span style={{ fontSize:11, fontWeight:600, color:statusCfg.color, letterSpacing:'.5px' }}>{statusCfg.label}</span>
+          <div style={{ background:statusCfg.bg, borderRadius:99, padding:'4px 12px', display:'flex', alignItems:'center', gap:6 }}>
+            <div style={{ width:6, height:6, borderRadius:'50%', background:statusCfg.color }} />
+            <span style={{ fontSize:11, fontWeight:600, color:statusCfg.color }}>{statusCfg.label}</span>
           </div>
-          <button onClick={onRemove} style={{ background:'transparent', border:'none', color:'rgba(255,255,255,0.2)', cursor:'pointer', fontSize:16, lineHeight:1 }}>×</button>
+          <button onClick={onRemove} style={{ background:'transparent', border:'none', color:'rgba(255,255,255,0.3)', cursor:'pointer', fontSize:18 }}>×</button>
         </div>
       </div>
 
-      {/* Route + progress */}
       <div style={{ padding:'16px 18px', borderBottom:'0.5px solid rgba(255,255,255,0.06)' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
           <div style={{ textAlign:'left' }}>
-            <div style={{ fontSize:20, fontWeight:700, color:'#fff', letterSpacing:1 }}>{f.orig}</div>
-            <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>{f.orig_name}</div>
+            <div style={{ fontSize:18, fontWeight:700, color:'#fff' }}>—</div>
+            <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>Origin</div>
           </div>
           <div style={{ flex:1, margin:'0 14px', textAlign:'center' }}>
             <div style={{ fontSize:10, color:'rgba(255,255,255,0.3)', marginBottom:5 }}>
-              {isLanded ? 'Completed' : isAir ? fmtDur(remaining) + ' remaining' : 'Not departed'}
+              {isAir ? fmtDur(remaining) + ' to MLE' : isGround ? 'Completed' : 'No position yet'}
             </div>
-            <div style={{ height:4, background:'rgba(255,255,255,0.08)', borderRadius:99, overflow:'hidden' }}>
-              <div style={{ width:`${progress}%`, height:'100%', background: isLanded?'#34D399': isAir?`linear-gradient(90deg, #378ADD, #60A5FA)`:'transparent', borderRadius:99, transition:'width 1s' }} />
+            <div style={{ height:4, background:'rgba(255,255,255,0.08)', borderRadius:99 }}>
+              <div style={{ width:`${progress}%`, height:'100%', background: isGround?'#34D399':'#378ADD', borderRadius:99 }} />
             </div>
             <div style={{ fontSize:10, color:'rgba(255,255,255,0.3)', marginTop:5 }}>{Math.round(progress)}%</div>
           </div>
           <div style={{ textAlign:'right' }}>
-            <div style={{ fontSize:20, fontWeight:700, color:'#fff', letterSpacing:1 }}>{f.dest}</div>
-            <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>{f.dest_name}</div>
+            <div style={{ fontSize:18, fontWeight:700, color:'#fff' }}>MLE</div>
+            <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>Malé VIA</div>
           </div>
         </div>
       </div>
 
-      {/* Time grid */}
-      <div style={{ padding:'14px 18px', display:'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap:12, borderBottom:'0.5px solid rgba(255,255,255,0.06)' }}>
+      <div style={{ padding:'14px 18px', display:'grid', gridTemplateColumns: isMobile?'1fr 1fr':'1fr 1fr 1fr 1fr', gap:12 }}>
         {[
-          { label:'Departed', value: f.dep_ts ? fmtTime(f.dep_ts) : '—', sub:'actual', color:'rgba(255,255,255,0.7)' },
-          { label:'ETA Male', value: f.eta_ts ? fmtTime(f.eta_ts) : '—', sub:'Velana VIA', color: isLanded?'#34D399':'#60A5FA' },
-          { label:'⚓ Boat Out', value: boatTs ? fmtTime(boatTs) : '—', sub: boatDue ? 'dispatch time' : isLanded ? 'completed' : '—', color: boatDue?B.gold: isLanded?'#34D399':'rgba(255,255,255,0.4)' },
-          { label:'Remaining', value: isLanded ? 'Landed' : isAir ? fmtDur(remaining) : 'Pending', sub: isAir ? 'until MLE' : '', color:'rgba(255,255,255,0.7)' },
+          { label:'Position', value: hasData ? `${data.lat?.toFixed(1)}°N ${data.lon?.toFixed(1)}°E` : '—', color:'rgba(255,255,255,0.7)' },
+          { label:'ETA Malé', value: etaTs ? fmtTime(etaTs) : '—', color:'#60A5FA' },
+          { label:'⚓ Boat Out', value: boatTs ? fmtTime(boatTs) : '—', color: B.gold },
+          { label:'Remaining', value: isAir ? fmtDur(remaining) : isGround ? 'Landed' : 'Pending', color:'rgba(255,255,255,0.7)' },
         ].map(item => (
           <div key={item.label}>
             <div style={{ fontSize:10, color:'rgba(255,255,255,0.3)', textTransform:'uppercase', letterSpacing:'.8px', marginBottom:4 }}>{item.label}</div>
-            <div style={{ fontSize:16, fontWeight:600, color:item.color, fontFamily:'monospace' }}>{item.value}</div>
-            <div style={{ fontSize:10, color:'rgba(255,255,255,0.25)', marginTop:2 }}>{item.sub}</div>
+            <div style={{ fontSize:15, fontWeight:600, color:item.color, fontFamily:'monospace' }}>{item.value}</div>
           </div>
         ))}
       </div>
 
-      {/* Live telemetry */}
-      {isAir && (
-        <div style={{ padding:'10px 18px', display:'flex', gap:20, flexWrap:'wrap' }}>
-          {[
-            { label:'Altitude', value: f.alt ? f.alt.toLocaleString() + ' ft' : '—' },
-            { label:'Speed',    value: f.gspeed ? f.gspeed + ' kts' : '—' },
-            { label:'Heading',  value: f.track ? f.track + '°' : '—' },
-            { label:'Position', value: f.lat ? `${f.lat.toFixed(1)}°N ${f.lon.toFixed(1)}°E` : '—' },
-          ].map(item => (
-            <div key={item.label} style={{ display:'flex', gap:6, alignItems:'center' }}>
-              <span style={{ fontSize:10, color:'rgba(255,255,255,0.25)', textTransform:'uppercase', letterSpacing:'.5px' }}>{item.label}</span>
-              <span style={{ fontSize:11, color:'rgba(255,255,255,0.6)', fontFamily:'monospace' }}>{item.value}</span>
-            </div>
-          ))}
+      {hasData && isAir && (
+        <div style={{ padding:'8px 18px', display:'flex', gap:20, borderTop:'0.5px solid rgba(255,255,255,0.04)' }}>
+          <span style={{ fontSize:10, color:'rgba(255,255,255,0.3)' }}>ALT <span style={{ color:'rgba(255,255,255,0.6)' }}>{data.alt?.toLocaleString()} ft</span></span>
+          <span style={{ fontSize:10, color:'rgba(255,255,255,0.3)' }}>SPD <span style={{ color:'rgba(255,255,255,0.6)' }}>{data.gspeed} kts</span></span>
+          <span style={{ fontSize:10, color:'rgba(255,255,255,0.3)' }}>HDG <span style={{ color:'rgba(255,255,255,0.6)' }}>{data.track}°</span></span>
+          <span style={{ fontSize:10, color:'rgba(255,255,255,0.3)' }}>DIST <span style={{ color:'rgba(255,255,255,0.6)' }}>{kmLeft ? Math.round(kmLeft) + ' km' : '—'}</span></span>
         </div>
       )}
     </div>
@@ -1406,125 +1408,79 @@ function FlightCard({ f, isMobile, onRemove }) {
 }
 
 function FlightTrackerView({ isMobile }) {
-  const now = Date.now() / 1000
-  const [tracked, setTracked]     = useState(['EK658','BA060','SQ431'])
-  const [flights,  setFlights]    = useState(() =>
-    MOCK.map(f => ({ ...f, eta_ts: now + f.eta_offset, dep_ts: now + f.dep_offset }))
-  )
-  const [input,    setInput]      = useState('')
-  const [loading,  setLoading]    = useState(false)
-  const [liveMode, setLiveMode]   = useState(false)
-  const [refreshIn,setRefreshIn]  = useState(60)
-  const [autoRef,  setAutoRef]    = useState(true)
-  const [lastUpd,  setLastUpd]    = useState(new Date())
-  const [clock,    setClock]      = useState(new Date())
+  const [tracked, setTracked] = useState([])
+  const [liveData, setLiveData] = useState({})
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [isLive, setIsLive] = useState(false)
+  const [clock, setClock] = useState(new Date())
+  const [refreshIn, setRefreshIn] = useState(30)
 
   useEffect(() => {
     const t = setInterval(() => setClock(new Date()), 1000)
     return () => clearInterval(t)
   }, [])
 
-  // Convert IATA flight numbers to callsigns for FR24 API
-  const toCallsign = (flight) => {
-    const IATA_TO_ICAO = {
-      EK:'UAE', BA:'BAW', SQ:'SIA', QR:'QTR', EY:'ETD',
-      TK:'THY', MH:'MAS', AI:'AIC', UL:'ALK', LX:'SWR',
-      OS:'AUA', VS:'VIR', '3U':'CSC', H4:'HSK', PG:'BKP',
-      '6E':'IGO', B4:'ZAN', JD:'CBJ', SU:'AFL', JL:'JAL',
-      NH:'ANA', CX:'CPA', KL:'KLM', AF:'AFR', LH:'DLH',
-    }
-    const code = flight.replace(/[0-9]/g,'').trim()
-    const num  = flight.replace(/[^0-9]/g,'').trim()
-    const icao = IATA_TO_ICAO[code]
-    return icao ? icao + num : flight
-  }
-
-  const fetchLive = async (numbers) => {
+  const fetchAll = async (flights) => {
+    if (!flights.length) return
     setLoading(true)
     try {
-      const callsigns = numbers.map(toCallsign)
-      const res = await fetch(`/.netlify/functions/fr24?flights=${callsigns.join(',')}`)
+      const callsigns = flights.map(toCallsign).join(',')
+      const res = await fetch(`/.netlify/functions/fr24?flights=${callsigns}`)
       if (res.ok) {
         const json = await res.json()
-        setLiveMode(true)
-        setLastUpd(new Date())
+        setIsLive(true)
         if (json.data && json.data.length > 0) {
-          const now = Date.now() / 1000
           const map = {}
           json.data.forEach(d => {
-            if (d.callsign) map[d.callsign] = d
-            if (d.flight)   map[d.flight]   = d
+            const cs = d.callsign
+            flights.forEach(f => {
+              if (toCallsign(f) === cs) map[f] = d
+            })
           })
-          setFlights(prev => prev.map(p => {
-            const cs = toCallsign(p.flight)
-            const d = map[cs] || map[p.flight] || Object.values(map).find(x => x.callsign && (x.callsign === cs || x.callsign === p.flight))
-            if (!d) return p
-            const isGround = !d.alt || d.alt < 100
-            const distToMle = Math.sqrt(Math.pow(d.lat - 4.2, 2) + Math.pow(d.lon - 73.5, 2))
-            const estMins   = Math.round(distToMle * 7)
-            return {
-              ...p,
-              lat: d.lat, lon: d.lon, alt: d.alt,
-              gspeed: d.gspeed, track: d.track,
-              on_ground: isGround,
-              departed: true,
-              dep_ts: p.dep_ts || now - 3600,
-              eta_ts: isGround ? now - 60 : now + estMins * 60,
-            }
-          }))
+          setLiveData(prev => ({ ...prev, ...map }))
         }
       }
-    } catch(e) {
-      console.log('FR24 not configured — using demo data')
-    }
+    } catch(e) {}
     setLoading(false)
   }
 
   useEffect(() => {
-    if (!autoRef) return
+    if (!tracked.length) return
+    fetchAll(tracked)
     const t = setInterval(() => {
       setRefreshIn(r => {
-        if (r <= 1) { fetchLive(tracked); return 60 }
+        if (r <= 1) { fetchAll(tracked); return 30 }
         return r - 1
       })
     }, 1000)
     return () => clearInterval(t)
-  }, [autoRef, tracked])
+  }, [tracked])
 
   const addFlight = () => {
-    const f = input.toUpperCase().trim()
+    const f = input.toUpperCase().replace(/\s/g,'')
     if (!f || tracked.includes(f)) { setInput(''); return }
-    const airline = getAirline(f)
-    const newF = {
-      flight: f, airline, aircraft: '—',
-      orig: '—', dest: 'MLE', orig_name: 'Origin', dest_name: 'Malé',
-      lat: null, lon: null, alt: null, gspeed: null, track: null,
-      on_ground: false, departed: false,
-      eta_ts: null, dep_ts: null,
-    }
-    setTracked(t => [...t, f])
-    setFlights(prev => [...prev, newF])
+    const newTracked = [...tracked, f]
+    setTracked(newTracked)
     setInput('')
-    fetchLive([...tracked, f])
+    fetchAll(newTracked)
   }
 
-  const removeFlight = (flight) => {
-    setTracked(t => t.filter(x => x !== flight))
-    setFlights(prev => prev.filter(f => f.flight !== flight))
+  const removeFlight = f => {
+    setTracked(t => t.filter(x => x !== f))
+    setLiveData(d => { const n = {...d}; delete n[f]; return n })
   }
 
-  const airborne = flights.filter(f => !f.on_ground && f.departed).length
-  const landed   = flights.filter(f => f.on_ground && f.departed).length
-  const pending  = flights.filter(f => !f.departed).length
+  const airborne = tracked.filter(f => liveData[f] && liveData[f].alt > 200).length
+  const landed   = tracked.filter(f => liveData[f] && liveData[f].alt <= 200).length
 
   return (
     <div>
-      {/* Dark header banner */}
       <div style={{ background:'#0F1210', borderRadius:10, padding:isMobile?'16px':'22px 28px', marginBottom:20 }}>
         <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
           <div>
             <div style={{ fontSize:10, letterSpacing:'2px', color:'rgba(255,255,255,0.3)', textTransform:'uppercase', marginBottom:6 }}>Dhirumbaa · Live Operations</div>
-            <div style={{ fontSize:isMobile?18:24, fontWeight:500, color:'#fff', letterSpacing:'-0.5px' }}>Flight Tracker</div>
+            <div style={{ fontSize:isMobile?18:24, fontWeight:500, color:'#fff' }}>Flight Tracker</div>
             <div style={{ fontSize:12, color:'rgba(255,255,255,0.4)', marginTop:4 }}>Velana International Airport · North Malé Atoll</div>
           </div>
           <div style={{ textAlign:'right' }}>
@@ -1535,13 +1491,12 @@ function FlightTrackerView({ isMobile }) {
           </div>
         </div>
 
-        {/* Stats row */}
-        <div style={{ display:'flex', gap:isMobile?8:16, marginTop:16, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', gap:isMobile?8:16, marginTop:16, flexWrap:'wrap', alignItems:'center' }}>
           {[
-            { val: airborne, label:'Airborne',  color:'#60A5FA' },
-            { val: landed,   label:'Landed',    color:'#34D399' },
-            { val: pending,  label:'Scheduled', color:'rgba(255,255,255,0.4)' },
-            { val: flights.length, label:'Tracked', color:B.gold },
+            { val:airborne, label:'Airborne', color:'#60A5FA' },
+            { val:landed,   label:'Landed',   color:'#34D399' },
+            { val:tracked.length - airborne - landed, label:'Pending', color:'rgba(255,255,255,0.4)' },
+            { val:tracked.length, label:'Tracked', color:B.gold },
           ].map(s => (
             <div key={s.label} style={{ background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.07)', borderRadius:8, padding:'8px 16px' }}>
               <div style={{ fontSize:20, fontWeight:600, color:s.color, fontFamily:'monospace' }}>{s.val}</div>
@@ -1549,53 +1504,40 @@ function FlightTrackerView({ isMobile }) {
             </div>
           ))}
           <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
-            {!liveMode && <span style={{ fontSize:10, background:'rgba(186,117,23,0.2)', color:B.gold, border:'0.5px solid rgba(186,117,23,0.4)', borderRadius:99, padding:'3px 10px' }}>Demo data</span>}
-            {liveMode  && <span style={{ fontSize:10, background:'rgba(26,107,60,0.2)',  color:'#34D399', border:'0.5px solid rgba(52,211,153,0.3)', borderRadius:99, padding:'3px 10px' }}>● Live</span>}
-            <button onClick={()=>setAutoRef(a=>!a)} style={{ fontSize:10, background:'transparent', border:'0.5px solid rgba(255,255,255,0.1)', color: autoRef?'#60A5FA':'rgba(255,255,255,0.3)', borderRadius:99, padding:'3px 10px', cursor:'pointer' }}>
-              {autoRef ? `Auto ↻ ${refreshIn}s` : 'Auto ↻ Off'}
-            </button>
-            <button onClick={()=>fetchLive(tracked)} disabled={loading} style={{ fontSize:10, background:'rgba(255,255,255,0.06)', border:'0.5px solid rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.6)', borderRadius:99, padding:'3px 10px', cursor:'pointer' }}>
+            {isLive && <span style={{ fontSize:10, background:'rgba(26,107,60,0.2)', color:'#34D399', border:'0.5px solid rgba(52,211,153,0.3)', borderRadius:99, padding:'3px 10px' }}>● Live</span>}
+            <span style={{ fontSize:10, color:'rgba(255,255,255,0.3)' }}>↻ {refreshIn}s</span>
+            <button onClick={()=>fetchAll(tracked)} disabled={loading} style={{ fontSize:10, background:'rgba(255,255,255,0.06)', border:'0.5px solid rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.6)', borderRadius:99, padding:'3px 10px', cursor:'pointer' }}>
               {loading ? 'Loading…' : '↻ Refresh'}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Add flight bar */}
-      <div style={{ display:'flex', gap:10, marginBottom:20, alignItems:'center' }}>
+      <div style={{ display:'flex', gap:10, marginBottom:20 }}>
         <input
           value={input}
           onChange={e => setInput(e.target.value.toUpperCase())}
           onKeyDown={e => e.key==='Enter' && addFlight()}
-          placeholder="Add flight number — e.g. EK658, BA060, SQ431"
+          placeholder="Add flight — e.g. EK658, MH485, SQ431"
           style={{ ...INP, flex:1, background:'#fff', letterSpacing:1, fontFamily:'monospace' }}
         />
         <button onClick={addFlight} style={{ ...BTN_PRIMARY, whiteSpace:'nowrap' }}>+ Track</button>
       </div>
 
-      {/* Flight cards */}
-      {flights.length === 0 ? (
+      {tracked.length === 0 ? (
         <div style={{ padding:'48px 20px', textAlign:'center', color:B.textMuted, background:B.white, borderRadius:10, border:`0.5px solid ${B.border}` }}>
           <div style={{ fontSize:40, marginBottom:12 }}>✈️</div>
           <div style={{ fontWeight:500, marginBottom:6 }}>No flights tracked</div>
           <div style={{ fontSize:12 }}>Add a flight number above to start tracking</div>
         </div>
       ) : (
-        flights.map(f => (
-          <FlightCard key={f.flight} f={f} isMobile={isMobile} onRemove={() => removeFlight(f.flight)} />
+        tracked.map(f => (
+          <FlightCard key={f} flight={f} data={liveData[f]} isMobile={isMobile} onRemove={() => removeFlight(f)} />
         ))
-      )}
-
-      {/* Setup note */}
-      {!liveMode && (
-        <div style={{ marginTop:8, padding:'12px 16px', background:B.warningLight, border:`0.5px solid ${B.gold}30`, borderRadius:8, fontSize:12, color:B.warning }}>
-          <strong>Demo mode:</strong> Showing sample data. To enable live FR24 tracking, add <code>FR24_API_KEY</code> to your Netlify environment variables and deploy the proxy function.
-        </div>
       )}
     </div>
   )
 }
-
 
 // ─── App Shell ────────────────────────────────────────────────────────────────
 export default function DhirumbaaFMS() {
