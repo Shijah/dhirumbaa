@@ -1449,21 +1449,27 @@ function FlightTrackerView({ isMobile }) {
         setLiveMode(true)
         setLastUpd(new Date())
         if (json.data && json.data.length > 0) {
+          const now = Date.now() / 1000
           const map = {}
-          json.data.forEach(f => {
-            const now = Date.now() / 1000
-            map[f.callsign] = {
-              lat: f.lat, lon: f.lon, alt: f.alt,
-              gspeed: f.gspeed, track: f.track,
-              on_ground: f.alt === 0,
-              departed: true,
-              eta_ts: now + 3600,
-              dep_ts: now - 3600,
-            }
+          json.data.forEach(d => {
+            map[d.callsign] = d
           })
           setFlights(prev => prev.map(p => {
             const cs = toCallsign(p.flight)
-            return map[cs] ? { ...p, ...map[cs] } : p
+            const d = map[cs]
+            if (!d) return p
+            const isGround = !d.alt || d.alt < 100
+            const distToMle = Math.sqrt(Math.pow(d.lat - 4.2, 2) + Math.pow(d.lon - 73.5, 2))
+            const estMins   = Math.round(distToMle * 7)
+            return {
+              ...p,
+              lat: d.lat, lon: d.lon, alt: d.alt,
+              gspeed: d.gspeed, track: d.track,
+              on_ground: isGround,
+              departed: true,
+              dep_ts: p.dep_ts || now - 3600,
+              eta_ts: isGround ? now - 60 : now + estMins * 60,
+            }
           }))
         }
       }
