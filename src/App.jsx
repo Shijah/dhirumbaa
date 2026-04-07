@@ -1284,11 +1284,15 @@ function RosterView({ user, isMobile }) {
 // ─── Flight Tracker ───────────────────────────────────────────────────────────
 
 const IATA_TO_ICAO = {
-  EK:'UAE', BA:'BAW', SQ:'SIA', QR:'QTR', EY:'ETD', TK:'THY',
-  MH:'MAS', AI:'AIC', UL:'ALK', LX:'SWR', OS:'AUA', VS:'VIR',
-  '3U':'CSC', H4:'HSK', PG:'BKP', '6E':'IGO', B4:'ZAN', JD:'CBJ',
-  SU:'AFL', JL:'JAL', NH:'ANA', CX:'CPA', KL:'KLM', AF:'AFR', LH:'DLH',
-  UX:'AEA', IB:'IBE', AZ:'AZA', WY:'OMA', GF:'GFA', MS:'MSR',
+  '3U':'CSC', '6E':'IGO', AF:'AFR', AI:'AIC', AK:'AXM',
+  B4:'ZAN',  BA:'BAW',  BS:'UBG', CX:'CPA', DE:'CFG',
+  EK:'UAE',  EY:'ETD',  FD:'AIQ', FZ:'FDB', G9:'ABY',
+  GF:'GFA',  H4:'HSK',  IB:'IBE', JD:'CBJ', JL:'JAL',
+  KL:'KLM',  LH:'DLH',  LO:'LOT', LX:'SWR', MF:'CXA',
+  MH:'MAS',  MO:'NMB',  MS:'MSR', MU:'CES', NH:'ANA',
+  NO:'ESS',  NR:'MLD',  OD:'BTK', OS:'AUA', PG:'BKP',
+  Q2:'DQA',  QR:'QTR',  SQ:'SIA', SU:'AFL', TK:'THY',
+  UL:'ALK',  UX:'AEA',  VS:'VIR', WK:'EDW', WY:'OMA',
 }
 
 const toCallsign = (flight) => {
