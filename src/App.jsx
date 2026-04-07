@@ -1319,6 +1319,18 @@ const AIRLINE_INFO = {
   LX:{ name:'Swiss',               logo:'https://logo.clearbit.com/swiss.com',               color:'#E4002B' },
 }
 
+const FLIGHT_ORIGINS = {
+  AK74:'KUL', BA060:'LGW', BA061:'LGW', DE2320:'FRA', DE2321:'FRA',
+  EK656:'DXB', EK658:'DXB', EK660:'DXB', EY260:'AUH', FZ1025:'DXB',
+  G9093:'SHJ', G9094:'SHJ', GF144:'BAH', MF889:'XMN', MH485:'KUL',
+  MH483:'KUL', MU235:'PVG', NO510:'MXP', NO511:'FCO', OD293:'KUL',
+  OD295:'KUL', QR672:'DOH', QR670:'DOH', SQ432:'SIN', SQ430:'SIN',
+  TK734:'IST', TK736:'IST', UL101:'CMB', UL103:'CMB', UL115:'CMB',
+  WK066:'ZRH', WK067:'ZRH', WY383:'MCT', WY384:'MCT',
+  '6E1129':'TRV', '6E1131':'TRV', '6E1045':'COK', '6E1081':'BOM',
+  BS337:'DAC', BS339:'DAC',
+}
+
 const AIRPORT_NAMES = {
   DXB:'Dubai', DOH:'Doha', LHR:'London Heathrow', SIN:'Singapore',
   AUH:'Abu Dhabi', IST:'Istanbul', KUL:'Kuala Lumpur', CMB:'Colombo',
@@ -1401,7 +1413,7 @@ function FlightCard({ flight, data, isMobile, onRemove }) {
         </div>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize:18, fontWeight:700, color:B.textPrimary, letterSpacing:'-0.3px' }}>
-            {flight.slice(0, getAirlineCode(flight).length)} <span style={{ color:info.color }}>{flight.slice(getAirlineCode(flight).length)}</span>
+            {code} <span style={{ color:info.color }}>{flight.slice(code.length)}</span>
           </div>
           <div style={{ fontSize:12, color:B.textSecond, marginTop:2 }}>
             {info.name} {hasData ? `· ${data.aircraft_type || ''}` : ''}
@@ -1496,6 +1508,11 @@ function FlightTrackerView({ isMobile }) {
     return () => clearInterval(t)
   }, [])
 
+  const getOrig = (flight) => {
+    const f = flight.toUpperCase().replace(/\s/g,'')
+    return FLIGHT_ORIGINS[f] || null
+  }
+
   const fetchAll = async (flights) => {
     if (!flights.length) return
     setLoading(true)
@@ -1509,7 +1526,7 @@ function FlightTrackerView({ isMobile }) {
           const map = {}
           json.data.forEach(d => {
             flights.forEach(f => {
-              if (toCallsign(f) === d.callsign) map[f] = { ...d, orig: d.orig || '—' }
+              if (toCallsign(f) === d.callsign) map[f] = { ...d, orig: getOrig(f) || '—' }
             })
           })
           setLiveData(prev => ({ ...prev, ...map }))
