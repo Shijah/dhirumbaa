@@ -1284,6 +1284,9 @@ function RosterView({ user, isMobile }) {
 // ─── Flight Tracker ───────────────────────────────────────────────────────────
 
 const IATA_TO_ICAO = {
+  // Domestic & seaplane
+  Q2:'DQA',  NR:'MLD',  TM:'TMW',  VL:'VLL',
+  // International
   '3U':'CSC', '6E':'IGO', AF:'AFR', AI:'AIC', AK:'AXM',
   B4:'ZAN',  BA:'BAW',  BS:'UBG', CX:'CPA', DE:'CFG',
   EK:'UAE',  EY:'ETD',  FD:'AIQ', FZ:'FDB', G9:'ABY',
@@ -1368,7 +1371,19 @@ const SCHEDULE = [
   { flight:'UL115',  airline:'SriLankan Airlines',  orig:'CMB', arr:null,    days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
 ]
 
-const FLIGHT_ORIGINS = Object.fromEntries(SCHEDULE.map(s => [s.flight, s.orig]))
+const FLIGHT_ORIGINS = {
+  ...Object.fromEntries(SCHEDULE.map(s => [s.flight, s.orig])),
+  // Common alternates not in schedule
+  AK72:'KUL', AK76:'KUL', AK78:'KUL',
+  EK658:'DXB', EK660:'DXB', EK652:'DXB',
+  QR670:'DOH', QR674:'DOH',
+  SQ430:'SIN', SQ434:'SIN',
+  MH483:'KUL', MH487:'KUL',
+  TK736:'IST', TK732:'IST',
+  MU233:'PVG', MU237:'PVG',
+  UL105:'CMB', UL107:'CMB',
+  OD291:'KUL', OD297:'KUL',
+}
 
 const toCallsign = (flight) => {
   const f = flight.toUpperCase().trim()
@@ -1497,14 +1512,35 @@ function FlightCard({ flight, data, isMobile, onRemove }) {
   const now = Date.now()/1000
   const code = getCode(flight)
   const info = AIRLINE_INFO[code] || { name:code, color:B.freshPalm }
-  const hasData = data && data.lat
-  const isGround = hasData && data.alt < 200
-  const isAir = hasData && !isGround
-  const kmLeft = hasData ? distToMLE(data.lat, data.lon) : null
-  const speedKmh = hasData && data.gspeed>0 ? data.gspeed*1.852 : null
-  const etaSecs = (kmLeft && speedKmh) ? kmLeft/speedKmh*3600 : null
-  const etaTs = etaSecs ? now+etaSecs : null
-  const boatTs = etaTs ? etaTs-57*60 : null
+  const hasData   = data && data.lat
+  const isGround  = hasData && data.alt < 200
+  const isAir     = hasData && !isGround
+  const kmLeft    = hasData ? distToMLE(data.lat, data.lon) : null
+  const speedKmh  = hasData && data.gspeed>0 ? data.gspeed*1.852 : null
+
+  // Priority: FR24 summary ETA > position-based calculation
+  let etaTs = null
+  if (data?.fr24_eta) {
+    // FR24 gives ISO timestamp or Unix
+    const ts = typeof data.fr24_eta === 'number' ? data.fr24_eta : Date.parse(data.fr24_eta)/1000
+    if (ts && ts > now) etaTs = ts
+  }
+  if (!etaTs && data?.estimated_arr) {
+    const ts = typeof data.estimated_arr === 'number' ? data.estimated_arr : Date.parse(data.estimated_arr)/1000
+    if (ts && ts > now) etaTs = ts
+  }
+  if (!etaTs && data?.scheduled_arr) {
+    const ts = typeof data.scheduled_arr === 'number' ? data.scheduled_arr : Date.parse(data.scheduled_arr)/1000
+    if (ts) etaTs = ts
+  }
+  // Fallback: calculate from position if no FR24 ETA
+  if (!etaTs && kmLeft && speedKmh) {
+    etaTs = now + (kmLeft/speedKmh*3600)*1.05
+  }
+
+  const etaSecs  = etaTs ? Math.max(0, etaTs - now) : null
+  const boatTs   = etaTs ? etaTs - 57*60 : null
+  const depTs    = data?.actual_dep ? (typeof data.actual_dep === 'number' ? data.actual_dep : Date.parse(data.actual_dep)/1000) : null
   const progress = isAir && etaSecs ? Math.min(95,Math.max(5,100-(etaSecs/7200*100))) : isGround?100:0
 
   const statusLabel = isGround?'Landed':isAir?'Airborne':'Scheduled'
@@ -1564,10 +1600,10 @@ function FlightCard({ flight, data, isMobile, onRemove }) {
       {/* Info grid */}
       <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr 1fr':'repeat(4,1fr)'}}>
         {[
-          {label:'ETA Malé',       value:etaTs?fmtTime(etaTs):'—',                    color:isAir?'#2563EB':B.textPrimary, sub:'Velana VIA'},
+          {label:'Departed',       value:depTs?fmtTime(depTs):'—',                   color:B.textPrimary,                  sub:'actual time'},
+          {label:'ETA Malé',       value:etaTs?fmtTime(etaTs):'—',                    color:isAir?'#2563EB':B.textPrimary,  sub: data?.fr24_eta ? 'via FR24' : 'estimated'},
           {label:'⚓ Boat Dispatch',value:boatTs?fmtTime(boatTs):'—',                  color:B.gold,                         sub:boatTs&&boatTs>now?'upcoming':'—'},
           {label:'Remaining',      value:isAir?fmtDur(etaSecs||0):isGround?'Arrived':'Pending', color:B.textPrimary,         sub:isAir?'to MLE':''},
-          {label:'Distance',       value:kmLeft?Math.round(kmLeft)+' km':'—',          color:B.textPrimary,                  sub:'to Malé'},
         ].map((item,i)=>(
           <div key={i} style={{padding:'12px 14px',borderRight:i<3?`0.5px solid ${B.border}`:'none',borderBottom:'none'}}>
             <div style={{fontSize:10,color:B.textMuted,textTransform:'uppercase',letterSpacing:'.8px',marginBottom:4}}>{item.label}</div>
@@ -1616,21 +1652,67 @@ function FlightTrackerView({ isMobile }) {
     setLoading(true)
     try {
       const callsigns = flights.map(toCallsign).join(',')
-      const res = await fetch(`/.netlify/functions/fr24?flights=${callsigns}`)
-      if (res.ok) {
-        const json = await res.json()
-        setIsLive(true)
-        if (json.data && json.data.length>0) {
-          const map = {}
-          json.data.forEach(d => {
-            flights.forEach(f => {
-              if (toCallsign(f)===d.callsign) map[f] = { ...d, orig: FLIGHT_ORIGINS[f] || d.orig || null }
-            })
+      const today = new Date().toISOString().slice(0,10)
+
+      // Fetch both live position AND flight summary in parallel
+      const [liveRes, summaryRes] = await Promise.all([
+        fetch(`/.netlify/functions/fr24?flights=${callsigns}&mode=live`),
+        fetch(`/.netlify/functions/fr24?flights=${callsigns}&mode=summary&date=${today}`),
+      ])
+
+      const liveJson    = liveRes.ok    ? await liveRes.json()    : { data: [] }
+      const summaryJson = summaryRes.ok ? await summaryRes.json() : { data: [] }
+
+      setIsLive(true)
+
+      // Build map from live data (position, speed, altitude)
+      const map = {}
+      if (liveJson.data?.length > 0) {
+        liveJson.data.forEach(d => {
+          flights.forEach(f => {
+            if (toCallsign(f) === d.callsign) {
+              map[f] = {
+                ...map[f],
+                lat: d.lat, lon: d.lon, alt: d.alt,
+                gspeed: d.gspeed, track: d.track,
+                callsign: d.callsign,
+                orig: FLIGHT_ORIGINS[f] || null,
+              }
+            }
           })
-          setLiveData(prev=>({...prev,...map}))
-        }
+        })
       }
-    } catch(e) {}
+
+      // Overlay summary data (precise dep/arr times from FR24)
+      if (summaryJson.data?.length > 0) {
+        summaryJson.data.forEach(d => {
+          const fn = d.flight_number || d.callsign || ''
+          flights.forEach(f => {
+            if (
+              fn.replace(/\s/g,'').toUpperCase() === f.toUpperCase() ||
+              (d.callsign && d.callsign === toCallsign(f))
+            ) {
+              map[f] = {
+                ...map[f],
+                orig: d.orig_iata || d.airport_from_iata || FLIGHT_ORIGINS[f] || map[f]?.orig || null,
+                dest: d.dest_iata || d.airport_to_iata || 'MLE',
+                scheduled_arr: d.scheduled_time_arr || d.sta || null,
+                actual_arr:    d.actual_time_arr    || d.ata || null,
+                estimated_arr: d.estimated_time_arr || d.eta || null,
+                scheduled_dep: d.scheduled_time_dep || d.std || null,
+                actual_dep:    d.actual_time_dep    || d.atd || null,
+                status:        d.status || null,
+                fr24_eta:      d.estimated_time_arr || d.eta || null,
+              }
+            }
+          })
+        })
+      }
+
+      if (Object.keys(map).length > 0) {
+        setLiveData(prev => ({ ...prev, ...map }))
+      }
+    } catch(e) { console.log('FR24 error:', e) }
     setLoading(false)
   }
 
