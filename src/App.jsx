@@ -1116,42 +1116,56 @@ const INITIAL_MEMBERS = [
 
 function RosterView({ user, isMobile }) {
   const now = new Date()
-  const [year,  setYear]  = useState(now.getFullYear())
-  const [month, setMonth] = useState(now.getMonth())
+  const initPeriod = () => {
+    if (now.getDate() >= 21) return { year: now.getFullYear(), month: now.getMonth() }
+    return now.getMonth() === 0
+      ? { year: now.getFullYear() - 1, month: 11 }
+      : { year: now.getFullYear(), month: now.getMonth() - 1 }
+  }
+  const [year,  setYear]  = useState(initPeriod().year)
+  const [month, setMonth] = useState(initPeriod().month)
   const [locked, setLocked] = useState(false)
   const [members] = useState(INITIAL_MEMBERS)
+  const [activeCell, setActiveCell] = useState(null)
   const canEdit = user?.role === 'super_admin' || user?.role === 'resort_admin'
 
-  const daysInMonth = new Date(year, month+1, 0).getDate()
-  const days = Array.from({length: daysInMonth}, (_, i) => {
-    const d = new Date(year, month, i+1)
-    return { day: i+1, dow: ['S','M','T','W','T','F','S'][d.getDay()] }
-  })
+  const nextMonth = month === 11 ? 0 : month + 1
+  const nextYear  = month === 11 ? year + 1 : year
+  const endOfStartMonth = new Date(year, month + 1, 0).getDate()
+
+  const days = [
+    ...Array.from({ length: endOfStartMonth - 20 }, (_, i) => {
+      const d = new Date(year, month, 21 + i)
+      return { day: 21 + i, month, year, dow: ['S','M','T','W','T','F','S'][d.getDay()], key: `${year}-${month}-${21+i}` }
+    }),
+    ...Array.from({ length: 20 }, (_, i) => {
+      const d = new Date(nextYear, nextMonth, i + 1)
+      return { day: i + 1, month: nextMonth, year: nextYear, dow: ['S','M','T','W','T','F','S'][d.getDay()], key: `${nextYear}-${nextMonth}-${i+1}` }
+    }),
+  ]
 
   const initRoster = () => {
     const r = {}
-    members.forEach(m => { days.forEach(d => { r[`${m.id}-${d.day}`] = (d.day % 7 === 0) ? 'O' : 'G' }) })
+    members.forEach(m => { days.forEach(d => { r[`${m.id}-${d.key}`] = d.day % 7 === 0 ? 'O' : 'G' }) })
     return r
   }
   const [roster, setRoster] = useState(initRoster)
 
-  const monthKey = `${year}-${month}`
-  const prevMonthKey = useRef(monthKey)
-  if (prevMonthKey.current !== monthKey) { prevMonthKey.current = monthKey; setRoster(initRoster()) }
+  const periodKey = `${year}-${month}`
+  const prevPeriodKey = useRef(periodKey)
+  if (prevPeriodKey.current !== periodKey) { prevPeriodKey.current = periodKey; setRoster(initRoster()) }
 
-  const cycleShift = (memberId, day) => {
-    if (locked || !canEdit) return
-    const key = `${memberId}-${day}`
-    const current = roster[key] || 'G'
-    const idx = SHIFT_CYCLE.indexOf(current)
-    const next = SHIFT_CYCLE[(idx+1) % SHIFT_CYCLE.length]
-    setRoster(r => ({...r, [key]: next}))
+  const setShift = (memberId, dayKey, code) => {
+    setRoster(r => ({...r, [`${memberId}-${dayKey}`]: code}))
+    setActiveCell(null)
   }
 
   const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
-  const prevMonth = () => { if (month===0) { setMonth(11); setYear(y=>y-1) } else setMonth(m=>m-1) }
-  const nextMonth = () => { if (month===11) { setMonth(0); setYear(y=>y+1) } else setMonth(m=>m+1) }
-  const countCode = (memberId, code) => days.filter(d => roster[`${memberId}-${d.day}`]===code).length
+  const SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const prevPeriod = () => { if (month===0) { setMonth(11); setYear(y=>y-1) } else setMonth(m=>m-1) }
+  const nextPeriod = () => { if (month===11) { setMonth(0); setYear(y=>y+1) } else setMonth(m=>m+1) }
+  const countCode = (memberId, code) => days.filter(d => roster[`${memberId}-${d.key}`]===code).length
+  const periodLabel = `21 ${SHORT[month]} – 20 ${SHORT[nextMonth]} ${nextYear}`
 
   return (
     <div style={{ fontFamily:'var(--font-sans,system-ui)' }}>
@@ -1164,11 +1178,11 @@ function RosterView({ user, isMobile }) {
         <div style={{ flex:1, textAlign:'center' }}>
           <div style={{ fontSize:isMobile?14:18, fontWeight:600 }}>Boat Operations Duty Roster</div>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:10, marginTop:4 }}>
-            <button onClick={prevMonth} style={{ border:'none', background:'transparent', cursor:'pointer', fontSize:16, color:B.textSecond }}>‹</button>
-            <span style={{ fontSize:15, fontWeight:500 }}>{MONTH_NAMES[month]} {year}</span>
-            <button onClick={nextMonth} style={{ border:'none', background:'transparent', cursor:'pointer', fontSize:16, color:B.textSecond }}>›</button>
+            <button onClick={prevPeriod} style={{ border:'none', background:'transparent', cursor:'pointer', fontSize:16, color:B.textSecond }}>‹</button>
+            <span style={{ fontSize:15, fontWeight:500 }}>{periodLabel}</span>
+            <button onClick={nextPeriod} style={{ border:'none', background:'transparent', cursor:'pointer', fontSize:16, color:B.textSecond }}>›</button>
           </div>
-          {canEdit && <div style={{ fontSize:11, color:B.textSecond, marginTop:2 }}>{locked?'Roster locked':'Roster editable'}</div>}
+          {canEdit && <div style={{ fontSize:11, color:B.textSecond, marginTop:2 }}>{locked?'Roster locked':'Click any cell to select status'}</div>}
         </div>
         {canEdit && (
           <button onClick={()=>setLocked(l=>!l)} style={{ padding:isMobile?'5px 10px':'7px 18px', borderRadius:4, border:'none', background: locked?B.success:B.danger, color:'#fff', fontWeight:600, fontSize:isMobile?11:13, cursor:'pointer' }}>
@@ -1184,18 +1198,22 @@ function RosterView({ user, isMobile }) {
               <th style={{ padding:isMobile?'6px 8px':'8px 12px', textAlign:'left', borderBottom:`0.5px solid ${B.border}`, minWidth:isMobile?90:120, position:'sticky', left:0, background:B.pearl, zIndex:2 }}>
                 <span style={{ fontSize:11, color:B.textSecond, fontWeight:500 }}>MEMBER</span>
               </th>
-              {days.map(d => (
-                <th key={d.day} style={{ padding:'6px 4px', textAlign:'center', borderBottom:`0.5px solid ${B.border}`, minWidth:36, fontWeight: d.day===now.getDate()&&month===now.getMonth()&&year===now.getFullYear()?700:400, color: d.day===now.getDate()&&month===now.getMonth()&&year===now.getFullYear()?'#0EA5E9':B.textPrimary }}>
-                  {d.day}
-                </th>
-              ))}
+              {days.map(d => {
+                const isToday = d.day===now.getDate()&&d.month===now.getMonth()&&d.year===now.getFullYear()
+                const isFirst = d.day === 1
+                return (
+                  <th key={d.key} style={{ padding:'6px 4px', textAlign:'center', borderBottom:`0.5px solid ${B.border}`, minWidth:36, fontWeight:isToday?700:400, color:isToday?'#0EA5E9':B.textPrimary, borderLeft: isFirst?`2px solid ${B.borderMid}`:'none' }}>
+                    {d.day}
+                  </th>
+                )
+              })}
               <th style={{ padding:'6px 8px', textAlign:'center', borderBottom:`0.5px solid ${B.border}`, minWidth:36, fontSize:10, color:B.textSecond }}>OFF</th>
               <th style={{ padding:'6px 8px', textAlign:'center', borderBottom:`0.5px solid ${B.border}`, minWidth:36, fontSize:10, color:B.textSecond }}>AL</th>
             </tr>
             <tr style={{ background:B.pearl }}>
               <th style={{ padding:'2px 12px', borderBottom:'1px solid rgba(26,69,48,0.12)', position:'sticky', left:0, background:B.pearl, zIndex:2 }}></th>
               {days.map(d => (
-                <th key={d.day} style={{ padding:'2px 4px', textAlign:'center', borderBottom:'1px solid rgba(26,69,48,0.12)', fontSize:10, color:B.textSecond, fontWeight:400 }}>{d.dow}</th>
+                <th key={d.key} style={{ padding:'2px 4px', textAlign:'center', borderBottom:'1px solid rgba(26,69,48,0.12)', fontSize:10, color:B.textSecond, fontWeight:400, borderLeft: d.day===1?`2px solid ${B.borderMid}`:'none' }}>{d.dow}</th>
               ))}
               <th style={{ borderBottom:'1px solid rgba(26,69,48,0.12)' }}></th>
               <th style={{ borderBottom:'1px solid rgba(26,69,48,0.12)' }}></th>
@@ -1214,13 +1232,30 @@ function RosterView({ user, isMobile }) {
                   </div>
                 </td>
                 {days.map(d => {
-                  const code = roster[`${m.id}-${d.day}`] || 'G'
+                  const rKey = `${m.id}-${d.key}`
+                  const code = roster[rKey] || 'G'
                   const shift = SHIFT_MAP[code] || SHIFT_MAP['G']
-                  const isToday = d.day===now.getDate()&&month===now.getMonth()&&year===now.getFullYear()
+                  const isToday = d.day===now.getDate()&&d.month===now.getMonth()&&d.year===now.getFullYear()
+                  const isActive = activeCell === rKey
                   return (
-                    <td key={d.day} onClick={()=>cycleShift(m.id, d.day)}
-                      style={{ padding:0, textAlign:'center', borderBottom:`0.5px solid ${B.border}`, cursor:(canEdit&&!locked)?'pointer':'default', outline: isToday?`2px solid ${B.freshPalm}`:'none', outlineOffset:'-2px' }}>
-                      <div style={{ background:shift.bg, color:shift.text, fontWeight:700, fontSize:11, padding:'7px 2px', minWidth:34, userSelect:'none' }} title={shift.label}>{code}</div>
+                    <td key={d.key} style={{ padding:0, textAlign:'center', borderBottom:`0.5px solid ${B.border}`, outline: isToday?`2px solid ${B.freshPalm}`:'none', outlineOffset:'-2px', borderLeft: d.day===1?`2px solid ${B.borderMid}`:'none' }}>
+                      {isActive && canEdit && !locked ? (
+                        <select
+                          autoFocus
+                          value={code}
+                          onChange={e => setShift(m.id, d.key, e.target.value)}
+                          onBlur={() => setActiveCell(null)}
+                          style={{ width:'100%', fontSize:10, border:'none', background:shift.bg, color:shift.text, fontWeight:700, padding:'6px 2px', cursor:'pointer', outline:'none', minWidth:34 }}
+                        >
+                          {SHIFT_CODES.map(s => <option key={s.code} value={s.code}>{s.code} – {s.label}</option>)}
+                        </select>
+                      ) : (
+                        <div
+                          onClick={() => canEdit && !locked && setActiveCell(rKey)}
+                          style={{ background:shift.bg, color:shift.text, fontWeight:700, fontSize:11, padding:'7px 2px', minWidth:34, userSelect:'none', cursor:(canEdit&&!locked)?'pointer':'default' }}
+                          title={shift.label}
+                        >{code}</div>
+                      )}
                     </td>
                   )
                 })}
