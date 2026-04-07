@@ -1296,236 +1296,299 @@ const IATA_TO_ICAO = {
 }
 
 const AIRLINE_INFO = {
-  EK: { name:'Emirates',            logo:'https://www.gstatic.com/flights/airline_logos/70px/EK.png',  color:'#C60C30' },
-  QR: { name:'Qatar Airways',       logo:'https://www.gstatic.com/flights/airline_logos/70px/QR.png',  color:'#5C0632' },
-  BA: { name:'British Airways',     logo:'https://www.gstatic.com/flights/airline_logos/70px/BA.png',  color:'#075AAA' },
-  SQ: { name:'Singapore Airlines',  logo:'https://www.gstatic.com/flights/airline_logos/70px/SQ.png',  color:'#192F5D' },
-  EY: { name:'Etihad Airways',      logo:'https://www.gstatic.com/flights/airline_logos/70px/EY.png',  color:'#BD8B13' },
-  TK: { name:'Turkish Airlines',    logo:'https://www.gstatic.com/flights/airline_logos/70px/TK.png',  color:'#C8102E' },
-  MH: { name:'Malaysia Airlines',   logo:'https://www.gstatic.com/flights/airline_logos/70px/MH.png',  color:'#003087' },
-  OD: { name:'Batik Air Malaysia',  logo:'https://www.gstatic.com/flights/airline_logos/70px/OD.png',  color:'#8B0000' },
-  UL: { name:'SriLankan Airlines',  logo:'https://www.gstatic.com/flights/airline_logos/70px/UL.png',  color:'#5B2D8E' },
-  GF: { name:'Gulf Air',            logo:'https://www.gstatic.com/flights/airline_logos/70px/GF.png',  color:'#C8102E' },
-  WY: { name:'Oman Air',            logo:'https://www.gstatic.com/flights/airline_logos/70px/WY.png',  color:'#C8102E' },
-  FZ: { name:'flydubai',            logo:'https://www.gstatic.com/flights/airline_logos/70px/FZ.png',  color:'#E8413A' },
-  AI: { name:'Air India',           logo:'https://www.gstatic.com/flights/airline_logos/70px/AI.png',  color:'#E03C31' },
-  '6E':{ name:'IndiGo',             logo:'https://www.gstatic.com/flights/airline_logos/70px/6E.png',  color:'#1B4FA0' },
-  MU: { name:'China Eastern',       logo:'https://www.gstatic.com/flights/airline_logos/70px/MU.png',  color:'#E4002B' },
-  MF: { name:'Xiamen Airlines',     logo:'https://www.gstatic.com/flights/airline_logos/70px/MF.png',  color:'#0055A5' },
-  AK: { name:'AirAsia',             logo:'https://www.gstatic.com/flights/airline_logos/70px/AK.png',  color:'#FF0000' },
-  BS: { name:'US-Bangla Airlines',  logo:'https://www.gstatic.com/flights/airline_logos/70px/BS.png',  color:'#E31837' },
-  KL: { name:'KLM',                 logo:'https://www.gstatic.com/flights/airline_logos/70px/KL.png',  color:'#009FE3' },
-  LH: { name:'Lufthansa',           logo:'https://www.gstatic.com/flights/airline_logos/70px/LH.png',  color:'#05164D' },
-  AF: { name:'Air France',          logo:'https://www.gstatic.com/flights/airline_logos/70px/AF.png',  color:'#002157' },
-  LX: { name:'Swiss',               logo:'https://www.gstatic.com/flights/airline_logos/70px/LX.png',  color:'#E4002B' },
-  DE: { name:'Condor',              logo:'https://www.gstatic.com/flights/airline_logos/70px/DE.png',  color:'#FF6600' },
-  WK: { name:'Edelweiss Air',       logo:'https://www.gstatic.com/flights/airline_logos/70px/WK.png',  color:'#1A5276' },
-  G9: { name:'Air Arabia',          logo:'https://www.gstatic.com/flights/airline_logos/70px/G9.png',  color:'#E31837' },
-  NO: { name:'Neos',                logo:'https://www.gstatic.com/flights/airline_logos/70px/NO.png',  color:'#FF6600' },
-  LO: { name:'LOT Polish Airlines', logo:'https://www.gstatic.com/flights/airline_logos/70px/LO.png',  color:'#005CA9' },
-  NR: { name:'Manta Air',           logo:'https://www.gstatic.com/flights/airline_logos/70px/NR.png',  color:'#0077C8' },
-  Q2: { name:'Maldivian',           logo:'https://www.gstatic.com/flights/airline_logos/70px/Q2.png',  color:'#006341' },
-}
-
-const FLIGHT_ORIGINS = {
-  // From official Baros schedule
-  AK74:'KUL',  BA060:'LGW', BA061:'LGW',
-  DE2320:'FRA', DE2321:'FRA',
-  EK656:'DXB', EK658:'DXB', EK660:'DXB',
-  EY260:'AUH',
-  FZ1025:'DXB', FZ1026:'DXB',
-  G9093:'SHJ', G9094:'SHJ',
-  GF144:'BAH', GF145:'BAH',
-  MF889:'XMN', MF890:'XMN',
-  MH483:'KUL', MH485:'KUL',
-  MU235:'PVG', MU236:'PVG',
-  NO510:'MXP', NO511:'FCO',
-  OD293:'KUL', OD295:'KUL',
-  QR670:'DOH', QR672:'DOH',
-  SQ430:'SIN', SQ432:'SIN',
-  TK734:'IST', TK736:'IST',
-  UL101:'CMB', UL103:'CMB', UL115:'CMB',
-  WK066:'ZRH', WK067:'ZRH',
-  WY383:'MCT', WY384:'MCT',
-  // IndiGo India routes
-  '6E1129':'TRV', '6E1131':'TRV',
-  '6E1045':'COK', '6E1047':'COK',
-  '6E1081':'BOM', '6E1083':'BOM',
-  '6E1041':'DEL', '6E1043':'DEL',
-  // US-Bangla
-  BS337:'DAC', BS339:'DAC',
-  // LOT Polish
-  LO131:'WAW', LO133:'WAW',
+  EK: { name:'Emirates',             logo:'https://www.gstatic.com/flights/airline_logos/70px/EK.png', color:'#C60C30' },
+  QR: { name:'Qatar Airways',        logo:'https://www.gstatic.com/flights/airline_logos/70px/QR.png', color:'#5C0632' },
+  BA: { name:'British Airways',      logo:'https://www.gstatic.com/flights/airline_logos/70px/BA.png', color:'#075AAA' },
+  SQ: { name:'Singapore Airlines',   logo:'https://www.gstatic.com/flights/airline_logos/70px/SQ.png', color:'#192F5D' },
+  EY: { name:'Etihad Airways',       logo:'https://www.gstatic.com/flights/airline_logos/70px/EY.png', color:'#BD8B13' },
+  TK: { name:'Turkish Airlines',     logo:'https://www.gstatic.com/flights/airline_logos/70px/TK.png', color:'#C8102E' },
+  MH: { name:'Malaysia Airlines',    logo:'https://www.gstatic.com/flights/airline_logos/70px/MH.png', color:'#003087' },
+  OD: { name:'Batik Air Malaysia',   logo:'https://www.gstatic.com/flights/airline_logos/70px/OD.png', color:'#8B0000' },
+  UL: { name:'SriLankan Airlines',   logo:'https://www.gstatic.com/flights/airline_logos/70px/UL.png', color:'#5B2D8E' },
+  GF: { name:'Gulf Air',             logo:'https://www.gstatic.com/flights/airline_logos/70px/GF.png', color:'#C8102E' },
+  WY: { name:'Oman Air',             logo:'https://www.gstatic.com/flights/airline_logos/70px/WY.png', color:'#C8102E' },
+  FZ: { name:'flydubai',             logo:'https://www.gstatic.com/flights/airline_logos/70px/FZ.png', color:'#E8413A' },
+  AI: { name:'Air India',            logo:'https://www.gstatic.com/flights/airline_logos/70px/AI.png', color:'#E03C31' },
+  '6E':{ name:'IndiGo',              logo:'https://www.gstatic.com/flights/airline_logos/70px/6E.png', color:'#1B4FA0' },
+  MU: { name:'China Eastern',        logo:'https://www.gstatic.com/flights/airline_logos/70px/MU.png', color:'#E4002B' },
+  MF: { name:'Xiamen Airlines',      logo:'https://www.gstatic.com/flights/airline_logos/70px/MF.png', color:'#0055A5' },
+  AK: { name:'AirAsia',              logo:'https://www.gstatic.com/flights/airline_logos/70px/AK.png', color:'#FF0000' },
+  BS: { name:'US-Bangla Airlines',   logo:'https://www.gstatic.com/flights/airline_logos/70px/BS.png', color:'#E31837' },
+  KL: { name:'KLM',                  logo:'https://www.gstatic.com/flights/airline_logos/70px/KL.png', color:'#009FE3' },
+  LH: { name:'Lufthansa',            logo:'https://www.gstatic.com/flights/airline_logos/70px/LH.png', color:'#05164D' },
+  AF: { name:'Air France',           logo:'https://www.gstatic.com/flights/airline_logos/70px/AF.png', color:'#002157' },
+  LX: { name:'Swiss',                logo:'https://www.gstatic.com/flights/airline_logos/70px/LX.png', color:'#E4002B' },
+  DE: { name:'Condor',               logo:'https://www.gstatic.com/flights/airline_logos/70px/DE.png', color:'#FF6600' },
+  WK: { name:'Edelweiss Air',        logo:'https://www.gstatic.com/flights/airline_logos/70px/WK.png', color:'#1A5276' },
+  G9: { name:'Air Arabia',           logo:'https://www.gstatic.com/flights/airline_logos/70px/G9.png', color:'#E31837' },
+  NO: { name:'Neos',                 logo:'https://www.gstatic.com/flights/airline_logos/70px/NO.png', color:'#FF6600' },
+  LO: { name:'LOT Polish Airlines',  logo:'https://www.gstatic.com/flights/airline_logos/70px/LO.png', color:'#005CA9' },
+  NR: { name:'Manta Air',            logo:'https://www.gstatic.com/flights/airline_logos/70px/NR.png', color:'#0077C8' },
+  Q2: { name:'Maldivian',            logo:'https://www.gstatic.com/flights/airline_logos/70px/Q2.png', color:'#006341' },
 }
 
 const AIRPORT_NAMES = {
-  // Middle East
-  DXB:'Dubai', DOH:'Doha', AUH:'Abu Dhabi', MCT:'Muscat',
-  BAH:'Bahrain', SHJ:'Sharjah', KWI:'Kuwait', AMM:'Amman',
-  // Asia
-  SIN:'Singapore', KUL:'Kuala Lumpur', CMB:'Colombo', IST:'Istanbul',
-  BKK:'Bangkok', CGK:'Jakarta', HKG:'Hong Kong', ICN:'Seoul Incheon',
-  NRT:'Tokyo Narita', PVG:'Shanghai Pudong', PEK:'Beijing Capital',
-  CAN:'Guangzhou', XMN:'Xiamen', CTU:'Chengdu', SZX:'Shenzhen',
-  // India
-  BOM:'Mumbai', DEL:'Delhi', TRV:'Thiruvananthapuram', COK:'Kochi',
-  MAA:'Chennai', BLR:'Bengaluru', HYD:'Hyderabad', CCU:'Kolkata',
-  AMD:'Ahmedabad', GOI:'Goa', TRZ:'Tiruchirappalli',
-  // South Asia
-  DAC:'Dhaka', KHI:'Karachi', LHE:'Lahore', CMB:'Colombo',
-  // Europe
-  LHR:'London Heathrow', LGW:'London Gatwick', CDG:'Paris CDG',
-  FRA:'Frankfurt', ZRH:'Zurich', VIE:'Vienna', AMS:'Amsterdam',
-  MXP:'Milan Malpensa', FCO:'Rome Fiumicino', WAW:'Warsaw',
-  GVA:'Geneva', MUC:'Munich', BCN:'Barcelona', MAD:'Madrid',
-  // Africa
-  JNB:'Johannesburg', NBO:'Nairobi', ADD:'Addis Ababa',
-  // Maldives
-  MLE:'Malé VIA',
+  DXB:'Dubai', DOH:'Doha', AUH:'Abu Dhabi', MCT:'Muscat', BAH:'Bahrain',
+  SHJ:'Sharjah', SIN:'Singapore', KUL:'Kuala Lumpur', CMB:'Colombo',
+  IST:'Istanbul', PVG:'Shanghai', XMN:'Xiamen', LGW:'London Gatwick',
+  LHR:'London Heathrow', FRA:'Frankfurt', ZRH:'Zurich', WAW:'Warsaw',
+  MXP:'Milan', FCO:'Rome', CDG:'Paris', BOM:'Mumbai', DEL:'Delhi',
+  TRV:'Thiruvananthapuram', COK:'Kochi', MAA:'Chennai', BLR:'Bengaluru',
+  HYD:'Hyderabad', CCU:'Kolkata', DAC:'Dhaka', MLE:'Malé VIA',
 }
+
+const SCHEDULE = [
+  { flight:'FZ1025', airline:'flydubai',           orig:'DXB', arr:'01:10', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'WY383',  airline:'Oman Air',            orig:'MCT', arr:'03:30', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'WY384',  airline:'Oman Air',            orig:'MCT', arr:'03:30', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'GF144',  airline:'Gulf Air',            orig:'BAH', arr:'06:35', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'EK656',  airline:'Emirates',            orig:'DXB', arr:'07:35', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'QR672',  airline:'Qatar Airways',       orig:'DOH', arr:'07:50', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'WK066',  airline:'Edelweiss Air',       orig:'ZRH', arr:'07:50', days:['Sun','Tue','Thu','Sat'] },
+  { flight:'WK067',  airline:'Edelweiss Air',       orig:'ZRH', arr:'07:50', days:['Sun','Tue','Thu','Sat'] },
+  { flight:'G9093',  airline:'Air Arabia',          orig:'SHJ', arr:'08:10', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'G9094',  airline:'Air Arabia',          orig:'SHJ', arr:'08:10', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'EY260',  airline:'Etihad Airways',      orig:'AUH', arr:'09:00', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'BA060',  airline:'British Airways',     orig:'LGW', arr:'09:40', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'BA061',  airline:'British Airways',     orig:'LGW', arr:'09:40', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'AK74',   airline:'AirAsia',             orig:'KUL', arr:'09:55', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'DE2320', airline:'Condor',              orig:'FRA', arr:'10:00', days:['Sun','Tue','Thu','Sat'] },
+  { flight:'DE2321', airline:'Condor',              orig:'FRA', arr:'10:00', days:['Sun','Tue','Thu','Sat'] },
+  { flight:'NO510',  airline:'Neos',                orig:'MXP', arr:'09:15', days:['Sun','Tue','Thu','Sat'] },
+  { flight:'NO511',  airline:'Neos',                orig:'FCO', arr:'09:15', days:['Sun','Tue','Thu','Sat'] },
+  { flight:'MH485',  airline:'Malaysia Airlines',   orig:'KUL', arr:'11:00', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'SQ432',  airline:'Singapore Airlines',  orig:'SIN', arr:'11:40', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'MF889',  airline:'Xiamen Airlines',     orig:'XMN', arr:'12:10', days:['Mon','Wed','Fri'] },
+  { flight:'TK734',  airline:'Turkish Airlines',    orig:'IST', arr:'12:35', days:['Sun','Tue','Thu','Sat'] },
+  { flight:'MU235',  airline:'China Eastern',       orig:'PVG', arr:'17:50', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'OD293',  airline:'Batik Air Malaysia',  orig:'KUL', arr:null,    days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'OD295',  airline:'Batik Air Malaysia',  orig:'KUL', arr:null,    days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'UL101',  airline:'SriLankan Airlines',  orig:'CMB', arr:null,    days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'UL103',  airline:'SriLankan Airlines',  orig:'CMB', arr:null,    days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+  { flight:'UL115',  airline:'SriLankan Airlines',  orig:'CMB', arr:null,    days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
+]
+
+const FLIGHT_ORIGINS = Object.fromEntries(SCHEDULE.map(s => [s.flight, s.orig]))
 
 const toCallsign = (flight) => {
   const f = flight.toUpperCase().trim()
   for (const [iata, icao] of Object.entries(IATA_TO_ICAO)) {
-    if (f.startsWith(iata)) {
-      const num = f.slice(iata.length)
-      return icao + num
-    }
+    if (f.startsWith(iata)) return icao + f.slice(iata.length)
   }
   return f
 }
 
-const getAirlineCode = (flight) => flight.toUpperCase().replace(/[0-9]/g,'').trim()
+const getCode = (flight) => {
+  const f = flight.toUpperCase()
+  for (const code of Object.keys(AIRLINE_INFO)) {
+    if (f.startsWith(code)) return code
+  }
+  return f.replace(/[0-9]/g,'').trim()
+}
 
 const fmtTime = ts => {
   if (!ts) return '—'
-  return new Date(ts * 1000).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', timeZone:'Indian/Maldives' })
+  return new Date(ts*1000).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Indian/Maldives'})
+}
+const fmtDur = s => {
+  if (s<=0) return 'Arrived'
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60)
+  return h>0?`${h}h ${m}m`:`${m}m`
 }
 
-const fmtDur = secs => {
-  if (secs <= 0) return 'Landed'
-  const h = Math.floor(secs / 3600)
-  const m = Math.floor((secs % 3600) / 60)
-  return h > 0 ? `${h}h ${m}m` : `${m}m`
+const MLE_LAT=4.1755, MLE_LON=73.5293
+const distToMLE = (lat,lon) => {
+  const R=6371, dLat=(MLE_LAT-lat)*Math.PI/180, dLon=(MLE_LON-lon)*Math.PI/180
+  const a=Math.sin(dLat/2)**2+Math.cos(lat*Math.PI/180)*Math.cos(MLE_LAT*Math.PI/180)*Math.sin(dLon/2)**2
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))
 }
 
-const MLE_LAT = 4.1755, MLE_LON = 73.5293
-const distToMLE = (lat, lon) => {
-  const R = 6371
-  const dLat = (MLE_LAT - lat) * Math.PI / 180
-  const dLon = (MLE_LON - lon) * Math.PI / 180
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat*Math.PI/180)*Math.cos(MLE_LAT*Math.PI/180)*Math.sin(dLon/2)**2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+function AirlineLogo({ code, size=36 }) {
+  const info = AIRLINE_INFO[code] || {}
+  const [err, setErr] = useState(false)
+  if (info.logo && !err) {
+    return <img src={info.logo} alt={code} style={{width:size,height:size,objectFit:'contain'}} onError={()=>setErr(true)} />
+  }
+  return (
+    <div style={{width:size,height:size,background:info.color||B.freshPalm,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:size*0.3,fontWeight:700}}>
+      {code}
+    </div>
+  )
+}
+
+function TodayScheduleTable({ onTrack, trackedFlights }) {
+  const now = new Date()
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+  const today = dayNames[now.getDay()]
+  const nowMins = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Indian/Maldives'}).split(':').map(Number).reduce((a,b,i)=>i===0?a+b*60:a+b,0)
+
+  const todayFlights = SCHEDULE
+    .filter(f => f.days.includes(today))
+    .sort((a,b) => (a.arr||'99:99').localeCompare(b.arr||'99:99'))
+
+  if (!todayFlights.length) return null
+
+  return (
+    <div style={{background:B.white,border:`0.5px solid ${B.border}`,borderRadius:10,overflow:'hidden',marginBottom:16}}>
+      <div style={{padding:'10px 16px',background:B.pearl,borderBottom:`0.5px solid ${B.border}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{fontWeight:600,fontSize:13,color:B.textPrimary}}>
+          Today's Arrivals
+          <span style={{fontWeight:400,fontSize:11,color:B.textMuted,marginLeft:8}}>
+            {now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short',timeZone:'Indian/Maldives'})}
+          </span>
+        </div>
+        <span style={{fontSize:11,color:B.textMuted}}>{todayFlights.length} flights</span>
+      </div>
+      <div style={{overflowX:'auto'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:500}}>
+          <thead>
+            <tr style={{background:B.pearl,borderBottom:`0.5px solid ${B.border}`}}>
+              {['Airline','Flight','From','ETA','Status',''].map(h=>(
+                <th key={h} style={{padding:'7px 12px',textAlign:'left',fontSize:10,color:B.textMuted,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase'}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {todayFlights.map((f,i) => {
+              const code = getCode(f.flight)
+              const arrMins = f.arr ? f.arr.split(':').map(Number).reduce((a,b,i)=>i===0?a+b*60:a+b,0) : null
+              const isLanded   = arrMins !== null && nowMins > arrMins + 20
+              const isArriving = arrMins !== null && !isLanded && nowMins > arrMins - 90
+              const isTracked  = trackedFlights.includes(f.flight)
+              const statusLabel = isLanded ? '✓ Landed' : isArriving ? '● Arriving' : 'Scheduled'
+              const statusColor = isLanded ? '#059669' : isArriving ? '#2563EB' : B.textMuted
+              const statusBg    = isLanded ? '#ECFDF5' : isArriving ? '#EFF6FF' : B.pearl
+              return (
+                <tr key={i} style={{borderBottom:`0.5px solid ${B.border}`,background:i%2===0?B.white:B.pearl}}>
+                  <td style={{padding:'8px 12px'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <AirlineLogo code={code} size={28} />
+                    </div>
+                  </td>
+                  <td style={{padding:'8px 12px'}}>
+                    <div style={{fontWeight:700,color:B.textPrimary,fontFamily:'monospace',fontSize:13}}>{f.flight}</div>
+                    <div style={{fontSize:10,color:B.textMuted}}>{f.airline}</div>
+                  </td>
+                  <td style={{padding:'8px 12px'}}>
+                    <div style={{fontWeight:600,color:B.textPrimary}}>{f.orig}</div>
+                    <div style={{fontSize:10,color:B.textMuted}}>{AIRPORT_NAMES[f.orig]||f.orig}</div>
+                  </td>
+                  <td style={{padding:'8px 12px',fontFamily:'monospace',fontWeight:700,color:B.textPrimary,fontSize:13}}>{f.arr||'—'}</td>
+                  <td style={{padding:'8px 12px'}}>
+                    <span style={{background:statusBg,color:statusColor,borderRadius:99,padding:'3px 10px',fontSize:10,fontWeight:600}}>{statusLabel}</span>
+                  </td>
+                  <td style={{padding:'8px 12px',textAlign:'right'}}>
+                    {isTracked
+                      ? <span style={{fontSize:10,color:B.gold,fontWeight:500}}>● Tracking</span>
+                      : <button onClick={()=>onTrack(f.flight)} style={{padding:'4px 10px',borderRadius:4,border:`0.5px solid ${B.freshPalm}`,background:'transparent',color:B.freshPalm,fontSize:11,cursor:'pointer',fontWeight:500}}>+ Track</button>
+                    }
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
 }
 
 function FlightCard({ flight, data, isMobile, onRemove }) {
-  const now = Date.now() / 1000
-  const code = getAirlineCode(flight)
-  const info = AIRLINE_INFO[code] || { name: code, logo: null, color: '#1A4530' }
+  const now = Date.now()/1000
+  const code = getCode(flight)
+  const info = AIRLINE_INFO[code] || { name:code, color:B.freshPalm }
   const hasData = data && data.lat
   const isGround = hasData && data.alt < 200
   const isAir = hasData && !isGround
   const kmLeft = hasData ? distToMLE(data.lat, data.lon) : null
-  const speedKmh = hasData && data.gspeed > 0 ? data.gspeed * 1.852 : null
-  const etaSecs = (kmLeft && speedKmh) ? kmLeft / speedKmh * 3600 : null
-  const etaTs = etaSecs ? now + etaSecs : null
-  const boatTs = etaTs ? etaTs - 57 * 60 : null
-  const remaining = etaSecs || 0
-  const progress = isAir && etaSecs ? Math.min(95, Math.max(5, 100 - (etaSecs / 7200 * 100))) : isGround ? 100 : 0
+  const speedKmh = hasData && data.gspeed>0 ? data.gspeed*1.852 : null
+  const etaSecs = (kmLeft && speedKmh) ? kmLeft/speedKmh*3600 : null
+  const etaTs = etaSecs ? now+etaSecs : null
+  const boatTs = etaTs ? etaTs-57*60 : null
+  const progress = isAir && etaSecs ? Math.min(95,Math.max(5,100-(etaSecs/7200*100))) : isGround?100:0
 
-  const status = isGround ? 'Landed' : isAir ? 'Airborne' : 'Scheduled'
-  const statusColor = isGround ? '#059669' : isAir ? '#2563EB' : '#6B7280'
-  const statusBg = isGround ? '#ECFDF5' : isAir ? '#EFF6FF' : '#F9FAFB'
+  const statusLabel = isGround?'Landed':isAir?'Airborne':'Scheduled'
+  const statusColor = isGround?'#059669':isAir?'#2563EB':'#6B7280'
+  const statusBg    = isGround?'#ECFDF5':isAir?'#EFF6FF':'#F9FAFB'
+
+  const orig = data?.orig || FLIGHT_ORIGINS[flight] || null
 
   return (
-    <div style={{ background:'#fff', border:`0.5px solid ${B.border}`, borderRadius:12, overflow:'hidden', marginBottom:14, boxShadow:'0 1px 3px rgba(0,0,0,0.06)' }}>
-      {/* Card header */}
-      <div style={{ padding:'14px 18px', display:'flex', alignItems:'center', gap:14, borderBottom:`0.5px solid ${B.border}`, background:B.pearl }}>
-        {/* Airline logo */}
-        <div style={{ width:44, height:44, borderRadius:8, background:'#fff', border:`0.5px solid ${B.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
-          {info.logo ? (
-            <img src={info.logo} alt={info.name} style={{ width:36, height:36, objectFit:'contain' }}
-              onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex' }} />
-          ) : null}
-          <div style={{ width:36, height:36, background:info.color, borderRadius:6, display: info.logo ? 'none' : 'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:12, fontWeight:700 }}>
-            {code}
+    <div style={{background:B.white,border:`0.5px solid ${B.border}`,borderRadius:12,overflow:'hidden',marginBottom:14,boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
+      {/* Header */}
+      <div style={{padding:'12px 16px',display:'flex',alignItems:'center',gap:12,borderBottom:`0.5px solid ${B.border}`,background:B.pearl}}>
+        <div style={{width:44,height:44,borderRadius:8,background:'#fff',border:`0.5px solid ${B.border}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden',padding:3}}>
+          <AirlineLogo code={code} size={36} />
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:18,fontWeight:700,color:B.textPrimary,letterSpacing:'-0.3px'}}>
+            {code} <span style={{color:info.color||B.freshPalm}}>{flight.slice(code.length)}</span>
+          </div>
+          <div style={{fontSize:11,color:B.textSecond,marginTop:1}}>
+            {info.name} {hasData && data.alt ? `· ${data.alt?.toLocaleString()} ft · ${data.gspeed} kts` : '· Awaiting position'}
           </div>
         </div>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontSize:18, fontWeight:700, color:B.textPrimary, letterSpacing:'-0.3px' }}>
-            {code} <span style={{ color:info.color }}>{flight.slice(code.length)}</span>
-          </div>
-          <div style={{ fontSize:12, color:B.textSecond, marginTop:2 }}>
-            {info.name} {hasData ? `· ${data.aircraft_type || ''}` : ''}
-          </div>
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <span style={{ background:statusBg, color:statusColor, border:`0.5px solid ${statusColor}30`, borderRadius:99, padding:'4px 12px', fontSize:11, fontWeight:600, display:'flex', alignItems:'center', gap:5 }}>
-            <span style={{ width:6, height:6, borderRadius:'50%', background:statusColor, display:'inline-block' }} />
-            {status}
-          </span>
-          <button onClick={onRemove} style={{ background:'transparent', border:'none', color:B.textMuted, cursor:'pointer', fontSize:18, lineHeight:1, padding:'0 4px' }}>×</button>
-        </div>
+        <span style={{background:statusBg,color:statusColor,borderRadius:99,padding:'4px 12px',fontSize:11,fontWeight:600,display:'flex',alignItems:'center',gap:5,flexShrink:0}}>
+          <span style={{width:6,height:6,borderRadius:'50%',background:statusColor,display:'inline-block'}}/>
+          {statusLabel}
+        </span>
+        <button onClick={onRemove} style={{background:'transparent',border:'none',color:B.textMuted,cursor:'pointer',fontSize:20,lineHeight:1,padding:'0 2px',flexShrink:0}}>×</button>
       </div>
 
       {/* Route bar */}
-      <div style={{ padding:'16px 18px', borderBottom:`0.5px solid ${B.border}` }}>
-        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-          <div style={{ textAlign:'left', minWidth:60 }}>
-            <div style={{ fontSize:22, fontWeight:700, color:B.textPrimary, letterSpacing:1 }}>
-              {data?.orig || '—'}
-            </div>
-            <div style={{ fontSize:11, color:B.textSecond, marginTop:2 }}>
-              {AIRPORT_NAMES[data?.orig] || 'Origin'}
-            </div>
+      <div style={{padding:'14px 16px',borderBottom:`0.5px solid ${B.border}`}}>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <div style={{textAlign:'left',minWidth:64}}>
+            <div style={{fontSize:22,fontWeight:700,color:B.textPrimary,letterSpacing:1}}>{orig||'—'}</div>
+            <div style={{fontSize:11,color:B.textSecond,marginTop:1}}>{orig?AIRPORT_NAMES[orig]||orig:'Origin'}</div>
           </div>
-          <div style={{ flex:1 }}>
-            <div style={{ fontSize:10, color:B.textMuted, textAlign:'center', marginBottom:6 }}>
-              {isAir ? fmtDur(remaining) + ' remaining' : isGround ? 'Arrived' : 'Awaiting position'}
+          <div style={{flex:1}}>
+            <div style={{fontSize:10,color:B.textMuted,textAlign:'center',marginBottom:5}}>
+              {isAir ? fmtDur(etaSecs||0)+' to MLE' : isGround?'Arrived':'No position yet'}
             </div>
-            <div style={{ height:3, background:B.breeze, borderRadius:99, position:'relative' }}>
-              <div style={{ width:`${progress}%`, height:'100%', background: isGround?'#059669':info.color||B.freshPalm, borderRadius:99, transition:'width 2s ease' }} />
-              {isAir && progress > 5 && (
-                <div style={{ position:'absolute', top:-5, left:`${progress}%`, transform:'translateX(-50%)', fontSize:14 }}>✈️</div>
+            <div style={{height:4,background:B.breeze,borderRadius:99,position:'relative'}}>
+              <div style={{width:`${progress}%`,height:'100%',background:isGround?'#059669':info.color||B.freshPalm,borderRadius:99,transition:'width 2s ease'}}/>
+              {isAir && progress>5 && (
+                <span style={{position:'absolute',top:-8,left:`${Math.min(progress,93)}%`,transform:'translateX(-50%)',fontSize:14}}>✈️</span>
               )}
             </div>
-            <div style={{ fontSize:10, color:B.textMuted, textAlign:'center', marginTop:4 }}>{Math.round(progress)}%</div>
+            <div style={{fontSize:10,color:B.textMuted,textAlign:'center',marginTop:3}}>{Math.round(progress)}%</div>
           </div>
-          <div style={{ textAlign:'right', minWidth:60 }}>
-            <div style={{ fontSize:22, fontWeight:700, color:B.textPrimary, letterSpacing:1 }}>MLE</div>
-            <div style={{ fontSize:11, color:B.textSecond, marginTop:2 }}>Malé VIA</div>
+          <div style={{textAlign:'right',minWidth:64}}>
+            <div style={{fontSize:22,fontWeight:700,color:B.textPrimary,letterSpacing:1}}>MLE</div>
+            <div style={{fontSize:11,color:B.textSecond,marginTop:1}}>Malé VIA</div>
           </div>
         </div>
       </div>
 
-      {/* Key info grid */}
-      <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr 1fr':'repeat(4,1fr)', borderBottom:`0.5px solid ${B.border}` }}>
+      {/* Info grid */}
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr 1fr':'repeat(4,1fr)'}}>
         {[
-          { label:'ETA Malé', value: etaTs ? fmtTime(etaTs) : '—', color: isAir?'#2563EB':B.textPrimary, sub:'Velana VIA' },
-          { label:'⚓ Boat Dispatch', value: boatTs ? fmtTime(boatTs) : '—', color: B.gold, sub: boatTs && boatTs > now ? 'upcoming' : '—' },
-          { label:'Remaining', value: isAir ? fmtDur(remaining) : isGround ? 'Landed' : 'Pending', color:B.textPrimary, sub:isAir?'to MLE':'' },
-          { label:'Distance', value: kmLeft ? Math.round(kmLeft) + ' km' : '—', color:B.textPrimary, sub:'to Malé' },
-        ].map((item, i) => (
-          <div key={i} style={{ padding:'12px 16px', borderRight: i<3?`0.5px solid ${B.border}`:'none' }}>
-            <div style={{ fontSize:10, color:B.textMuted, textTransform:'uppercase', letterSpacing:'.8px', marginBottom:5 }}>{item.label}</div>
-            <div style={{ fontSize:17, fontWeight:600, color:item.color, fontFamily:'monospace' }}>{item.value}</div>
-            <div style={{ fontSize:10, color:B.textMuted, marginTop:2 }}>{item.sub}</div>
+          {label:'ETA Malé',       value:etaTs?fmtTime(etaTs):'—',                    color:isAir?'#2563EB':B.textPrimary, sub:'Velana VIA'},
+          {label:'⚓ Boat Dispatch',value:boatTs?fmtTime(boatTs):'—',                  color:B.gold,                         sub:boatTs&&boatTs>now?'upcoming':'—'},
+          {label:'Remaining',      value:isAir?fmtDur(etaSecs||0):isGround?'Arrived':'Pending', color:B.textPrimary,         sub:isAir?'to MLE':''},
+          {label:'Distance',       value:kmLeft?Math.round(kmLeft)+' km':'—',          color:B.textPrimary,                  sub:'to Malé'},
+        ].map((item,i)=>(
+          <div key={i} style={{padding:'12px 14px',borderRight:i<3?`0.5px solid ${B.border}`:'none',borderBottom:'none'}}>
+            <div style={{fontSize:10,color:B.textMuted,textTransform:'uppercase',letterSpacing:'.8px',marginBottom:4}}>{item.label}</div>
+            <div style={{fontSize:16,fontWeight:700,color:item.color,fontFamily:'monospace'}}>{item.value}</div>
+            <div style={{fontSize:10,color:B.textMuted,marginTop:2}}>{item.sub}</div>
           </div>
         ))}
       </div>
 
-      {/* Telemetry bar */}
+      {/* Telemetry */}
       {hasData && (
-        <div style={{ padding:'10px 18px', background:B.pearl, display:'flex', gap:20, flexWrap:'wrap' }}>
+        <div style={{padding:'8px 14px',background:B.pearl,borderTop:`0.5px solid ${B.border}`,display:'flex',gap:20,flexWrap:'wrap'}}>
           {[
-            { label:'Alt', value: data.alt ? data.alt.toLocaleString() + ' ft' : '—' },
-            { label:'Speed', value: data.gspeed ? data.gspeed + ' kts' : '—' },
-            { label:'Heading', value: data.track ? data.track + '°' : '—' },
-            { label:'Position', value: `${data.lat?.toFixed(2)}°N  ${data.lon?.toFixed(2)}°E` },
-          ].map(item => (
-            <div key={item.label} style={{ display:'flex', gap:6, alignItems:'center' }}>
-              <span style={{ fontSize:10, color:B.textMuted, textTransform:'uppercase', letterSpacing:'.5px' }}>{item.label}</span>
-              <span style={{ fontSize:11, color:B.textPrimary, fontFamily:'monospace', fontWeight:500 }}>{item.value}</span>
+            {l:'Alt',   v:data.alt?data.alt.toLocaleString()+' ft':'—'},
+            {l:'Speed', v:data.gspeed?data.gspeed+' kts':'—'},
+            {l:'Hdg',   v:data.track?data.track+'°':'—'},
+            {l:'Pos',   v:data.lat?`${data.lat.toFixed(2)}°N  ${data.lon.toFixed(2)}°E`:'—'},
+          ].map(item=>(
+            <div key={item.l} style={{display:'flex',gap:5,alignItems:'center'}}>
+              <span style={{fontSize:10,color:B.textMuted,textTransform:'uppercase',letterSpacing:'.5px'}}>{item.l}</span>
+              <span style={{fontSize:11,color:B.textPrimary,fontFamily:'monospace',fontWeight:500}}>{item.v}</span>
             </div>
           ))}
         </div>
@@ -1535,23 +1598,18 @@ function FlightCard({ flight, data, isMobile, onRemove }) {
 }
 
 function FlightTrackerView({ isMobile }) {
-  const [tracked, setTracked] = useState([])
-  const [liveData, setLiveData] = useState({})
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [isLive, setIsLive] = useState(false)
-  const [clock, setClock] = useState(new Date())
+  const [tracked,   setTracked]   = useState([])
+  const [liveData,  setLiveData]  = useState({})
+  const [input,     setInput]     = useState('')
+  const [loading,   setLoading]   = useState(false)
+  const [isLive,    setIsLive]    = useState(false)
+  const [clock,     setClock]     = useState(new Date())
   const [refreshIn, setRefreshIn] = useState(30)
 
   useEffect(() => {
-    const t = setInterval(() => setClock(new Date()), 1000)
-    return () => clearInterval(t)
-  }, [])
-
-  const getOrig = (flight) => {
-    const f = flight.toUpperCase().replace(/\s/g,'')
-    return FLIGHT_ORIGINS[f] || null
-  }
+    const t = setInterval(()=>setClock(new Date()),1000)
+    return ()=>clearInterval(t)
+  },[])
 
   const fetchAll = async (flights) => {
     if (!flights.length) return
@@ -1562,14 +1620,14 @@ function FlightTrackerView({ isMobile }) {
       if (res.ok) {
         const json = await res.json()
         setIsLive(true)
-        if (json.data && json.data.length > 0) {
+        if (json.data && json.data.length>0) {
           const map = {}
           json.data.forEach(d => {
             flights.forEach(f => {
-              if (toCallsign(f) === d.callsign) map[f] = { ...d, orig: getOrig(f) || '—' }
+              if (toCallsign(f)===d.callsign) map[f] = { ...d, orig: FLIGHT_ORIGINS[f] || d.orig || null }
             })
           })
-          setLiveData(prev => ({ ...prev, ...map }))
+          setLiveData(prev=>({...prev,...map}))
         }
       }
     } catch(e) {}
@@ -1579,100 +1637,96 @@ function FlightTrackerView({ isMobile }) {
   useEffect(() => {
     if (!tracked.length) return
     fetchAll(tracked)
-    const t = setInterval(() => {
-      setRefreshIn(r => {
-        if (r <= 1) { fetchAll(tracked); return 30 }
-        return r - 1
-      })
-    }, 1000)
-    return () => clearInterval(t)
-  }, [tracked])
+    const t = setInterval(()=>{
+      setRefreshIn(r=>{ if(r<=1){fetchAll(tracked);return 30} return r-1 })
+    },1000)
+    return ()=>clearInterval(t)
+  },[tracked])
 
-  const addFlight = () => {
-    const f = input.toUpperCase().replace(/\s/g,'')
+  const addFlight = (fn) => {
+    const f = (fn||input).toUpperCase().replace(/\s/g,'')
     if (!f || tracked.includes(f)) { setInput(''); return }
-    const newTracked = [...tracked, f]
-    setTracked(newTracked)
+    const n = [...tracked, f]
+    setTracked(n)
     setInput('')
-    setTimeout(() => fetchAll(newTracked), 100)
+    setTimeout(()=>fetchAll(n),100)
   }
 
   const removeFlight = f => {
-    setTracked(t => t.filter(x => x !== f))
-    setLiveData(d => { const n = {...d}; delete n[f]; return n })
+    setTracked(t=>t.filter(x=>x!==f))
+    setLiveData(d=>{ const n={...d}; delete n[f]; return n })
   }
 
-  const airborne = tracked.filter(f => liveData[f] && liveData[f].alt > 200).length
-  const landed   = tracked.filter(f => liveData[f] && liveData[f].alt <= 200).length
-  const pending  = tracked.length - airborne - landed
+  const airborne = tracked.filter(f=>liveData[f]&&liveData[f].alt>200).length
+  const landed   = tracked.filter(f=>liveData[f]&&liveData[f].alt<=200).length
 
   return (
     <div>
       {/* Header */}
-      <div style={{ background:B.freshPalm, borderRadius:10, padding:isMobile?'16px':'20px 24px', marginBottom:20 }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
+      <div style={{background:B.freshPalm,borderRadius:10,padding:isMobile?'16px':'20px 24px',marginBottom:16}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
           <div>
-            <div style={{ fontSize:10, letterSpacing:'2px', color:'rgba(255,255,255,0.45)', textTransform:'uppercase', marginBottom:4 }}>Dhirumbaa · Live Operations</div>
-            <div style={{ fontSize:isMobile?16:20, fontWeight:600, color:'#fff' }}>Flight Tracker</div>
-            <div style={{ fontSize:11, color:'rgba(255,255,255,0.5)', marginTop:2 }}>Velana International Airport · North Malé Atoll</div>
+            <div style={{fontSize:10,letterSpacing:'2px',color:'rgba(255,255,255,0.45)',textTransform:'uppercase',marginBottom:4}}>Dhirumbaa · Live Operations</div>
+            <div style={{fontSize:isMobile?16:22,fontWeight:600,color:'#fff'}}>Flight Tracker</div>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.5)',marginTop:2}}>Velana International Airport · North Malé Atoll</div>
           </div>
-          <div style={{ textAlign:'right' }}>
-            <div style={{ fontSize:isMobile?22:30, fontWeight:300, color:B.gold, fontFamily:'monospace', letterSpacing:2 }}>
-              {clock.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', second:'2-digit', timeZone:'Indian/Maldives' })}
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:isMobile?22:30,fontWeight:300,color:B.gold,fontFamily:'monospace',letterSpacing:2}}>
+              {clock.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Indian/Maldives'})}
             </div>
-            <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', marginTop:2 }}>Maldives Time (MVT)</div>
+            <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginTop:2}}>Maldives Time (MVT)</div>
           </div>
         </div>
-
-        <div style={{ display:'flex', gap:10, marginTop:14, flexWrap:'wrap', alignItems:'center' }}>
+        <div style={{display:'flex',gap:10,marginTop:14,flexWrap:'wrap',alignItems:'center'}}>
           {[
-            { val:airborne, label:'Airborne', color:'#34D399' },
-            { val:landed,   label:'Landed',   color:'rgba(255,255,255,0.7)' },
-            { val:pending,  label:'Pending',  color:'rgba(255,255,255,0.5)' },
-            { val:tracked.length, label:'Tracked', color:B.gold },
-          ].map(s => (
-            <div key={s.label} style={{ background:'rgba(255,255,255,0.08)', borderRadius:8, padding:'6px 14px', textAlign:'center' }}>
-              <div style={{ fontSize:18, fontWeight:700, color:s.color, fontFamily:'monospace' }}>{s.val}</div>
-              <div style={{ fontSize:9, color:'rgba(255,255,255,0.4)', textTransform:'uppercase', letterSpacing:'.8px' }}>{s.label}</div>
+            {val:airborne,          label:'Airborne', color:'#34D399'},
+            {val:landed,            label:'Landed',   color:'rgba(255,255,255,0.7)'},
+            {val:tracked.length-airborne-landed, label:'Pending', color:'rgba(255,255,255,0.4)'},
+            {val:tracked.length,    label:'Tracked',  color:B.gold},
+          ].map(s=>(
+            <div key={s.label} style={{background:'rgba(255,255,255,0.08)',borderRadius:8,padding:'6px 14px',textAlign:'center'}}>
+              <div style={{fontSize:18,fontWeight:700,color:s.color,fontFamily:'monospace'}}>{s.val}</div>
+              <div style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:'.8px'}}>{s.label}</div>
             </div>
           ))}
-          <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
-            {isLive && <span style={{ fontSize:10, background:'rgba(52,211,153,0.15)', color:'#34D399', border:'0.5px solid rgba(52,211,153,0.3)', borderRadius:99, padding:'3px 10px' }}>● Live</span>}
-            <span style={{ fontSize:10, color:'rgba(255,255,255,0.3)' }}>↻ {refreshIn}s</span>
-            <button onClick={()=>fetchAll(tracked)} disabled={loading} style={{ fontSize:10, background:'rgba(255,255,255,0.1)', border:'0.5px solid rgba(255,255,255,0.15)', color:'rgba(255,255,255,0.7)', borderRadius:99, padding:'4px 12px', cursor:'pointer' }}>
-              {loading ? 'Loading…' : '↻ Refresh'}
+          <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:8}}>
+            {isLive && <span style={{fontSize:10,background:'rgba(52,211,153,0.15)',color:'#34D399',border:'0.5px solid rgba(52,211,153,0.3)',borderRadius:99,padding:'3px 10px'}}>● Live</span>}
+            <span style={{fontSize:10,color:'rgba(255,255,255,0.3)'}}>↻ {refreshIn}s</span>
+            <button onClick={()=>fetchAll(tracked)} disabled={loading} style={{fontSize:10,background:'rgba(255,255,255,0.1)',border:'0.5px solid rgba(255,255,255,0.15)',color:'rgba(255,255,255,0.7)',borderRadius:99,padding:'4px 12px',cursor:'pointer'}}>
+              {loading?'Loading…':'↻ Refresh'}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Add flight */}
-      <div style={{ display:'flex', gap:10, marginBottom:16 }}>
+      {/* Add flight input */}
+      <div style={{display:'flex',gap:10,marginBottom:16}}>
         <input
           value={input}
-          onChange={e => setInput(e.target.value.toUpperCase())}
-          onKeyDown={e => e.key==='Enter' && addFlight()}
-          placeholder="Add flight number — e.g. EK658, BA060, QR672, MH485"
-          style={{ ...INP, flex:1, letterSpacing:1 }}
+          onChange={e=>setInput(e.target.value.toUpperCase())}
+          onKeyDown={e=>e.key==='Enter'&&addFlight()}
+          placeholder="Add flight — e.g. EK656, QR672, MH485, SQ432"
+          style={{...INP,flex:1,letterSpacing:1}}
         />
-        <button onClick={addFlight} style={BTN_PRIMARY}>+ Track</button>
+        <button onClick={()=>addFlight()} style={BTN_PRIMARY}>+ Track</button>
       </div>
 
-      {/* Flight cards */}
-      {tracked.length === 0 ? (
-        <div style={{ padding:'48px 20px', textAlign:'center', color:B.textMuted, background:B.white, borderRadius:10, border:`0.5px solid ${B.border}` }}>
-          <div style={{ fontSize:36, marginBottom:10 }}>✈️</div>
-          <div style={{ fontWeight:500, fontSize:15, marginBottom:6, color:B.textPrimary }}>No flights tracked</div>
-          <div style={{ fontSize:12 }}>Add a flight number above to start live tracking</div>
+      {/* Today's schedule table */}
+      <TodayScheduleTable onTrack={addFlight} trackedFlights={tracked} />
+
+      {/* Live tracked cards */}
+      {tracked.length > 0 && (
+        <div style={{marginTop:4}}>
+          <div style={{fontSize:11,fontWeight:600,color:B.textMuted,textTransform:'uppercase',letterSpacing:'1px',marginBottom:10}}>Live Tracking</div>
+          {tracked.map(f=>(
+            <FlightCard key={f} flight={f} data={liveData[f]} isMobile={isMobile} onRemove={()=>removeFlight(f)} />
+          ))}
         </div>
-      ) : (
-        tracked.map(f => (
-          <FlightCard key={f} flight={f} data={liveData[f]} isMobile={isMobile} onRemove={() => removeFlight(f)} />
-        ))
       )}
     </div>
   )
 }
+
 
 // ─── App Shell ────────────────────────────────────────────────────────────────
 export default function DhirumbaaFMS() {
