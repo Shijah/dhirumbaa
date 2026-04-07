@@ -31,7 +31,8 @@ exports.handler = async (event) => {
       const res = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Accept-Version': 'v1'
         }
       })
       const text = await res.text()
