@@ -1424,17 +1424,48 @@ function FlightTrackerView({ isMobile }) {
     return () => clearInterval(t)
   }, [])
 
+  // Convert IATA flight numbers to callsigns for FR24 API
+  const toCallsign = (flight) => {
+    const IATA_TO_ICAO = {
+      EK:'UAE', BA:'BAW', SQ:'SIA', QR:'QTR', EY:'ETD',
+      TK:'THY', MH:'MAS', AI:'AIC', UL:'ALK', LX:'SWR',
+      OS:'AUA', VS:'VIR', '3U':'CSC', H4:'HSK', PG:'BKP',
+      '6E':'IGO', B4:'ZAN', JD:'CBJ', SU:'AFL', JL:'JAL',
+      NH:'ANA', CX:'CPA', KL:'KLM', AF:'AFR', LH:'DLH',
+    }
+    const code = flight.replace(/[0-9]/g,'').trim()
+    const num  = flight.replace(/[^0-9]/g,'').trim()
+    const icao = IATA_TO_ICAO[code]
+    return icao ? icao + num : flight
+  }
+
   const fetchLive = async (numbers) => {
     setLoading(true)
     try {
-      const res  = await fetch(`/.netlify/functions/fr24?flights=${numbers.join(',')}`)
-      const json = await res.json()
-      if (json.data && json.data.length > 0) {
-        const map = {}
-        json.data.forEach(f => { map[f.flight] = f })
-        setFlights(prev => prev.map(p => map[p.flight] ? { ...p, ...map[p.flight] } : p))
+      const callsigns = numbers.map(toCallsign)
+      const res = await fetch(`/.netlify/functions/fr24?flights=${callsigns.join(',')}`)
+      if (res.ok) {
+        const json = await res.json()
         setLiveMode(true)
         setLastUpd(new Date())
+        if (json.data && json.data.length > 0) {
+          const map = {}
+          json.data.forEach(f => {
+            const now = Date.now() / 1000
+            map[f.callsign] = {
+              lat: f.lat, lon: f.lon, alt: f.alt,
+              gspeed: f.gspeed, track: f.track,
+              on_ground: f.alt === 0,
+              departed: true,
+              eta_ts: now + 3600,
+              dep_ts: now - 3600,
+            }
+          })
+          setFlights(prev => prev.map(p => {
+            const cs = toCallsign(p.flight)
+            return map[cs] ? { ...p, ...map[cs] } : p
+          }))
+        }
       }
     } catch(e) {
       console.log('FR24 not configured — using demo data')
