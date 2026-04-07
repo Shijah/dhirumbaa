@@ -11,23 +11,36 @@ exports.handler = async (event) => {
     'Accept-Version': 'v1'
   }
 
+  const base = 'https://fr24api.flightradar24.com/api/live/flight-positions/light'
   const urls = [
-    'https://fr24api.flightradar24.com/api/live/flight-positions/light?callsigns=' + flights,
-    'https://fr24api.flightradar24.com/api/live/flight-positions/light?flights=' + flights,
-    'https://fr24api.flightradar24.com/api/live/flight-positions/light?flight_numbers=' + flights,
+    base + '?flights=' + flights,
+    base + '?callsigns=' + flights,
+    base + '?flight_numbers=' + flights,
   ]
 
-  const results = []
+  const allData = []
+  let isLive = false
+
   for (const url of urls) {
     try {
       const res = await fetch(url, { headers })
-      const text = await res.text()
-      results.push({ url, status: res.status, body: text })
-      if (res.ok) return { statusCode: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: text }
-    } catch (err) {
-      results.push({ url, error: err.message })
+      if (res.ok) {
+        const json = await res.json()
+        isLive = true
+        if (json.data && json.data.length > 0) {
+          allData.push(...json.data)
+        }
+      }
+    } catch (err) {}
+  }
+
+  if (isLive) {
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({ data: allData, live: true })
     }
   }
 
-  return { statusCode: 502, headers: {'Access-Control-Allow-Origin':'*'}, body: JSON.stringify({ tried: results }) }
+  return { statusCode: 502, headers: {'Access-Control-Allow-Origin':'*'}, body: JSON.stringify({ error: 'All endpoints failed' }) }
 }
