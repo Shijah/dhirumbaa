@@ -4,6 +4,7 @@ exports.handler = async (event) => {
   if (!flights) {
     return {
       statusCode: 400,
+      headers: { 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify({ error: 'No flight numbers provided' })
     }
   }
@@ -12,43 +13,47 @@ exports.handler = async (event) => {
   if (!apiKey) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'FR24_API_KEY not configured in Netlify environment variables' })
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({ error: 'FR24_API_KEY not configured' })
     }
   }
 
-  try {
-    const res = await fetch(
-      `https://fr24api.flightradar24.com/api/live/flight-positions/light?flight_numbers=${flights}`,
-      {
+  const urls = [
+    `https://fr24api.flightradar24.com/api/live/flight-positions/light?flight_numbers=${flights}`,
+    `https://fr24api.flightradar24.com/v1/live/flight-positions/light?flight_numbers=${flights}`,
+    `https://fr24api.flightradar24.com/api/live/flight-positions/full?flight_numbers=${flights}`,
+  ]
+
+  let lastError = ''
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Accept': 'application/json'
         }
+      })
+      const text = await res.text()
+      if (res.ok) {
+        return {
+          statusCode: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          },
+          body: text
+        }
       }
-    )
-
-    if (!res.ok) {
-      const err = await res.text()
-      return {
-        statusCode: res.status,
-        body: JSON.stringify({ error: `FR24 API error: ${err}` })
-      }
+      lastError = `${url} → ${res.status}: ${text}`
+    } catch (err) {
+      lastError = err.message
     }
+  }
 
-    const data = await res.json()
-
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      },
-      body: JSON.stringify(data)
-    }
-  } catch (err) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: err.message })
-    }
+  return {
+    statusCode: 502,
+    headers: { 'Access-Control-Allow-Origin': '*' },
+    body: JSON.stringify({ error: lastError })
   }
 }
