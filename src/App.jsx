@@ -1295,6 +1295,43 @@ const IATA_TO_ICAO = {
   UL:'ALK',  UX:'AEA',  VS:'VIR', WK:'EDW', WY:'OMA',
 }
 
+const AIRLINE_INFO = {
+  EK:{ name:'Emirates',            logo:'https://logo.clearbit.com/emirates.com',           color:'#C60C30' },
+  QR:{ name:'Qatar Airways',       logo:'https://logo.clearbit.com/qatarairways.com',        color:'#5C0632' },
+  BA:{ name:'British Airways',     logo:'https://logo.clearbit.com/britishairways.com',      color:'#075AAA' },
+  SQ:{ name:'Singapore Airlines',  logo:'https://logo.clearbit.com/singaporeair.com',        color:'#192F5D' },
+  EY:{ name:'Etihad Airways',      logo:'https://logo.clearbit.com/etihad.com',              color:'#BD8B13' },
+  TK:{ name:'Turkish Airlines',    logo:'https://logo.clearbit.com/turkishairlines.com',     color:'#C8102E' },
+  MH:{ name:'Malaysia Airlines',   logo:'https://logo.clearbit.com/malaysiaairlines.com',   color:'#003087' },
+  UL:{ name:'SriLankan Airlines',  logo:'https://logo.clearbit.com/srilankan.com',           color:'#5B2D8E' },
+  GF:{ name:'Gulf Air',            logo:'https://logo.clearbit.com/gulfair.com',             color:'#C8102E' },
+  WY:{ name:'Oman Air',            logo:'https://logo.clearbit.com/omanair.com',             color:'#C8102E' },
+  FZ:{ name:'flydubai',            logo:'https://logo.clearbit.com/flydubai.com',            color:'#E8413A' },
+  AI:{ name:'Air India',           logo:'https://logo.clearbit.com/airindia.com',            color:'#E03C31' },
+  '6E':{ name:'IndiGo',            logo:'https://logo.clearbit.com/goindigo.in',             color:'#1B4FA0' },
+  MU:{ name:'China Eastern',       logo:'https://logo.clearbit.com/ceair.com',               color:'#E4002B' },
+  AK:{ name:'AirAsia',             logo:'https://logo.clearbit.com/airasia.com',             color:'#FF0000' },
+  BS:{ name:'US-Bangla Airlines',  logo:'https://logo.clearbit.com/usbair.com',              color:'#E31837' },
+  KL:{ name:'KLM',                 logo:'https://logo.clearbit.com/klm.com',                 color:'#009FE3' },
+  LH:{ name:'Lufthansa',           logo:'https://logo.clearbit.com/lufthansa.com',           color:'#05164D' },
+  AF:{ name:'Air France',          logo:'https://logo.clearbit.com/airfrance.com',           color:'#002157' },
+  OD:{ name:'Batik Air Malaysia',  logo:'https://logo.clearbit.com/batikair.com',            color:'#8B0000' },
+  LX:{ name:'Swiss',               logo:'https://logo.clearbit.com/swiss.com',               color:'#E4002B' },
+}
+
+const AIRPORT_NAMES = {
+  DXB:'Dubai', DOH:'Doha', LHR:'London Heathrow', SIN:'Singapore',
+  AUH:'Abu Dhabi', IST:'Istanbul', KUL:'Kuala Lumpur', CMB:'Colombo',
+  BAH:'Bahrain', MCT:'Muscat', BOM:'Mumbai', DEL:'Delhi',
+  HYD:'Hyderabad', TRV:'Thiruvananthapuram', COK:'Kochi', MAA:'Chennai',
+  BLR:'Bengaluru', CCU:'Kolkata', DAC:'Dhaka', KHI:'Karachi',
+  CGK:'Jakarta', HKG:'Hong Kong', ICN:'Seoul', NRT:'Tokyo Narita',
+  CDG:'Paris CDG', FRA:'Frankfurt', ZRH:'Zurich', VIE:'Vienna',
+  AMS:'Amsterdam', JNB:'Johannesburg', GVA:'Geneva', MXP:'Milan',
+  MLE:'Malé VIA', CAN:'Guangzhou', PVG:'Shanghai', PEK:'Beijing',
+  SZX:'Shenzhen', CTU:'Chengdu',
+}
+
 const toCallsign = (flight) => {
   const f = flight.toUpperCase().trim()
   for (const [iata, icao] of Object.entries(IATA_TO_ICAO)) {
@@ -1306,10 +1343,11 @@ const toCallsign = (flight) => {
   return f
 }
 
+const getAirlineCode = (flight) => flight.toUpperCase().replace(/[0-9]/g,'').trim()
+
 const fmtTime = ts => {
   if (!ts) return '—'
-  const d = new Date(ts * 1000)
-  return d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', timeZone:'Indian/Maldives' })
+  return new Date(ts * 1000).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', timeZone:'Indian/Maldives' })
 }
 
 const fmtDur = secs => {
@@ -1330,86 +1368,114 @@ const distToMLE = (lat, lon) => {
 
 function FlightCard({ flight, data, isMobile, onRemove }) {
   const now = Date.now() / 1000
+  const code = getAirlineCode(flight)
+  const info = AIRLINE_INFO[code] || { name: code, logo: null, color: '#1A4530' }
   const hasData = data && data.lat
   const isGround = hasData && data.alt < 200
   const isAir = hasData && !isGround
   const kmLeft = hasData ? distToMLE(data.lat, data.lon) : null
-  const speedKmh = hasData ? data.gspeed * 1.852 : null
-  const etaSecs = (kmLeft && speedKmh && speedKmh > 0) ? kmLeft / speedKmh * 3600 : null
+  const speedKmh = hasData && data.gspeed > 0 ? data.gspeed * 1.852 : null
+  const etaSecs = (kmLeft && speedKmh) ? kmLeft / speedKmh * 3600 : null
   const etaTs = etaSecs ? now + etaSecs : null
   const boatTs = etaTs ? etaTs - 57 * 60 : null
   const remaining = etaSecs || 0
   const progress = isAir && etaSecs ? Math.min(95, Math.max(5, 100 - (etaSecs / 7200 * 100))) : isGround ? 100 : 0
 
-  const statusCfg = isGround ? { label:'Landed', bg:'#065F46', color:'#34D399' }
-                  : isAir    ? { label:'Airborne', bg:'#1E3A5F', color:'#60A5FA' }
-                  :            { label:'Scheduled', bg:'#292524', color:'#A8A29E' }
-
-  const airline = flight.replace(/[0-9]/g,'').toUpperCase()
-  const NAMES = { EK:'Emirates', BA:'British Airways', SQ:'Singapore Airlines', QR:'Qatar Airways', EY:'Etihad', TK:'Turkish Airlines', MH:'Malaysia Airlines', AI:'Air India', UL:'SriLankan Airlines', MH:'Malaysia Airlines' }
+  const status = isGround ? 'Landed' : isAir ? 'Airborne' : 'Scheduled'
+  const statusColor = isGround ? '#059669' : isAir ? '#2563EB' : '#6B7280'
+  const statusBg = isGround ? '#ECFDF5' : isAir ? '#EFF6FF' : '#F9FAFB'
 
   return (
-    <div style={{ background:'#0F1210', border:'0.5px solid rgba(255,255,255,0.08)', borderRadius:12, overflow:'hidden', marginBottom:14 }}>
-      <div style={{ padding:'14px 18px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'0.5px solid rgba(255,255,255,0.06)' }}>
-        <div>
-          <div style={{ fontSize:22, fontWeight:700, color:'#fff', letterSpacing:'-0.5px' }}>
-            {flight.slice(0,2).toUpperCase()} <span style={{ color:B.gold }}>{flight.slice(2)}</span>
-          </div>
-          <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginTop:3 }}>
-            {NAMES[airline] || airline} · {hasData ? `${data.alt?.toLocaleString()} ft · ${data.gspeed} kts` : 'Awaiting data'}
+    <div style={{ background:'#fff', border:`0.5px solid ${B.border}`, borderRadius:12, overflow:'hidden', marginBottom:14, boxShadow:'0 1px 3px rgba(0,0,0,0.06)' }}>
+      {/* Card header */}
+      <div style={{ padding:'14px 18px', display:'flex', alignItems:'center', gap:14, borderBottom:`0.5px solid ${B.border}`, background:B.pearl }}>
+        {/* Airline logo */}
+        <div style={{ width:44, height:44, borderRadius:8, background:'#fff', border:`0.5px solid ${B.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
+          {info.logo ? (
+            <img src={info.logo} alt={info.name} style={{ width:36, height:36, objectFit:'contain' }}
+              onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex' }} />
+          ) : null}
+          <div style={{ width:36, height:36, background:info.color, borderRadius:6, display: info.logo ? 'none' : 'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:12, fontWeight:700 }}>
+            {code}
           </div>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <div style={{ background:statusCfg.bg, borderRadius:99, padding:'4px 12px', display:'flex', alignItems:'center', gap:6 }}>
-            <div style={{ width:6, height:6, borderRadius:'50%', background:statusCfg.color }} />
-            <span style={{ fontSize:11, fontWeight:600, color:statusCfg.color }}>{statusCfg.label}</span>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:18, fontWeight:700, color:B.textPrimary, letterSpacing:'-0.3px' }}>
+            {flight.slice(0, getAirlineCode(flight).length)} <span style={{ color:info.color }}>{flight.slice(getAirlineCode(flight).length)}</span>
           </div>
-          <button onClick={onRemove} style={{ background:'transparent', border:'none', color:'rgba(255,255,255,0.3)', cursor:'pointer', fontSize:18 }}>×</button>
+          <div style={{ fontSize:12, color:B.textSecond, marginTop:2 }}>
+            {info.name} {hasData ? `· ${data.aircraft_type || ''}` : ''}
+          </div>
         </div>
-      </div>
-
-      <div style={{ padding:'16px 18px', borderBottom:'0.5px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-          <div style={{ textAlign:'left' }}>
-            <div style={{ fontSize:18, fontWeight:700, color:'#fff' }}>—</div>
-            <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>Origin</div>
-          </div>
-          <div style={{ flex:1, margin:'0 14px', textAlign:'center' }}>
-            <div style={{ fontSize:10, color:'rgba(255,255,255,0.3)', marginBottom:5 }}>
-              {isAir ? fmtDur(remaining) + ' to MLE' : isGround ? 'Completed' : 'No position yet'}
-            </div>
-            <div style={{ height:4, background:'rgba(255,255,255,0.08)', borderRadius:99 }}>
-              <div style={{ width:`${progress}%`, height:'100%', background: isGround?'#34D399':'#378ADD', borderRadius:99 }} />
-            </div>
-            <div style={{ fontSize:10, color:'rgba(255,255,255,0.3)', marginTop:5 }}>{Math.round(progress)}%</div>
-          </div>
-          <div style={{ textAlign:'right' }}>
-            <div style={{ fontSize:18, fontWeight:700, color:'#fff' }}>MLE</div>
-            <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>Malé VIA</div>
-          </div>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{ background:statusBg, color:statusColor, border:`0.5px solid ${statusColor}30`, borderRadius:99, padding:'4px 12px', fontSize:11, fontWeight:600, display:'flex', alignItems:'center', gap:5 }}>
+            <span style={{ width:6, height:6, borderRadius:'50%', background:statusColor, display:'inline-block' }} />
+            {status}
+          </span>
+          <button onClick={onRemove} style={{ background:'transparent', border:'none', color:B.textMuted, cursor:'pointer', fontSize:18, lineHeight:1, padding:'0 4px' }}>×</button>
         </div>
       </div>
 
-      <div style={{ padding:'14px 18px', display:'grid', gridTemplateColumns: isMobile?'1fr 1fr':'1fr 1fr 1fr 1fr', gap:12 }}>
+      {/* Route bar */}
+      <div style={{ padding:'16px 18px', borderBottom:`0.5px solid ${B.border}` }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ textAlign:'left', minWidth:60 }}>
+            <div style={{ fontSize:22, fontWeight:700, color:B.textPrimary, letterSpacing:1 }}>
+              {data?.orig || '—'}
+            </div>
+            <div style={{ fontSize:11, color:B.textSecond, marginTop:2 }}>
+              {AIRPORT_NAMES[data?.orig] || 'Origin'}
+            </div>
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:10, color:B.textMuted, textAlign:'center', marginBottom:6 }}>
+              {isAir ? fmtDur(remaining) + ' remaining' : isGround ? 'Arrived' : 'Awaiting position'}
+            </div>
+            <div style={{ height:3, background:B.breeze, borderRadius:99, position:'relative' }}>
+              <div style={{ width:`${progress}%`, height:'100%', background: isGround?'#059669':info.color||B.freshPalm, borderRadius:99, transition:'width 2s ease' }} />
+              {isAir && progress > 5 && (
+                <div style={{ position:'absolute', top:-5, left:`${progress}%`, transform:'translateX(-50%)', fontSize:14 }}>✈️</div>
+              )}
+            </div>
+            <div style={{ fontSize:10, color:B.textMuted, textAlign:'center', marginTop:4 }}>{Math.round(progress)}%</div>
+          </div>
+          <div style={{ textAlign:'right', minWidth:60 }}>
+            <div style={{ fontSize:22, fontWeight:700, color:B.textPrimary, letterSpacing:1 }}>MLE</div>
+            <div style={{ fontSize:11, color:B.textSecond, marginTop:2 }}>Malé VIA</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Key info grid */}
+      <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr 1fr':'repeat(4,1fr)', borderBottom:`0.5px solid ${B.border}` }}>
         {[
-          { label:'Position', value: hasData ? `${data.lat?.toFixed(1)}°N ${data.lon?.toFixed(1)}°E` : '—', color:'rgba(255,255,255,0.7)' },
-          { label:'ETA Malé', value: etaTs ? fmtTime(etaTs) : '—', color:'#60A5FA' },
-          { label:'⚓ Boat Out', value: boatTs ? fmtTime(boatTs) : '—', color: B.gold },
-          { label:'Remaining', value: isAir ? fmtDur(remaining) : isGround ? 'Landed' : 'Pending', color:'rgba(255,255,255,0.7)' },
-        ].map(item => (
-          <div key={item.label}>
-            <div style={{ fontSize:10, color:'rgba(255,255,255,0.3)', textTransform:'uppercase', letterSpacing:'.8px', marginBottom:4 }}>{item.label}</div>
-            <div style={{ fontSize:15, fontWeight:600, color:item.color, fontFamily:'monospace' }}>{item.value}</div>
+          { label:'ETA Malé', value: etaTs ? fmtTime(etaTs) : '—', color: isAir?'#2563EB':B.textPrimary, sub:'Velana VIA' },
+          { label:'⚓ Boat Dispatch', value: boatTs ? fmtTime(boatTs) : '—', color: B.gold, sub: boatTs && boatTs > now ? 'upcoming' : '—' },
+          { label:'Remaining', value: isAir ? fmtDur(remaining) : isGround ? 'Landed' : 'Pending', color:B.textPrimary, sub:isAir?'to MLE':'' },
+          { label:'Distance', value: kmLeft ? Math.round(kmLeft) + ' km' : '—', color:B.textPrimary, sub:'to Malé' },
+        ].map((item, i) => (
+          <div key={i} style={{ padding:'12px 16px', borderRight: i<3?`0.5px solid ${B.border}`:'none' }}>
+            <div style={{ fontSize:10, color:B.textMuted, textTransform:'uppercase', letterSpacing:'.8px', marginBottom:5 }}>{item.label}</div>
+            <div style={{ fontSize:17, fontWeight:600, color:item.color, fontFamily:'monospace' }}>{item.value}</div>
+            <div style={{ fontSize:10, color:B.textMuted, marginTop:2 }}>{item.sub}</div>
           </div>
         ))}
       </div>
 
-      {hasData && isAir && (
-        <div style={{ padding:'8px 18px', display:'flex', gap:20, borderTop:'0.5px solid rgba(255,255,255,0.04)' }}>
-          <span style={{ fontSize:10, color:'rgba(255,255,255,0.3)' }}>ALT <span style={{ color:'rgba(255,255,255,0.6)' }}>{data.alt?.toLocaleString()} ft</span></span>
-          <span style={{ fontSize:10, color:'rgba(255,255,255,0.3)' }}>SPD <span style={{ color:'rgba(255,255,255,0.6)' }}>{data.gspeed} kts</span></span>
-          <span style={{ fontSize:10, color:'rgba(255,255,255,0.3)' }}>HDG <span style={{ color:'rgba(255,255,255,0.6)' }}>{data.track}°</span></span>
-          <span style={{ fontSize:10, color:'rgba(255,255,255,0.3)' }}>DIST <span style={{ color:'rgba(255,255,255,0.6)' }}>{kmLeft ? Math.round(kmLeft) + ' km' : '—'}</span></span>
+      {/* Telemetry bar */}
+      {hasData && (
+        <div style={{ padding:'10px 18px', background:B.pearl, display:'flex', gap:20, flexWrap:'wrap' }}>
+          {[
+            { label:'Alt', value: data.alt ? data.alt.toLocaleString() + ' ft' : '—' },
+            { label:'Speed', value: data.gspeed ? data.gspeed + ' kts' : '—' },
+            { label:'Heading', value: data.track ? data.track + '°' : '—' },
+            { label:'Position', value: `${data.lat?.toFixed(2)}°N  ${data.lon?.toFixed(2)}°E` },
+          ].map(item => (
+            <div key={item.label} style={{ display:'flex', gap:6, alignItems:'center' }}>
+              <span style={{ fontSize:10, color:B.textMuted, textTransform:'uppercase', letterSpacing:'.5px' }}>{item.label}</span>
+              <span style={{ fontSize:11, color:B.textPrimary, fontFamily:'monospace', fontWeight:500 }}>{item.value}</span>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -1442,9 +1508,8 @@ function FlightTrackerView({ isMobile }) {
         if (json.data && json.data.length > 0) {
           const map = {}
           json.data.forEach(d => {
-            const cs = d.callsign
             flights.forEach(f => {
-              if (toCallsign(f) === cs) map[f] = d
+              if (toCallsign(f) === d.callsign) map[f] = { ...d, orig: d.orig || '—' }
             })
           })
           setLiveData(prev => ({ ...prev, ...map }))
@@ -1472,7 +1537,7 @@ function FlightTrackerView({ isMobile }) {
     const newTracked = [...tracked, f]
     setTracked(newTracked)
     setInput('')
-    fetchAll(newTracked)
+    setTimeout(() => fetchAll(newTracked), 100)
   }
 
   const removeFlight = f => {
@@ -1482,62 +1547,66 @@ function FlightTrackerView({ isMobile }) {
 
   const airborne = tracked.filter(f => liveData[f] && liveData[f].alt > 200).length
   const landed   = tracked.filter(f => liveData[f] && liveData[f].alt <= 200).length
+  const pending  = tracked.length - airborne - landed
 
   return (
     <div>
-      <div style={{ background:'#0F1210', borderRadius:10, padding:isMobile?'16px':'22px 28px', marginBottom:20 }}>
-        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
+      {/* Header */}
+      <div style={{ background:B.freshPalm, borderRadius:10, padding:isMobile?'16px':'20px 24px', marginBottom:20 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
           <div>
-            <div style={{ fontSize:10, letterSpacing:'2px', color:'rgba(255,255,255,0.3)', textTransform:'uppercase', marginBottom:6 }}>Dhirumbaa · Live Operations</div>
-            <div style={{ fontSize:isMobile?18:24, fontWeight:500, color:'#fff' }}>Flight Tracker</div>
-            <div style={{ fontSize:12, color:'rgba(255,255,255,0.4)', marginTop:4 }}>Velana International Airport · North Malé Atoll</div>
+            <div style={{ fontSize:10, letterSpacing:'2px', color:'rgba(255,255,255,0.45)', textTransform:'uppercase', marginBottom:4 }}>Dhirumbaa · Live Operations</div>
+            <div style={{ fontSize:isMobile?16:20, fontWeight:600, color:'#fff' }}>Flight Tracker</div>
+            <div style={{ fontSize:11, color:'rgba(255,255,255,0.5)', marginTop:2 }}>Velana International Airport · North Malé Atoll</div>
           </div>
           <div style={{ textAlign:'right' }}>
-            <div style={{ fontSize:isMobile?20:28, fontWeight:300, color:B.gold, fontFamily:'monospace', letterSpacing:2 }}>
+            <div style={{ fontSize:isMobile?22:30, fontWeight:300, color:B.gold, fontFamily:'monospace', letterSpacing:2 }}>
               {clock.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', second:'2-digit', timeZone:'Indian/Maldives' })}
             </div>
-            <div style={{ fontSize:10, color:'rgba(255,255,255,0.3)', marginTop:2 }}>Maldives Time (MVT)</div>
+            <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', marginTop:2 }}>Maldives Time (MVT)</div>
           </div>
         </div>
 
-        <div style={{ display:'flex', gap:isMobile?8:16, marginTop:16, flexWrap:'wrap', alignItems:'center' }}>
+        <div style={{ display:'flex', gap:10, marginTop:14, flexWrap:'wrap', alignItems:'center' }}>
           {[
-            { val:airborne, label:'Airborne', color:'#60A5FA' },
-            { val:landed,   label:'Landed',   color:'#34D399' },
-            { val:tracked.length - airborne - landed, label:'Pending', color:'rgba(255,255,255,0.4)' },
+            { val:airborne, label:'Airborne', color:'#34D399' },
+            { val:landed,   label:'Landed',   color:'rgba(255,255,255,0.7)' },
+            { val:pending,  label:'Pending',  color:'rgba(255,255,255,0.5)' },
             { val:tracked.length, label:'Tracked', color:B.gold },
           ].map(s => (
-            <div key={s.label} style={{ background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.07)', borderRadius:8, padding:'8px 16px' }}>
-              <div style={{ fontSize:20, fontWeight:600, color:s.color, fontFamily:'monospace' }}>{s.val}</div>
-              <div style={{ fontSize:10, color:'rgba(255,255,255,0.35)', textTransform:'uppercase', letterSpacing:'.8px' }}>{s.label}</div>
+            <div key={s.label} style={{ background:'rgba(255,255,255,0.08)', borderRadius:8, padding:'6px 14px', textAlign:'center' }}>
+              <div style={{ fontSize:18, fontWeight:700, color:s.color, fontFamily:'monospace' }}>{s.val}</div>
+              <div style={{ fontSize:9, color:'rgba(255,255,255,0.4)', textTransform:'uppercase', letterSpacing:'.8px' }}>{s.label}</div>
             </div>
           ))}
           <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
-            {isLive && <span style={{ fontSize:10, background:'rgba(26,107,60,0.2)', color:'#34D399', border:'0.5px solid rgba(52,211,153,0.3)', borderRadius:99, padding:'3px 10px' }}>● Live</span>}
+            {isLive && <span style={{ fontSize:10, background:'rgba(52,211,153,0.15)', color:'#34D399', border:'0.5px solid rgba(52,211,153,0.3)', borderRadius:99, padding:'3px 10px' }}>● Live</span>}
             <span style={{ fontSize:10, color:'rgba(255,255,255,0.3)' }}>↻ {refreshIn}s</span>
-            <button onClick={()=>fetchAll(tracked)} disabled={loading} style={{ fontSize:10, background:'rgba(255,255,255,0.06)', border:'0.5px solid rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.6)', borderRadius:99, padding:'3px 10px', cursor:'pointer' }}>
+            <button onClick={()=>fetchAll(tracked)} disabled={loading} style={{ fontSize:10, background:'rgba(255,255,255,0.1)', border:'0.5px solid rgba(255,255,255,0.15)', color:'rgba(255,255,255,0.7)', borderRadius:99, padding:'4px 12px', cursor:'pointer' }}>
               {loading ? 'Loading…' : '↻ Refresh'}
             </button>
           </div>
         </div>
       </div>
 
-      <div style={{ display:'flex', gap:10, marginBottom:20 }}>
+      {/* Add flight */}
+      <div style={{ display:'flex', gap:10, marginBottom:16 }}>
         <input
           value={input}
           onChange={e => setInput(e.target.value.toUpperCase())}
           onKeyDown={e => e.key==='Enter' && addFlight()}
-          placeholder="Add flight — e.g. EK658, MH485, SQ431"
-          style={{ ...INP, flex:1, background:'#fff', letterSpacing:1, fontFamily:'monospace' }}
+          placeholder="Add flight number — e.g. EK658, BA060, QR672, MH485"
+          style={{ ...INP, flex:1, letterSpacing:1 }}
         />
-        <button onClick={addFlight} style={{ ...BTN_PRIMARY, whiteSpace:'nowrap' }}>+ Track</button>
+        <button onClick={addFlight} style={BTN_PRIMARY}>+ Track</button>
       </div>
 
+      {/* Flight cards */}
       {tracked.length === 0 ? (
         <div style={{ padding:'48px 20px', textAlign:'center', color:B.textMuted, background:B.white, borderRadius:10, border:`0.5px solid ${B.border}` }}>
-          <div style={{ fontSize:40, marginBottom:12 }}>✈️</div>
-          <div style={{ fontWeight:500, marginBottom:6 }}>No flights tracked</div>
-          <div style={{ fontSize:12 }}>Add a flight number above to start tracking</div>
+          <div style={{ fontSize:36, marginBottom:10 }}>✈️</div>
+          <div style={{ fontWeight:500, fontSize:15, marginBottom:6, color:B.textPrimary }}>No flights tracked</div>
+          <div style={{ fontSize:12 }}>Add a flight number above to start live tracking</div>
         </div>
       ) : (
         tracked.map(f => (
