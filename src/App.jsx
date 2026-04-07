@@ -1452,11 +1452,12 @@ function FlightTrackerView({ isMobile }) {
           const now = Date.now() / 1000
           const map = {}
           json.data.forEach(d => {
-            map[d.callsign] = d
+            if (d.callsign) map[d.callsign] = d
+            if (d.flight)   map[d.flight]   = d
           })
           setFlights(prev => prev.map(p => {
             const cs = toCallsign(p.flight)
-            const d = map[cs]
+            const d = map[cs] || map[p.flight] || Object.values(map).find(x => x.callsign && (x.callsign === cs || x.callsign === p.flight))
             if (!d) return p
             const isGround = !d.alt || d.alt < 100
             const distToMle = Math.sqrt(Math.pow(d.lat - 4.2, 2) + Math.pow(d.lon - 73.5, 2))
