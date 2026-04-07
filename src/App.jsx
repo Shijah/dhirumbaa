@@ -1292,9 +1292,14 @@ const IATA_TO_ICAO = {
 }
 
 const toCallsign = (flight) => {
-  const code = flight.replace(/[0-9]/g,'').trim().toUpperCase()
-  const num  = flight.replace(/[^0-9]/g,'').trim()
-  return (IATA_TO_ICAO[code] || code) + num
+  const f = flight.toUpperCase().trim()
+  for (const [iata, icao] of Object.entries(IATA_TO_ICAO)) {
+    if (f.startsWith(iata)) {
+      const num = f.slice(iata.length)
+      return icao + num
+    }
+  }
+  return f
 }
 
 const fmtTime = ts => {
