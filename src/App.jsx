@@ -1,1864 +1,1530 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { useState, useEffect, useRef, useCallback } from "react";
+import { createClient } from "@supabase/supabase-js";
 
-// Supabase setup with safe fallback so app never crashes on missing key
-let supabase
-try {
-  supabase = createClient(
-    'https://wcpbrbyiakwlnpwpelzi.supabase.co',
-    import.meta.env.VITE_SUPABASE_ANON_KEY || 'dummy-key-replace-me'
-  )
-} catch(e) {
-  supabase = { auth: { signInWithPassword: async()=>({error:true}), signOut: async()=>{}, getSession: async()=>({data:{session:null}}), onAuthStateChange: ()=>({data:{subscription:{unsubscribe:()=>{}}}}) } }
+/* ─── SUPABASE CLIENT ─── */
+const SUPA_URL = "https://wcpbrbyiakwlnpwpelzi.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjcGJyYnlpYWt3bG5wd3BlbHppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MTg1OTgsImV4cCI6MjA5MDA5NDU5OH0.-ZCy1ZU70J772m6lZF_ltilGerN8EnFfhlDnQ9ZTJU4";
+const db = createClient(SUPA_URL, SUPA_KEY);
+
+const C = {
+  sidebar:"#0b111f", bg:"#f0f4f8", card:"#fff",
+  border:"#e2e8f0", borderLight:"#eef2f7",
+  text:"#0f172a", mid:"#64748b", light:"#94a3b8",
+  primary:"#0a6152", primaryLight:"#ecfdf5", primaryGlow:"rgba(10,97,82,.12)",
+  gold:"#d97706", purple:"#7c3aed", green:"#16a34a",
+  red:"#dc2626", orange:"#ea580c",
+};
+
+/* ─── ICONS ─── */
+const Icon = ({ name, size=16, color="currentColor", sw=1.7 }) => {
+  const s = { width:size, height:size, fill:"none", stroke:color, strokeWidth:sw, strokeLinecap:"round", strokeLinejoin:"round", display:"block", flexShrink:0 };
+  const p = {
+    dashboard:   <><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21V12h6v9"/></>,
+    movement:    <><circle cx="5" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><path d="M7 12h10M14 8l4 4-4 4"/></>,
+    fleet:       <><path d="M2 18h20M4 18V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10M10 6V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2M9 12h6M9 15h4"/></>,
+    fuel:        <><path d="M4 22V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M4 22h12M16 8.5l2-2a2 2 0 1 1 2.8 2.8L19 11V16a1.5 1.5 0 0 0 3 0v-5M7 9h6M7 13h4"/></>,
+    roster:      <><circle cx="9" cy="7" r="3.5"/><path d="M2 21v-1a7 7 0 0 1 14 0v1"/><circle cx="19" cy="8" r="2.5"/></>,
+    maintenance: <><path d="M10.5 6.5L8 4a1.5 1.5 0 0 0-2 0L4.5 5.5a1.5 1.5 0 0 0 0 2L7 10M13.5 17.5l2.5 2.5a1.5 1.5 0 0 0 2 0l1.5-1.5a1.5 1.5 0 0 0 0-2L17 14M9 11l4 4M14 6l4 4-9 9-4-1-1-4z"/></>,
+    checklist:   <><path d="M9 12l2 2 4-4"/><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 5V3.5A1.5 1.5 0 0 1 8.5 2h7A1.5 1.5 0 0 1 17 3.5V5"/></>,
+    reports:     <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></>,
+    mail:        <><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8l10 6 10-6"/></>,
+    bell:        <><path d="M6 10a6 6 0 0 1 12 0c0 5 2.5 7 2.5 7h-17S6 15 6 10z"/><path d="M10.3 21a2 2 0 0 0 3.4 0"/></>,
+    menu:        <><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></>,
+    anchor:      <><circle cx="12" cy="6" r="3"/><path d="M12 9v13M5 15a7 7 0 0 0 14 0"/></>,
+    logout:      <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></>,
+    plus:        <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
+    x:           <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
+    check:       <><polyline points="20,6 9,17 4,12"/></>,
+    edit:        <><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></>,
+    save:        <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17,21 17,13 7,13"/><polyline points="7,3 7,8 15,8"/></>,
+    upload:      <><path d="M12 15V3M8 7l4-4 4 4"/><path d="M20 15v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4"/></>,
+    download:    <><path d="M12 3v12M8 11l4 4 4-4"/><path d="M20 17v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2"/></>,
+    clock:       <><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15,14"/></>,
+    eye:         <><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></>,
+    send:        <><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></>,
+    alert:       <><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>,
+    chevron_r:   <><polyline points="9,18 15,12 9,6"/></>,
+    chevron_d:   <><polyline points="6,9 12,15 18,9"/></>,
+    camera:      <><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></>,
+    pdf:         <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></>,
+    inbox:       <><polyline points="22,12 16,12 14,15 10,15 8,12 2,12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></>,
+  };
+  return <svg viewBox="0 0 24 24" style={s}>{p[name]||<circle cx="12" cy="12" r="9"/>}</svg>;
+};
+
+/* ─── HOOKS ─── */
+const useWidth = () => {
+  const [w,setW] = useState(typeof window!=="undefined"?window.innerWidth:1200);
+  useEffect(()=>{const h=()=>setW(window.innerWidth);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
+  return w;
+};
+const useMobile = () => useWidth() < 640;
+
+/* ─── DATA ─── */
+const USERS = [
+  { username:"superadmin",  password:"Baros@2026",   name:"Super Admin",        role:"Super Admin",  initials:"SA", color:"#6d28d9", isAdmin:true  },
+  { username:"ops.manager", password:"Ops@2026",     name:"Ops Manager",        role:"Admin",        initials:"OM", color:"#0a6152", isAdmin:true  },
+  { username:"nasru",       password:"Captain@2026", name:"NASRU",              role:"Captain",      initials:"NA", color:"#1d6fa4", isAdmin:false },
+  { username:"azuhan",      password:"Captain@2026", name:"AZUHAN",             role:"Captain",      initials:"AZ", color:"#15803d", isAdmin:false },
+  { username:"shafeeq",     password:"Captain@2026", name:"SHAFEEQ",            role:"Captain",      initials:"SH", color:"#d4950a", isAdmin:false },
+  { username:"saleem",      password:"Captain@2026", name:"SALEEM",             role:"Captain",      initials:"SL", color:"#b91c1c", isAdmin:false },
+  { username:"david",       password:"Captain@2026", name:"DAVID",              role:"Captain",      initials:"DA", color:"#6d28d9", isAdmin:false },
+  { username:"mirsad",      password:"Captain@2026", name:"MIRSAD",             role:"Captain",      initials:"MI", color:"#0d9488", isAdmin:false },
+  { username:"tamanager",   password:"TAMgr@2026",   name:"Transport Asst. Mgr",role:"TA Manager",   initials:"TM", color:"#15803d", isAdmin:true  },
+  { username:"tmanager",    password:"TMgr@2026",    name:"Transport Manager",  role:"T Manager",    initials:"TG", color:"#c2410c", isAdmin:true  },
+];
+
+const FLEET = [
+  { id:"Serenity",    type:"Luxury Yacht",      color:"#d4950a", fuelCap:800, cons:90,  pax:10, refuelAfter:8,  fuelMin:120, status:"active",      runHrs:145, eng:"VOLVO D6-370",  engMake:"VOLVO"   },
+  { id:"Ixora",       type:"Luxury Speedboat",  color:"#0d9488", fuelCap:400, cons:97,  pax:8,  refuelAfter:10, fuelMin:80,  status:"active",      runHrs:323, eng:"MERCURY 300HP", engMake:"YAMAHA"  },
+  { id:"Vitesse",     type:"Luxury Speedboat",  color:"#1d6fa4", fuelCap:400, cons:116, pax:6,  refuelAfter:10, fuelMin:80,  status:"standby",     runHrs:44,  eng:"MERCURY 300HP", engMake:"MERCURY" },
+  { id:"Tara",        type:"Speedboat",         color:"#15803d", fuelCap:500, cons:90,  pax:12, refuelAfter:12, fuelMin:100, status:"active",      runHrs:363, eng:"YAMAHA 300HP",  engMake:"YAMAHA"  },
+  { id:"Xari",        type:"Speedboat",         color:"#6d28d9", fuelCap:600, cons:85,  pax:8,  refuelAfter:15, fuelMin:100, status:"active",      runHrs:387, eng:"CUMMINS QSB",   engMake:"CUMMINS" },
+  { id:"Heliconia",   type:"Dive Boat",         color:"#0891b2", fuelCap:300, cons:60,  pax:10, refuelAfter:8,  fuelMin:60,  status:"active",      runHrs:277, eng:"YAMAHA 150HP",  engMake:"YAMAHA"  },
+  { id:"Isadora",     type:"Snorkel Boat",      color:"#c2410c", fuelCap:250, cons:55,  pax:14, refuelAfter:8,  fuelMin:50,  status:"active",      runHrs:227, eng:"YAMAHA 150HP",  engMake:"YAMAHA"  },
+  { id:"Nooma",       type:"Traditional Dhoni", color:"#65a30d", fuelCap:200, cons:40,  pax:12, refuelAfter:6,  fuelMin:40,  status:"maintenance", runHrs:65,  eng:"CUMMINS 4BT",   engMake:"CUMMINS" },
+  { id:"Areena",      type:"Supply Dhoni",      color:"#64748b", fuelCap:400, cons:50,  pax:6,  refuelAfter:8,  fuelMin:80,  status:"active",      runHrs:166, eng:"ISUZU 4BG1",    engMake:"ISUZU"   },
+  { id:"Wahoo",       type:"Sport Fishing",     color:"#b91c1c", fuelCap:200, cons:70,  pax:6,  refuelAfter:6,  fuelMin:40,  status:"standby",     runHrs:32,  eng:"YAMAHA 200HP",  engMake:"YAMAHA"  },
+  { id:"Party Craft", type:"Party Boat",        color:"#7c3aed", fuelCap:300, cons:45,  pax:20, refuelAfter:10, fuelMin:60,  status:"active",      runHrs:25,  eng:"YAMAHA 115HP",  engMake:"YAMAHA"  },
+  { id:"Dingy",       type:"Rescue Tender",     color:"#475569", fuelCap:80,  cons:20,  pax:4,  refuelAfter:10, fuelMin:15,  status:"standby",     runHrs:47,  eng:"YAMAHA 40HP",   engMake:"YAMAHA"  },
+];
+
+const MOVEMENTS = {
+  "Guest Transfers":[
+    { time:"05:45", vessel:"Ixora",    type:"Guest Transfer", details:"02 PAX DEP & ARR AK74 at 10:00 + 03 PAX ARR BA61 at 09:30", vip:false },
+    { time:"06:30", vessel:"Tara",     type:"Guest Transfer", details:"02 PAX DEP & ARR OS21 at 08:50", vip:false },
+    { time:"07:45", vessel:"Serenity", type:"VIP Transfer",   details:"03 PAX VIP ARR EK658 at 09:25 + MS AYE MON ARR at 10:00", vip:true },
+    { time:"10:45", vessel:"Tara",     type:"Guest Transfer", details:"02 PAX ARR MILAIDHOO at 13:30", vip:false },
+    { time:"18:45", vessel:"Ixora",    type:"Guest Transfer", details:"02 PAX DEP MALE JETTY 7 at 20:30", vip:false },
+  ],
+  "Activities":[
+    { time:"08:00", vessel:"Heliconia",   type:"Diving",      details:"04 PAX DIVING (02 TANK) at 08:30", vip:false },
+    { time:"08:00", vessel:"Party Craft", type:"F&B Setup",   details:"PIANO BREAKFAST SETUP + GUEST TRANSFER", vip:false },
+    { time:"13:45", vessel:"Heliconia",   type:"Snorkelling", details:"04 PAX SNORKELLING SAFARI at 14:00", vip:false },
+    { time:"16:45", vessel:"Isadora",     type:"Excursion",   details:"04 PAX SUNSET CRUISE at 17:00", vip:false },
+    { time:"17:15", vessel:"Heliconia",   type:"Fishing",     details:"02 PAX SUNSET FISHING at 17:30", vip:false },
+  ],
+  "Staff Ferries":[
+    { time:"07:00", vessel:"Xari", type:"Staff Ferry", details:"BM 07:00 → MAL 08:00", vip:false },
+    { time:"16:15", vessel:"Xari", type:"Staff Ferry", details:"BM 16:15 → MAL 17:00 + BAND ARR", vip:false },
+    { time:"22:30", vessel:"Xari", type:"Staff Ferry", details:"BM 22:30 → MAL 23:30", vip:false },
+  ],
+  "Supply Ops":[
+    { time:"10:00", vessel:"Areena", type:"Supply",   details:"SEA CARGO SUPPLY", vip:false },
+    { time:"20:30", vessel:"Areena", type:"Disposal", details:"WET GARBAGE DISPOSE", vip:false },
+  ],
+};
+
+const MAINTENANCE_DATA = [
+  { vessel:"Tara",      task:"Engine Service",          due:"2026-04-01", priority:"High",   status:"due-soon"  },
+  { vessel:"Ixora",     task:"Safety Equipment Check",  due:"2026-03-30", priority:"High",   status:"due-soon"  },
+  { vessel:"Nooma",     task:"Engine Overhaul",         due:"2026-03-18", priority:"High",   status:"overdue"   },
+  { vessel:"Heliconia", task:"Dive Compressor Service", due:"2026-04-15", priority:"Medium", status:"scheduled" },
+];
+
+const EMAIL_RCPT = { checklist:["tamanager@baros.com","transport@baros.com"], fuel:["ops@baros.com","transport@baros.com"] };
+const mkEmail = ({ to, subject, body, type="system" }) => ({ id:Date.now()+Math.random(), to, from:"vms@baros.com", subject, body, type, timestamp:new Date().toISOString(), read:false });
+
+const CHECKLIST_ITEMS = [
+  { id:1,  desc:"Check engine oil level",                                           type:"HLN",  unit:"",    limit:null },
+  { id:2,  desc:"Check engine coolant level",                                       type:"HLN",  unit:"",    limit:null },
+  { id:3,  desc:"Check gearbox oil level",                                          type:"HLN",  unit:"",    limit:null },
+  { id:4,  desc:"Check DG oil level",                                               type:"HLN",  unit:"",    limit:null },
+  { id:5,  desc:"Check fuel level in fuel tank",                                    type:"LN",   unit:"",    limit:null },
+  { id:6,  desc:"Check DG coolant level",                                           type:"HLN",  unit:"",    limit:null },
+  { id:7,  desc:"Check steering system for proper functioning",                     type:"YN",   unit:"",    limit:null },
+  { id:8,  desc:"Check the battery voltage",                                        type:"VOLT", unit:"V",   limit:null },
+  { id:9,  desc:"Check trim tabs for proper functioning",                           type:"YN",   unit:"",    limit:null },
+  { id:10, desc:"Check leakages of sea water or fuel in engine & rudder room",      type:"LEAK", unit:"",    limit:null },
+  { id:11, desc:"Check navigational lights for proper functioning",                 type:"WP",   unit:"",    limit:null },
+  { id:12, desc:"Check bilge pump auto/manual functioning",                         type:"WP",   unit:"",    limit:null },
+  { id:13, desc:"Check any alarm indication",                                       type:"ALARM",unit:"",    limit:null },
+  { id:14, desc:"Proper functioning of AC units",                                   type:"WP",   unit:"",    limit:null },
+  { id:15, desc:"Operate engine room blower before starting the engine",            type:"WP",   unit:"",    limit:null },
+  { id:16, desc:"Check oil pressure of Engine [Should not exceed 80 Psi]",         type:"KPA",  unit:"KPA", limit:80   },
+  { id:17, desc:"Check engine temperature [Should not exceed 85°]",                type:"TEMP", unit:"°C",  limit:85   },
+  { id:18, desc:"Check oil pressure of DG [Should not exceed 80 Psi]",             type:"KPA",  unit:"KPA", limit:80   },
+  { id:19, desc:"Check DG temperature [Should not exceed 85°]",                    type:"TEMP", unit:"°C",  limit:85   },
+  { id:20, desc:"Electrical Equipment (Lights, horn, pump, bow thruster)",         type:"WP",   unit:"",    limit:null },
+];
+
+const FUEL_LOG_INIT = [
+  { id:1, date:"2026-03-24", vessel:"Tara",     supplier:"Resort Fuel Store", litres:380, cost:684, notes:"Post-ops refuel" },
+  { id:2, date:"2026-03-24", vessel:"Xari",     supplier:"Resort Fuel Store", litres:420, cost:840, notes:"Staff ferry ops" },
+  { id:3, date:"2026-03-23", vessel:"Ixora",    supplier:"FSM Hulhumale'",    litres:290, cost:551, notes:"Guest transfers" },
+  { id:4, date:"2026-03-23", vessel:"Serenity", supplier:"FSM Hulhumale'",    litres:510, cost:918, notes:"VIP charter"     },
+];
+
+/* ─── ROSTER DATA ─── */
+const CAPTAINS = [
+  { id:"NASRU",   name:"Nasru",   phone:"9461017", color:"#1d6fa4", initials:"NA" },
+  { id:"AZUHAN",  name:"Azuhan",  phone:"7932155", color:"#15803d", initials:"AZ" },
+  { id:"SHAFEEQ", name:"Shafeeq", phone:"9883885", color:"#d4950a", initials:"SH" },
+  { id:"SALEEM",  name:"Saleem",  phone:"7950200", color:"#b91c1c", initials:"SL" },
+  { id:"DAVID",   name:"David",   phone:"7901716", color:"#6d28d9", initials:"DA" },
+  { id:"MIRSAD",  name:"Mirsad",  phone:"9410773", color:"#0d9488", initials:"MI" },
+  { id:"SIRUHAN", name:"Siruhan", phone:"7929255", color:"#0891b2", initials:"SI" },
+  { id:"MODE",    name:"Mode",    phone:"7667621", color:"#7c3aed", initials:"MO" },
+  { id:"SHIREY",  name:"Shirey",  phone:"9992994", color:"#c2410c", initials:"SR" },
+  { id:"DHONA",   name:"Dhona",   phone:"7783056", color:"#65a30d", initials:"DH" },
+];
+const SHIFTS = [
+  { id:"AM",    label:"Morning",   time:"05:00–14:00", color:"#0891b2", bg:"#e0f2fe" },
+  { id:"PM",    label:"Afternoon", time:"13:00–22:00", color:"#7c3aed", bg:"#ede9fe" },
+  { id:"FULL",  label:"Full Day",  time:"05:00–22:00", color:"#15803d", bg:"#dcfce7" },
+  { id:"OFF",   label:"Day Off",   time:"",            color:"#94a3b8", bg:"#f1f5f9" },
+  { id:"LEAVE", label:"Leave",     time:"",            color:"#dc2626", bg:"#fee2e2" },
+];
+function weekDates(offset) {
+  const a = new Date(2026,2,25); a.setDate(a.getDate()+offset*7);
+  const dow=a.getDay(); const diff=dow===0?-6:1-dow; a.setDate(a.getDate()+diff);
+  return Array.from({length:7},(_,i)=>{ const d=new Date(a); d.setDate(a.getDate()+i); return d; });
 }
-
-const BAROS_RESORT_ID = 'f1ada214-1cc3-4634-a4cd-0d94c7c10b79'
-
-// ─── Mobile responsive hook ───────────────────────────────────────────────────
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
-  useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768)
-    window.addEventListener('resize', handler)
-    return () => window.removeEventListener('resize', handler)
-  }, [])
-  return isMobile
-}
-
-// Inject global mobile CSS once
-if (!document.getElementById('dhirumbaa-mobile-css')) {
-  const style = document.createElement('style')
-  style.id = 'dhirumbaa-mobile-css'
-  style.textContent = `
-    * { box-sizing: border-box; }
-    body { margin: 0; padding: 0; }
-    input, select, textarea, button { font-family: inherit; }
-    .mobile-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .mobile-card { background: #fff; border: 0.5px solid rgba(26,69,48,0.12); border-radius: 8px; padding: 14px; margin-bottom: 10px; }
-    .mobile-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 0.5px solid rgba(26,69,48,0.08); }
-    .mobile-row:last-child { border-bottom: none; }
-    .mobile-label { font-size: 10px; color: #5A6B62; text-transform: uppercase; letter-spacing: .8px; font-weight: 500; margin-bottom: 4px; }
-    @media (max-width: 767px) {
-      .hide-mobile { display: none !important; }
-      .full-mobile { width: 100% !important; }
-      .stack-mobile { flex-direction: column !important; align-items: stretch !important; }
-      .grid-1-mobile { grid-template-columns: 1fr !important; }
-      .grid-2-mobile { grid-template-columns: 1fr 1fr !important; }
-      .no-pad-mobile { padding: 12px !important; }
+function dk(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+function initRoster() {
+  const cfg=[
+    {v:"Serenity",cap:"NASRU",sh:"FULL"},{v:"Ixora",cap:"AZUHAN",sh:"AM"},{v:"Vitesse",cap:"SALEEM",sh:"AM"},
+    {v:"Tara",cap:"SHIREY",sh:"AM"},{v:"Xari",cap:"DAVID",sh:"FULL"},{v:"Heliconia",cap:"SHAFEEQ",sh:"AM"},
+    {v:"Isadora",cap:"SHAFEEQ",sh:"AM"},{v:"Nooma",cap:"SIRUHAN",sh:"PM"},{v:"Areena",cap:"MIRSAD",sh:"FULL"},
+    {v:"Wahoo",cap:"MODE",sh:"AM"},{v:"Party Craft",cap:"DHONA",sh:"PM"},{v:"Dingy",cap:null,sh:"OFF"},
+  ];
+  const roster={};
+  cfg.forEach(({v,cap,sh})=>{
+    roster[v]={};
+    for(let w=-1;w<=2;w++){
+      weekDates(w).forEach((d,di)=>{
+        const isOff=cap&&((di===6&&w%2===0)||(di===0&&w%2===1));
+        roster[v][dk(d)]={cap:isOff?null:cap,sh:isOff?"OFF":sh};
+      });
     }
-  `
-  document.head.appendChild(style)
+  });
+  return roster;
 }
 
-// ─── Config ────────────────────────────────────────────────────────────────────
-const RESORT = { id: 'baros', name: 'Baros Maldives', code: 'BAR' }
-
-const NAV = [
-  { id: 'dashboard', icon: '🌊', label: 'Dashboard'       },
-  { id: 'flights',   icon: '✈️', label: 'Flight Tracker'  },
-  { id: 'scheduler', icon: '🗓️', label: 'Smart Scheduler' },
-  { id: 'roster',    icon: '📋', label: 'Duty Roster'     },
-  { id: 'vessels',   icon: '⛵', label: 'Vessels'          },
-  { id: 'team',      icon: '👥', label: 'Team'             },
-  { id: 'fuel-log',  icon: '⛽', label: 'Fuel Log'         },
-  { id: 'settings',  icon: '⚙️', label: 'Settings'         },
-]
-
-const VESSELS = [
-  { name: 'Ixora',    type: 'Main transfer', cap: 12, status: 'active'  },
-  { name: 'Tara',     type: 'Main transfer', cap: 12, status: 'active'  },
-  { name: 'Serenity', type: 'VIP / Private', cap:  6, status: 'active'  },
-  { name: 'Xari',     type: 'Staff ferry',   cap: 20, status: 'standby' },
-]
-
-// ─── Algorithm constants ───────────────────────────────────────────────────────
-const ALGO = { JOURNEY:22, IMM:35, LJ:10, DEP:60, CW:20, RL:65 }
-const LEAD = ALGO.JOURNEY + ALGO.IMM + ALGO.LJ + ALGO.DEP // 127 min
-
-const VESSEL_CFG = {
-  serenity: { label:'Serenity',     icon:'👑', bg:'rgba(164,162,96,0.1)',  border:'rgba(164,162,96,0.3)',  text:'#7A7840' },
-  private:  { label:'Ixora (pvt)',  icon:'🔒', bg:'rgba(26,69,48,0.08)',   border:'rgba(26,69,48,0.2)',    text:'#1A4530' },
-  luxury:   { label:'Ixora (lux)',  icon:'⭐', bg:'rgba(164,162,96,0.08)', border:'rgba(164,162,96,0.2)',  text:'#6A6830' },
-  regular:  { label:'Ixora',        icon:'⚓', bg:'rgba(26,69,48,0.06)',   border:'rgba(26,69,48,0.15)',   text:'#2D6147' },
-  other:    { label:'Other vessel', icon:'🗺️', bg:'rgba(90,107,98,0.07)',  border:'rgba(90,107,98,0.2)',   text:'#4A5E52' },
-}
-
-// ─── 7-day training data (22–28 Mar 2026) ─────────────────────────────────────
-const SAMPLE_DATA = {
-  '2026-03-22': [
-    { trf:'06:45', flt:'LX8067', fltT:'09:30', room:'106', type:'DLX', name:'Schmid',          pax:2, vip:null,   tt:'regular', comment:'In-Villa Breakfast'    },
-    { trf:'06:45', flt:'TK741',  fltT:'09:15', room:'316', type:'WPV', name:'Miculescu',        pax:2, vip:'VIP3', tt:'regular', comment:'In-Villa Breakfast'    },
-    { trf:'08:00', flt:'OS022',  fltT:'10:25', room:'112', type:'DLX', name:'Da Rocha',         pax:2, vip:null,   tt:'regular', comment:''                      },
-    { trf:'08:00', flt:'OS022',  fltT:'10:25', room:'206', type:'BS',  name:'Kühnel-Lorenz',    pax:1, vip:null,   tt:'regular', comment:''                      },
-    { trf:'09:00', flt:'BA060',  fltT:'11:40', room:'201', type:'BV',  name:'Henderson',        pax:2, vip:'VIP3', tt:'regular', comment:''                      },
-    { trf:'09:00', flt:'BA060',  fltT:'11:40', room:'319', type:'WPV', name:'Gisbourne',        pax:2, vip:null,   tt:'regular', comment:''                      },
-    { trf:'09:00', flt:'MH484',  fltT:'12:00', room:'317', type:'WPV', name:'Then/Tang',        pax:2, vip:null,   tt:'regular', comment:''                      },
-    { trf:'10:15', flt:'SQ431',  fltT:'12:55', room:'208', type:'BS',  name:'Boekeman',         pax:2, vip:'VIP5', tt:'luxury',  comment:'Luxury Transfer'       },
-    { trf:'19:00', flt:'TK735',  fltT:'21:55', room:'207', type:'BS',  name:'Erbak',            pax:2, vip:'VIP5', tt:'luxury',  comment:'LCO | Luxury Transfer' },
-    { trf:'20:30', flt:'SQ437',  fltT:'23:30', room:'309', type:'WV',  name:'Coldebella',       pax:2, vip:null,   tt:'regular', comment:'LCO'                   },
-    { trf:'20:30', flt:'SQ437',  fltT:'23:30', room:'304', type:'WV',  name:'De Almeida',       pax:2, vip:null,   tt:'regular', comment:'LCO'                   },
-  ],
-  '2026-03-23': [
-    { trf:'09:00', flt:'BA060',        fltT:'11:40', room:'305', type:'WV',  name:'Gribbon',       pax:2, vip:'VIP4', tt:'regular', comment:''                   },
-    { trf:'09:00', flt:'BA060',        fltT:'11:40', room:'325', type:'WPV', name:'De Wolff',       pax:2, vip:null,   tt:'regular', comment:''                   },
-    { trf:'09:00', flt:'BA060',        fltT:'11:40', room:'214', type:'BS',  name:'Patel',          pax:3, vip:'VIP3', tt:'luxury',  comment:'Luxury Transfer'    },
-    { trf:'09:00', flt:'Huvafen Fushi',fltT:'09:30', room:'310', type:'WV',  name:'Westley',        pax:1, vip:'VIP2', tt:'other',   comment:'Dep. to Huvafen'    },
-    { trf:'10:30', flt:'SQ431',        fltT:'12:55', room:'205', type:'BS',  name:'Acason',         pax:2, vip:'VIP5', tt:'luxury',  comment:'Luxury Transfer'    },
-    { trf:'19:00', flt:'TK735',        fltT:'21:55', room:'108', type:'DLX', name:'Aydogdu (×2)',   pax:2, vip:null,   tt:'private', comment:'LCO | PVT Transfer' },
-    { trf:'19:00', flt:'TK735',        fltT:'21:55', room:'107', type:'DLX', name:'Aydogdu (×2)',   pax:2, vip:null,   tt:'private', comment:'LCO | PVT Transfer' },
-    { trf:'19:30', flt:'TK735',        fltT:'21:55', room:'320', type:'WPV', name:'Rahimi',         pax:2, vip:null,   tt:'regular', comment:'LCO'                },
-  ],
-  '2026-03-24': [
-    { trf:'09:00', flt:'BA060',  fltT:'11:40', room:'218', type:'BPV', name:'McHugh (D+A)',    pax:2, vip:null, tt:'regular', comment:'02 Villa Family'      },
-    { trf:'09:00', flt:'MH484',  fltT:'12:00', room:'110', type:'DLX', name:'McHugh (Harold)', pax:1, vip:null, tt:'regular', comment:'02 Villa Family'      },
-    { trf:'10:30', flt:'SQ431',  fltT:'12:55', room:'120', type:'DLX', name:'Schwab',          pax:2, vip:null, tt:'regular', comment:''                     },
-    { trf:'10:30', flt:'SQ431',  fltT:'12:55', room:'113', type:'DLX', name:'Doucha',          pax:2, vip:null, tt:'regular', comment:''                     },
-    { trf:'12:30', flt:'UL116',  fltT:'15:30', room:'317', type:'WPV', name:'Khairy',          pax:2, vip:null, tt:'regular', comment:'LCO Until Departure'  },
-    { trf:'17:00', flt:'3U3924', fltT:'20:30', room:'301', type:'WV',  name:'Deng/Liu',        pax:2, vip:null, tt:'regular', comment:'LCO Until Departure'  },
-    { trf:'19:30', flt:'TK735',  fltT:'22:00', room:'119', type:'DLX', name:'Hihn/Bareiss',    pax:2, vip:null, tt:'regular', comment:'LCO Until Departure'  },
-    { trf:'21:00', flt:'SQ437',  fltT:'23:30', room:'324', type:'WPV', name:'Rayner',          pax:2, vip:null, tt:'regular', comment:'LCO Until Departure'  },
-  ],
-  '2026-03-25': [
-    { trf:'06:30', flt:'EK657',  fltT:'09:05', room:'312/311', type:'WPV', name:'Wolf family (×3)',           pax:3, vip:'VIP3', tt:'serenity', comment:'Serenity | CIP Departure' },
-    { trf:'08:00', flt:'SV3629', fltT:'10:40', room:'401',     type:'BR',  name:'Kassas family (×4)',         pax:4, vip:'VIP5', tt:'serenity', comment:'PVT by Serenity'          },
-    { trf:'09:30', flt:'BA060',  fltT:'11:40', room:'114',     type:'DLX', name:'Sehver',                     pax:1, vip:null,   tt:'regular',  comment:''                        },
-    { trf:'09:30', flt:'PG712',  fltT:'12:50', room:'319',     type:'WPV', name:'Dabrowski',                  pax:2, vip:null,   tt:'regular',  comment:''                        },
-    { trf:'09:30', flt:'MH484',  fltT:'12:00', room:'306',     type:'WV',  name:'Chong/Tan',                  pax:2, vip:null,   tt:'regular',  comment:''                        },
-    { trf:'11:00', flt:'SU325',  fltT:'14:10', room:'111',     type:'DLX', name:'Khadyka',                    pax:2, vip:null,   tt:'regular',  comment:''                        },
-    { trf:'11:00', flt:'JD456',  fltT:'14:50', room:'309',     type:'WV',  name:'Han/Wang',                   pax:2, vip:null,   tt:'regular',  comment:''                        },
-    { trf:'11:00', flt:'6E1130', fltT:'14:05', room:'302',     type:'WV',  name:'Keshava',                    pax:2, vip:null,   tt:'regular',  comment:''                        },
-    { trf:'14:45', flt:'UL116',  fltT:'15:35', room:'315/321', type:'WPV', name:'Komori + Chistiakov + Gulik',pax:4, vip:null,   tt:'regular',  comment:'LCO Until Departure'     },
-  ],
-  '2026-03-26': [
-    { trf:'08:00', flt:'LX8067', fltT:'10:30', room:'303', type:'WV', name:'Weilenmann', pax:2, vip:null,   tt:'regular', comment:''             },
-    { trf:'11:00', flt:'VS385',  fltT:'13:25', room:'203', type:'BV', name:'Godwin',      pax:2, vip:'VIP3', tt:'private', comment:'PVT Transfer' },
-  ],
-  '2026-03-27': [
-    { trf:'08:15', flt:'B4090',       fltT:'10:50', room:'314', type:'WPV', name:'Bürkle',      pax:2, vip:null,   tt:'regular', comment:''               },
-    { trf:'09:15', flt:'MH484',       fltT:'12:00', room:'330', type:'WV',  name:'Lee/Mayumi',  pax:2, vip:null,   tt:'regular', comment:''               },
-    { trf:'09:15', flt:'BA060',       fltT:'11:40', room:'104', type:'DLX', name:'Barrie',       pax:2, vip:'VIP3', tt:'regular', comment:''               },
-    { trf:'09:15', flt:"Male'",       fltT:'09:45', room:'312', type:'WPV', name:'Shijah',       pax:2, vip:'VIP1', tt:'other',   comment:'Employee Rate'  },
-    { trf:'10:00', flt:'Lily Beach',  fltT:'11:30', room:'212', type:'BPV', name:'Saputra (×3)', pax:3, vip:null,   tt:'other',   comment:'Dep. Lily Beach' },
-    { trf:'11:00', flt:'VS385',       fltT:'13:25', room:'117', type:'DLX', name:'Linford',      pax:2, vip:null,   tt:'regular', comment:''               },
-    { trf:'17:30', flt:'EY377',       fltT:'19:55', room:'211', type:'BPV', name:'Zamy/Wanke',  pax:2, vip:null,   tt:'regular', comment:'LCO'            },
-    { trf:'21:00', flt:'SQ437',       fltT:'23:30', room:'307', type:'WV',  name:'Kang/Park',   pax:2, vip:null,   tt:'regular', comment:'LCO'            },
-    { trf:'21:00', flt:'SQ437',       fltT:'23:30', room:'322', type:'WPV', name:'Morgan/Moe',  pax:2, vip:null,   tt:'regular', comment:'LCO'            },
-  ],
-  '2026-03-28': [
-    { trf:'06:30', flt:'EY379',          fltT:'09:00', room:'209', type:'BPV', name:'Williams',      pax:2, vip:'VIP3', tt:'regular', comment:'IVD Breakfast'        },
-    { trf:'07:45', flt:'OS22',           fltT:'10:25', room:'328', type:'WV',  name:'Heinrich',      pax:2, vip:null,   tt:'regular', comment:'Breakfast at Lime'    },
-    { trf:'09:00', flt:'BA060',          fltT:'11:40', room:'313', type:'WPV', name:'Wood',          pax:2, vip:'VIP3', tt:'regular', comment:''                     },
-    { trf:'09:00', flt:'BA060',          fltT:'11:40', room:'105', type:'DLX', name:'Foulds',        pax:2, vip:'VIP3', tt:'regular', comment:''                     },
-    { trf:'09:00', flt:'BA060',          fltT:'11:40', room:'215', type:'BPV', name:'King',          pax:2, vip:null,   tt:'regular', comment:''                     },
-    { trf:'10:30', flt:'AI2240',         fltT:'12:50', room:'202', type:'BV',  name:'Brown',         pax:2, vip:null,   tt:'regular', comment:''                     },
-    { trf:'10:30', flt:'VS385',          fltT:'13:25', room:'205', type:'BS',  name:'Fitzsimons',    pax:2, vip:null,   tt:'regular', comment:''                     },
-    { trf:'15:30', flt:'Emperor Safari', fltT:'16:00', room:'117', type:'DLX', name:'Areano',        pax:1, vip:null,   tt:'other',   comment:'LCO Until Departure'  },
-    { trf:'20:00', flt:'H4 8570',        fltT:'23:00', room:'122', type:'DLX', name:'Hartular (×2)', pax:2, vip:null,   tt:'regular', comment:'LCO Until Departure'  },
-  ],
-}
-
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-const toM  = t => { if (!t?.includes(':')) return NaN; const [h,m]=t.split(':').map(Number); return h*60+m }
-const toT  = m => { const h=Math.floor(m/60)%24,mn=m%60; return `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}` }
-const fmtB = n => { const a=Math.abs(Math.round(n)); return (n>=0?'+':'-')+a+' min' }
-
-function groupByTrf(transfers) {
-  const map = {}
-  transfers.forEach(t => { if (!map[t.trf]) map[t.trf]=[]; map[t.trf].push(t) })
-  return Object.entries(map).sort(([a],[b])=>toM(a)-toM(b)).map(([trf,ts])=>({trf,transfers:ts}))
-}
-
-function splitByVessel(transfers) {
-  const order = ['serenity','private','luxury','regular','other']
-  const map = {}
-  transfers.forEach(t => { if (!map[t.tt]) map[t.tt]=[]; map[t.tt].push(t) })
-  return order.filter(k => map[k]).map(k => ({ tt:k, transfers:map[k] }))
-}
-
-function calcBuf(trfStr, fltMs) {
-  const valid = fltMs.filter(f => !isNaN(f))
-  if (!valid.length) return null
-  return toM(trfStr) - (Math.min(...valid) - LEAD)
-}
-
-// ─── Baros Brand Tokens ──────────────────────────────────────────────────────
-const B = {
-  freshPalm:    '#1A4530',
-  freshPalmMid: '#2D6147',
-  palmLight:    'rgba(26,69,48,0.08)',
-  palmMid:      'rgba(26,69,48,0.15)',
-  breeze:       '#E5EDED',
-  breezeDeep:   '#C8D8D4',
-  pearl:        '#F5F5F1',
-  pearlDeep:    '#ECEAE4',
-  gold:         '#A4A260',
-  goldLight:    'rgba(164,162,96,0.12)',
-  midnight:     '#0D0F0A',
-  white:        '#FFFFFF',
-  textPrimary:  '#1A1A18',
-  textSecond:   '#5A6B62',
-  textMuted:    '#8A9E96',
-  border:       'rgba(26,69,48,0.12)',
-  borderMid:    'rgba(26,69,48,0.2)',
-  danger:       '#C0392B',
-  dangerLight:  'rgba(192,57,43,0.08)',
-  success:      '#1A6B3C',
-  successLight: 'rgba(26,107,60,0.08)',
-  warning:      '#A07820',
-  warningLight: 'rgba(160,120,32,0.08)',
-}
-
-// ─── Shared styles ─────────────────────────────────────────────────────────────
-const S = {
-  app:      { display:'flex', flexDirection:'column', height:'100vh', fontFamily:"'Work Sans', system-ui, sans-serif", background:B.pearl, color:B.textPrimary },
-  topbar:   { display:'flex', alignItems:'center', gap:14, padding:'0 24px', height:58, background:B.freshPalm, color:B.white, flexShrink:0, borderBottom:`1px solid ${B.freshPalmMid}` },
-  logo:     { fontSize:16, fontWeight:600, letterSpacing:'0.5px', color:B.white, fontFamily:"'Work Sans', sans-serif" },
-  resort:   { fontSize:12, color:'rgba(255,255,255,0.55)', marginLeft:6, letterSpacing:'.3px' },
-  topRight: { marginLeft:'auto', display:'flex', alignItems:'center', gap:12 },
-  sidebar:  { width:210, background:B.midnight, display:'flex', flexDirection:'column', flexShrink:0, overflowY:'auto' },
-  navItem:  a => ({ display:'flex', alignItems:'center', gap:10, padding:'11px 18px', cursor:'pointer', background: a ? 'rgba(255,255,255,0.07)' : 'transparent', color: a ? B.white : 'rgba(255,255,255,0.45)', borderLeft: a ? `3px solid ${B.gold}` : '3px solid transparent', fontSize:13, transition:'all .15s', userSelect:'none', letterSpacing:'.2px' }),
-  content:  { flex:1, overflow:'auto', padding:24 },
-  card:     { background:B.white, border:`0.5px solid ${B.border}`, borderRadius:8, overflow:'hidden', marginBottom:16 },
-  cardHdr:  { padding:'13px 18px', borderBottom:`0.5px solid ${B.border}`, fontWeight:500, fontSize:13, display:'flex', alignItems:'center', gap:8, color:B.textPrimary, letterSpacing:'.2px', background:B.pearl },
-  cardBody: { padding:18 },
-  table:    { width:'100%', borderCollapse:'collapse', fontSize:13 },
-  th:       { padding:'9px 12px', textAlign:'left', fontSize:10, fontWeight:600, color:B.textMuted, borderBottom:`0.5px solid ${B.border}`, textTransform:'uppercase', letterSpacing:'1px', background:B.pearl },
-  td:       { padding:'10px 12px', borderBottom:`0.5px solid ${B.border}`, verticalAlign:'middle', color:B.textPrimary },
-  badge:    (bg,color) => ({ display:'inline-flex', alignItems:'center', padding:'2px 9px', borderRadius:99, fontSize:11, fontWeight:500, background:bg, color, letterSpacing:'.2px' }),
-  pill:     { display:'inline-flex', alignItems:'center', padding:'3px 10px', borderRadius:99, fontSize:11, background:B.palmLight, color:B.freshPalm, fontWeight:500 },
-  loginWrap:  { minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:B.midnight },
-  loginCard:  { background:'#151714', borderRadius:10, padding:40, width:380, border:'0.5px solid rgba(255,255,255,0.08)' },
-  label:      { display:'block', fontSize:11, color:'rgba(255,255,255,0.45)', marginBottom:6, letterSpacing:'.8px', textTransform:'uppercase' },
-  input:      { width:'100%', padding:'10px 14px', borderRadius:6, border:'0.5px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.05)', color:B.white, fontSize:13, boxSizing:'border-box', outline:'none', fontFamily:"'Work Sans', sans-serif" },
-  loginBtn:   { width:'100%', padding:'11px', borderRadius:6, border:'none', background:B.freshPalm, color:B.white, fontWeight:500, fontSize:14, cursor:'pointer', marginTop:22, letterSpacing:'.5px', fontFamily:"'Work Sans', sans-serif" },
-  groupCard:  { background:B.white, border:`0.5px solid ${B.border}`, borderRadius:8, marginBottom:10, overflow:'hidden' },
-  groupHdr:   { background:B.pearl, borderBottom:`0.5px solid ${B.border}`, padding:'8px 14px', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', cursor:'pointer' },
-  trfBadge:   { background:B.freshPalm, color:B.white, borderRadius:5, padding:'3px 12px', fontSize:14, fontFamily:'monospace', fontWeight:700, flexShrink:0, letterSpacing:'1px' },
-  fltTag:     { background:B.palmLight, color:B.freshPalm, borderRadius:99, padding:'2px 9px', fontSize:11, fontWeight:500 },
-  rlBadge:    { background:B.successLight, color:B.success, borderRadius:99, padding:'2px 9px', fontSize:11, fontWeight:500 },
-  gapOk:      { background:B.successLight, color:B.success, borderRadius:99, padding:'2px 8px', fontSize:10 },
-  gapWarn:    { background:B.warningLight, color:B.warning, borderRadius:99, padding:'2px 8px', fontSize:10 },
-  runBlock:   { padding:'8px 14px', borderBottom:`0.5px dashed ${B.border}` },
-  vTag: tt  => ({ display:'inline-flex', alignItems:'center', gap:5, borderRadius:99, padding:'2px 10px', fontSize:11, fontWeight:500, marginBottom:6, border:`0.5px solid ${VESSEL_CFG[tt].border}`, background:VESSEL_CFG[tt].bg, color:VESSEL_CFG[tt].text }),
-  row:        { display:'flex', alignItems:'center', gap:6, padding:'4px 0', borderTop:`0.5px solid ${B.border}` },
-  rmTag:      { background:B.pearlDeep, color:B.textSecond, borderRadius:4, padding:'2px 7px', fontSize:10, fontFamily:'monospace', minWidth:38, textAlign:'center', flexShrink:0 },
-  typeTag:    { fontSize:10, color:B.textMuted, background:B.breeze, borderRadius:4, padding:'2px 6px', flexShrink:0 },
-  guestName:  { fontSize:12, flex:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color:B.textPrimary },
-  commentTxt: { fontSize:10, color:B.textMuted, maxWidth:130, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flexShrink:0 },
-  timingBar:  { padding:'5px 14px', background:B.pearlDeep, borderTop:`0.5px solid ${B.border}`, display:'flex', gap:16, fontSize:10, color:B.textMuted, flexWrap:'wrap' },
-  algoPanel:  { background:B.midnight, borderRadius:8, padding:18, marginBottom:16, fontSize:12 },
-  statRow:    { display:'flex', gap:12, marginBottom:16, flexWrap:'wrap' },
-  stat:  a  => ({ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:8, padding:'12px 16px', flex:'1', minWidth:100, borderTop:`2px solid ${a}` }),
-}
-
-const INP = { width:'100%', padding:'9px 12px', borderRadius:6, border:`0.5px solid rgba(26,69,48,0.2)`, background:'#FFFFFF', fontSize:13, boxSizing:'border-box', color:'#1A1A18', outline:'none', fontFamily:"'Work Sans', system-ui, sans-serif" }
-const LBL = { fontSize:10, color:'#5A6B62', marginBottom:5, display:'block', letterSpacing:'.8px', textTransform:'uppercase', fontWeight:500 }
-const BTN_PRIMARY = { padding:'9px 22px', borderRadius:6, border:'none', background:'#1A4530', color:'#fff', fontSize:13, cursor:'pointer', fontWeight:500, letterSpacing:'.3px', fontFamily:"'Work Sans', system-ui, sans-serif" }
-const BTN_ADD     = { padding:'7px 16px', borderRadius:6, border:'none', background:'#1A4530', color:'#fff', fontSize:12, cursor:'pointer', fontWeight:500, letterSpacing:'.3px', fontFamily:"'Work Sans', system-ui, sans-serif" }
-const BTN_DEL     = { padding:'3px 10px', borderRadius:4, border:'0.5px solid rgba(192,57,43,0.25)', background:'rgba(192,57,43,0.05)', color:'#C0392B', fontSize:11, cursor:'pointer' }
-
-const vipStyle = v => {
-  const c = { VIP1:{bg:'rgba(164,162,96,0.1)',text:'#7A7840'}, VIP2:{bg:'rgba(164,162,96,0.12)',text:'#6A6830'}, VIP3:{bg:'rgba(26,69,48,0.1)',text:'#1A4530'}, VIP4:{bg:'rgba(26,69,48,0.12)',text:'#2D6147'}, VIP5:{bg:'rgba(13,15,10,0.08)',text:'#1A1A18'} }
-  const cfg = c[v] || { bg:'rgba(26,69,48,0.06)', text:'#1A4530' }
-  return { display:'inline-flex', borderRadius:99, padding:'1px 7px', fontSize:10, fontWeight:500, flexShrink:0, background:cfg.bg, color:cfg.text, letterSpacing:'.3px' }
-}
-
-// ─── Login ────────────────────────────────────────────────────────────────────
-function LoginPage({ onLogin }) {
-  const [creds, setCreds] = useState({ username:'', password:'' })
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const emailMap = { 'dhirumbaa':'dhirumbaa@dhirumbaa.com', 'baros.admin':'baros.admin@dhirumbaa.com' }
-
-  const handle = async e => {
-    e.preventDefault(); setLoading(true); setError('')
-    const email = emailMap[creds.username.toLowerCase()]
-    if (!email) { setError('Unknown username'); setLoading(false); return }
-    const { data, error: err } = await supabase.auth.signInWithPassword({ email, password: creds.password })
-    if (err) {
-      const ok = (creds.username==='dhirumbaa' && creds.password==='Dhirumbaa@2026') ||
-                 (creds.username==='baros.admin' && creds.password==='Baros@2026')
-      if (ok) onLogin({ username:creds.username, role:creds.username==='dhirumbaa'?'super_admin':'resort_admin' })
-      else setError('Invalid credentials')
-    } else {
-      onLogin({ username:creds.username, role:creds.username==='dhirumbaa'?'super_admin':'resort_admin', session:data.session })
-    }
-    setLoading(false)
-  }
-
+/* ─── UI PRIMITIVES ─── */
+const Card = ({children,style={}}) => (
+  <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,boxShadow:"0 1px 4px rgba(0,0,0,.05)",...style}}>{children}</div>
+);
+const Btn = ({children,onClick,variant="primary",iconName,full,disabled,small,style={}}) => {
+  const vs={
+    primary:{background:"linear-gradient(135deg,#0f7a67,#0a6152)",color:"#fff",border:"none",shadow:"0 2px 8px rgba(10,97,82,.28)"},
+    outline:{background:"#fff",color:C.mid,border:`1px solid ${C.border}`,shadow:"none"},
+    danger: {background:"linear-gradient(135deg,#ef4444,#dc2626)",color:"#fff",border:"none",shadow:"0 2px 6px rgba(220,38,38,.28)"},
+    green:  {background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",border:"none",shadow:"0 2px 6px rgba(22,163,74,.28)"},
+  };
+  const v=vs[variant]||vs.primary;
   return (
-    <div style={{ minHeight:'100vh', display:'flex', background:B.midnight, flexDirection: window.innerWidth < 768 ? 'column' : 'row' }}>
-      <div style={{ flex:1, background:`linear-gradient(160deg, ${B.freshPalm} 0%, #0D2318 100%)`, display: window.innerWidth < 768 ? 'none' : 'flex', flexDirection:'column', justifyContent:'flex-end', padding:48, position:'relative', overflow:'hidden' }}>
-        <div style={{ position:'absolute', top:0, left:0, right:0, bottom:0, opacity:.06, backgroundImage:'radial-gradient(circle at 30% 40%, #A4A260 0%, transparent 60%), radial-gradient(circle at 70% 80%, #E5EDED 0%, transparent 50%)' }} />
-        <div style={{ position:'relative', zIndex:1 }}>
-          <div style={{ fontSize:13, letterSpacing:'3px', color:'rgba(255,255,255,0.4)', textTransform:'uppercase', marginBottom:16 }}>Dhirumbaa</div>
-          <div style={{ fontSize:36, fontWeight:300, color:B.white, lineHeight:1.2, marginBottom:12 }}>Fleet Management<br/><span style={{ color:B.gold }}>System</span></div>
-          <div style={{ fontSize:13, color:'rgba(255,255,255,0.4)', lineHeight:1.7, maxWidth:300 }}>Intelligent boat operations for Maldives resort properties.</div>
-          <div style={{ marginTop:40, display:'flex', gap:20 }}>
-            {['Baros Maldives','Multi-resort','Maldives'].map(t => (
-              <div key={t} style={{ fontSize:10, letterSpacing:'1px', color:'rgba(255,255,255,0.3)', textTransform:'uppercase' }}>{t}</div>
-            ))}
-          </div>
-        </div>
+    <button onClick={onClick} disabled={disabled} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,padding:small?"6px 12px":"10px 16px",borderRadius:10,fontWeight:700,fontSize:small?11:13,cursor:disabled?"not-allowed":"pointer",opacity:disabled?.5:1,width:full?"100%":"auto",boxShadow:v.shadow,...v,border:v.border||"none",...style}}>
+      {iconName&&<Icon name={iconName} size={small?12:14} color={v.color}/>}{children}
+    </button>
+  );
+};
+const Tabs = ({tabs,active,onChange}) => (
+  <div style={{display:"flex",gap:2,marginBottom:16,background:"rgba(0,0,0,.04)",borderRadius:11,padding:4,overflowX:"auto",scrollbarWidth:"none",WebkitOverflowScrolling:"touch"}}>
+    {tabs.map(t=>(
+      <button key={t} onClick={()=>onChange(t)} style={{padding:"7px 14px",borderRadius:8,border:"none",background:active===t?"#fff":"transparent",color:active===t?C.text:C.mid,fontSize:12,fontWeight:active===t?700:500,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,boxShadow:active===t?"0 1px 4px rgba(0,0,0,.08)":"none",transition:"all .15s"}}>{t}</button>
+    ))}
+  </div>
+);
+const Modal = ({title,children,onClose}) => (
+  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0}}>
+    <div style={{background:"#fff",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:520,maxHeight:"92vh",overflowY:"auto",boxShadow:"0 -8px 40px rgba(0,0,0,.25)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 18px 12px",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,background:"#fff",zIndex:1}}>
+        <span style={{fontWeight:800,fontSize:15,color:C.text}}>{title}</span>
+        <button onClick={onClose} style={{background:"rgba(0,0,0,.05)",border:"none",cursor:"pointer",width:28,height:28,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="x" size={14} color={C.mid}/></button>
       </div>
-      <div style={{ width: window.innerWidth < 768 ? '100%' : 420, background:'#0F1210', display:'flex', alignItems:'center', justifyContent:'center', padding: window.innerWidth < 768 ? '32px 24px' : 48, flex: window.innerWidth < 768 ? 1 : 'none' }}>
-        <div style={{ width:'100%' }}>
-          <div style={{ width:40, height:3, background:B.gold, marginBottom:32, borderRadius:2 }} />
-          <div style={{ fontSize:22, fontWeight:500, color:B.white, marginBottom:6, letterSpacing:'-0.3px' }}>Welcome back</div>
-          <div style={{ fontSize:13, color:'rgba(255,255,255,0.35)', marginBottom:36 }}>Sign in to your operations dashboard</div>
-          <form onSubmit={handle}>
-            <div style={{ marginBottom:18 }}>
-              <label style={S.label}>Username</label>
-              <input style={S.input} value={creds.username} onChange={e=>setCreds(p=>({...p,username:e.target.value}))} placeholder="dhirumbaa or baros.admin" autoFocus />
-            </div>
-            <div style={{ marginBottom:6 }}>
-              <label style={S.label}>Password</label>
-              <input style={S.input} type="password" value={creds.password} onChange={e=>setCreds(p=>({...p,password:e.target.value}))} placeholder="••••••••" />
-            </div>
-            {error && <div style={{ fontSize:12, color:'#E87070', marginTop:10 }}>{error}</div>}
-            <button style={S.loginBtn} type="submit" disabled={loading}>
-              {loading ? 'Signing in…' : 'Sign In →'}
-            </button>
-          </form>
-          <div style={{ marginTop:32, padding:'14px 16px', background:'rgba(255,255,255,0.03)', borderRadius:6, border:'0.5px solid rgba(255,255,255,0.06)', fontSize:11, color:'rgba(255,255,255,0.25)' }}>
-            <div>Super Admin: <span style={{ color:'rgba(255,255,255,0.4)' }}>dhirumbaa / Dhirumbaa@2026</span></div>
-            <div style={{ marginTop:4 }}>Resort Admin: <span style={{ color:'rgba(255,255,255,0.4)' }}>baros.admin / Baros@2026</span></div>
-          </div>
-        </div>
-      </div>
+      <div style={{padding:"16px 18px 32px"}}>{children}</div>
     </div>
-  )
+  </div>
+);
+const Field = ({label,children}) => (
+  <div style={{marginBottom:14}}>
+    <label style={{display:"block",fontSize:11,fontWeight:700,color:C.mid,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.07em"}}>{label}</label>
+    {children}
+  </div>
+);
+const Inp = ({value,onChange,placeholder,type="text",style={}}) => (
+  <input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} type={type}
+    style={{width:"100%",padding:"11px 13px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:14,color:C.text,background:"#fafbfc",outline:"none",...style}}/>
+);
+
+/* ─── CIRCULAR GAUGE ─── */
+function Gauge({value,max,label,unit,color="#0a6152",size=120,warn=0.25,crit=0.1}) {
+  const r=(size/2)-10, cx=size/2, cy=size/2, sa=-215, sw=250;
+  const pct=Math.min(Math.max(value/max,0),1);
+  const toR=a=>(a*Math.PI)/180;
+  const pt=a=>({x:cx+r*Math.cos(toR(a)),y:cy+r*Math.sin(toR(a))});
+  const arc=(f,t)=>{const s=pt(f),e=pt(t),lg=(t-f)>180?1:0;return `M ${s.x} ${s.y} A ${r} ${r} 0 ${lg} 1 ${e.x} ${e.y}`;};
+  const fa=sa+sw*pct;
+  const gc=pct<=crit?"#b91c1c":pct<=warn?"#d4950a":color;
+  const ts=size<110?14:18;
+  return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+      <svg width={size} height={size} style={{overflow:"visible"}}>
+        <path d={arc(sa,sa+sw)} fill="none" stroke="#e2e8f0" strokeWidth={size<110?7:9} strokeLinecap="round"/>
+        {pct>0&&<path d={arc(sa,fa)} fill="none" stroke={gc} strokeWidth={size<110?7:9} strokeLinecap="round"/>}
+        <text x={cx} y={cy+4} textAnchor="middle" fontSize={ts} fontWeight="900" fill={gc} fontFamily="monospace">
+          {typeof value==="number"?value.toLocaleString():value}
+        </text>
+        <text x={cx} y={cy+ts*0.95+4} textAnchor="middle" fontSize={9} fill="#94a3b8" fontFamily="sans-serif">{unit}</text>
+      </svg>
+      <div style={{fontSize:11,fontWeight:700,color:C.mid,marginTop:2,textAlign:"center",lineHeight:1.2}}>{label}</div>
+      <div style={{fontSize:10,color:gc,fontWeight:600,marginTop:1}}>{Math.round(pct*100)}%{pct<=warn?" LOW":""}</div>
+    </div>
+  );
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
-function Dashboard({ user, isMobile }) {
-  const today = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
-  const stats = [
-    { val:'9',  lbl:'Departures today', color:B.freshPalm },
-    { val:'17', lbl:'Pax today',         color:B.gold      },
-    { val:'3',  lbl:'Boat runs',          color:B.freshPalmMid },
-    { val:'2',  lbl:'VIP transfers',      color:'#7B5EA7'  },
-  ]
-  const upcoming = [
-    { time:'09:00', flt:'BA060',          vessel:'Ixora', pax:6,  type:'regular' },
-    { time:'10:30', flt:'AI2240 / VS385', vessel:'Ixora', pax:4,  type:'regular' },
-    { time:'15:30', flt:'Emperor Safari', vessel:'Other', pax:1,  type:'other'   },
-    { time:'20:00', flt:'H4 8570',        vessel:'Tara',  pax:2,  type:'regular' },
-  ]
+/* ════════════════════════════════════════
+   DASHBOARD
+════════════════════════════════════════ */
+function Dashboard({setPage,fleet,fuelBal,trips}) {
+  const m = useMobile();
+  const [now,setNow]=useState(new Date());
+  useEffect(()=>{const t=setInterval(()=>setNow(new Date()),10000);return()=>clearInterval(t);},[]);
+  const active=fleet.filter(v=>v.status==="active").length;
+  const alerts=fleet.filter(v=>fuelBal[v.id]<=v.fuelMin||(trips[v.id]||0)>=v.refuelAfter).length;
+  const total=Object.values(MOVEMENTS).reduce((a,b)=>a+b.length,0);
+  const sched=[
+    {time:"05:45",label:"Ixora – Guest Transfer",done:true,c:"#2563eb"},
+    {time:"06:30",label:"Tara – Guest Transfer",done:true,c:"#2563eb"},
+    {time:"07:45",label:"Serenity – VIP Transfer ⭐",done:true,c:"#d97706"},
+    {time:"08:00",label:"Heliconia – Diving",done:true,c:"#7c3aed"},
+    {time:"10:45",label:"Tara – Guest Transfer",done:false,c:"#2563eb"},
+    {time:"13:45",label:"Heliconia – Snorkelling",done:false,c:"#7c3aed"},
+    {time:"16:45",label:"Isadora – Sunset Cruise",done:false,c:"#7c3aed"},
+    {time:"18:45",label:"Ixora – Guest Transfer",done:false,c:"#2563eb"},
+  ];
+  const done=sched.filter(s=>s.done).length;
   return (
-    <>
-      <div style={{ background:`linear-gradient(135deg, ${B.freshPalm} 0%, ${B.freshPalmMid} 100%)`, borderRadius:10, padding:isMobile?'16px 16px':'24px 28px', marginBottom:isMobile?14:20, display:'flex', alignItems:'flex-end', justifyContent:'space-between' }}>
-        <div>
-          <div style={{ fontSize:10, letterSpacing:'2px', color:'rgba(255,255,255,0.5)', textTransform:'uppercase', marginBottom:4 }}>Good morning</div>
-          <div style={{ fontSize:isMobile?18:22, fontWeight:500, color:B.white, letterSpacing:'-0.3px' }}>{user.username === 'dhirumbaa' ? 'Admin' : 'Baros Team'}</div>
-          <div style={{ fontSize:11, color:'rgba(255,255,255,0.45)', marginTop:3 }}>{isMobile ? new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : today}</div>
-        </div>
-        <div style={{ textAlign:'right' }}>
-          <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', letterSpacing:'1px', textTransform:'uppercase' }}>Property</div>
-          <div style={{ fontSize:isMobile?12:14, color:B.gold, fontWeight:500, marginTop:2 }}>{isMobile ? 'Baros' : 'Baros Maldives'}</div>
-        </div>
-      </div>
-
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:isMobile?8:12, marginBottom:isMobile?14:20 }}>
-        {stats.map(s => (
-          <div key={s.lbl} style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:8, padding:isMobile?'12px 14px':'16px 18px', borderLeft:`3px solid ${s.color}` }}>
-            <div style={{ fontSize:isMobile?22:26, fontWeight:300, color:s.color, letterSpacing:'-1px' }}>{s.val}</div>
-            <div style={{ fontSize:isMobile?10:11, color:B.textMuted, marginTop:3, letterSpacing:'.3px' }}>{s.lbl}</div>
+    <div>
+      {/* Hero */}
+      <div style={{background:"linear-gradient(135deg,#0d1f3c 0%,#0a6152 100%)",borderRadius:16,padding:m?"16px 18px":"20px 24px",marginBottom:14,color:"#fff",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",right:-20,top:-20,width:130,height:130,borderRadius:"50%",background:"rgba(255,255,255,.04)"}}/>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",position:"relative"}}>
+          <div>
+            <div style={{fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",color:"rgba(255,255,255,.5)",marginBottom:4}}>Wed 25 Mar 2026</div>
+            <h1 style={{margin:0,fontSize:m?18:22,fontWeight:900,letterSpacing:"-0.02em"}}>Operations Dashboard</h1>
+            <p style={{margin:"4px 0 0",fontSize:11,color:"rgba(255,255,255,.5)"}}>Baros Maldives · VMS</p>
           </div>
-        ))}
-      </div>
-
-      <div style={S.card}>
-        <div style={S.cardHdr}>
-          <span style={{ width:8, height:8, borderRadius:'50%', background:B.freshPalm, display:'inline-block', marginRight:4 }}></span>
-          Today's Transfer Schedule
-        </div>
-        {isMobile ? (
-          <div style={{ padding:8 }}>
-            {upcoming.map((r,i) => (
-              <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 8px', borderBottom:i<upcoming.length-1?`0.5px solid ${B.border}`:'none' }}>
-                <span style={{ fontFamily:'monospace', fontSize:14, fontWeight:700, color:B.freshPalm, minWidth:48 }}>{r.time}</span>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:13, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.flt}</div>
-                  <div style={{ fontSize:11, color:B.textMuted }}>{r.vessel} · {r.pax} pax</div>
-                </div>
-                <span style={S.badge(r.type==='other'?B.pearlDeep:B.palmLight, r.type==='other'?B.textSecond:B.freshPalm)}>{r.type}</span>
-              </div>
-            ))}
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:m?26:32,fontWeight:900,fontFamily:"monospace",letterSpacing:"-0.03em",lineHeight:1}}>{now.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",timeZone:"Indian/Maldives"})}</div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,.4)",marginTop:2}}>MVT</div>
           </div>
-        ) : (
-          <table style={S.table}>
-            <thead><tr>{['Time','Flight','Vessel','Pax','Type'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
-            <tbody>
-              {upcoming.map((r,i) => (
-                <tr key={i}>
-                  <td style={S.td}><span style={{ fontFamily:'monospace', fontSize:13, fontWeight:600, color:B.freshPalm }}>{r.time}</span></td>
-                  <td style={S.td}>{r.flt}</td>
-                  <td style={S.td}><span style={S.pill}>{r.vessel}</span></td>
-                  <td style={S.td}>{r.pax}</td>
-                  <td style={S.td}><span style={S.badge(r.type==='other'?B.pearlDeep:B.palmLight, r.type==='other'?B.textSecond:B.freshPalm)}>{r.type}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      <div style={S.card}>
-        <div style={S.cardHdr}>
-          <span style={{ width:8, height:8, borderRadius:'50%', background:B.gold, display:'inline-block', marginRight:4 }}></span>
-          Vessel Status
         </div>
-        <div style={{ padding:isMobile?8:12, display:'flex', flexDirection:'column', gap:isMobile?6:8 }}>
-          {VESSELS.map(v => (
-            <div key={v.name} style={{ display:'flex', alignItems:'center', gap:10, padding:isMobile?'8px 10px':'10px 14px', background:B.pearl, borderRadius:6, border:`0.5px solid ${B.border}` }}>
-              <div style={{ width:isMobile?30:36, height:isMobile?30:36, borderRadius:'50%', background: v.status==='active'?B.freshPalm:B.pearlDeep, display:'flex', alignItems:'center', justifyContent:'center', fontSize:isMobile?13:16, flexShrink:0 }}>⛵</div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontWeight:500, fontSize:isMobile?12:13, color:B.textPrimary }}>{v.name}</div>
-                <div style={{ fontSize:10, color:B.textMuted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{v.type} · {v.cap} pax</div>
-              </div>
-              <span style={S.badge(v.status==='active'?B.successLight:B.pearlDeep, v.status==='active'?B.success:B.textSecond)}>● {v.status}</span>
+        <div style={{display:"flex",gap:7,marginTop:14,flexWrap:"wrap"}}>
+          {[{l:`${active} Active`,c:"#dcfce7"},{l:`${fleet.filter(v=>v.status==="maintenance").length} Maint.`,c:"#fee2e2"},{l:`${total} Trips`,c:"rgba(255,255,255,.15)"}].map(p=>(
+            <div key={p.l} style={{display:"flex",alignItems:"center",gap:5,background:"rgba(255,255,255,.12)",borderRadius:20,padding:"4px 11px"}}>
+              <div style={{width:5,height:5,borderRadius:"50%",background:p.c}}/>
+              <span style={{fontSize:11,fontWeight:700,color:"#fff"}}>{p.l}</span>
             </div>
           ))}
         </div>
       </div>
-    </>
-  )
+
+      {/* KPIs — 2×2 on mobile, 4-col on desktop */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+        {[
+          {label:"Trips Today",  value:total,    sub:"Active & scheduled",    icon:"movement",c:"#2563eb",bg:"#eff6ff"},
+          {label:"Fleet Active", value:active,   sub:`of ${fleet.length} vessels`, icon:"fleet",   c:"#0a6152",bg:"#f0fdf4"},
+          {label:"Staff On Duty",value:17,       sub:"2 off today",            icon:"roster",  c:"#7c3aed",bg:"#f5f3ff"},
+          {label:"Fuel Alerts",  value:alerts,   sub:"Need refuelling",        icon:"fuel",    c:"#d97706",bg:"#fffbeb"},
+        ].map(k=>(
+          <Card key={k.label} style={{padding:"14px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+              <div style={{width:32,height:32,borderRadius:9,background:k.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name={k.icon} size={15} color={k.c}/></div>
+              <span style={{fontSize:m?22:26,fontWeight:900,color:k.c,letterSpacing:"-0.03em"}}>{k.value}</span>
+            </div>
+            <div style={{fontSize:12,fontWeight:700,color:C.text}}>{k.label}</div>
+            <div style={{fontSize:10,color:C.light,marginTop:1}}>{k.sub}</div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Schedule — full width on mobile */}
+      <Card style={{padding:"16px",marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div><div style={{fontWeight:800,fontSize:14,color:C.text}}>Today's Schedule</div><div style={{fontSize:11,color:C.light,marginTop:1}}>{done}/{sched.length} completed</div></div>
+          <button onClick={()=>setPage("movement")} style={{background:"#f0fdf4",border:"none",color:C.primary,fontWeight:700,fontSize:11,cursor:"pointer",padding:"5px 10px",borderRadius:7}}>Full →</button>
+        </div>
+        <div style={{height:4,background:"#f1f5f9",borderRadius:2,overflow:"hidden",marginBottom:12}}>
+          <div style={{height:"100%",width:`${(done/sched.length)*100}%`,background:"linear-gradient(90deg,#0a6152,#22c55e)",borderRadius:2}}/>
+        </div>
+        {sched.map((s,i)=>(
+          <div key={i} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 0",borderBottom:i<sched.length-1?`1px solid ${C.borderLight}`:"none"}}>
+            <span style={{fontFamily:"monospace",fontSize:11,fontWeight:700,color:s.done?C.light:s.c,minWidth:36,opacity:s.done?.5:1}}>{s.time}</span>
+            <div style={{width:7,height:7,borderRadius:"50%",flexShrink:0,background:s.done?"#d1d5db":s.c}}/>
+            <span style={{fontSize:12,color:s.done?C.light:C.text,fontWeight:s.done?400:600,textDecoration:s.done?"line-through":"none",flex:1}}>{s.label}</span>
+            {s.done&&<span style={{fontSize:10,color:"#22c55e"}}>✓</span>}
+          </div>
+        ))}
+      </Card>
+
+      {/* Fleet Status */}
+      <Card style={{padding:"16px",marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{fontWeight:800,fontSize:14,color:C.text}}>Fleet Status</div>
+          <button onClick={()=>setPage("fleet")} style={{background:"none",border:"none",color:C.primary,fontWeight:700,fontSize:11,cursor:"pointer"}}>Manage →</button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+          {fleet.map(v=>{
+            const sc=v.status==="active"?{dot:"#22c55e",bg:"#f0fdf4"}:v.status==="maintenance"?{dot:"#ef4444",bg:"#fff1f2"}:{dot:"#f59e0b",bg:"#fffbeb"};
+            return (
+              <div key={v.id} style={{display:"flex",alignItems:"center",gap:7,padding:"7px 9px",borderRadius:9,background:sc.bg}}>
+                <div style={{width:7,height:7,borderRadius:"50%",background:sc.dot,flexShrink:0}}/>
+                <div style={{minWidth:0}}><div style={{fontSize:11,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.id}</div><div style={{fontSize:9,color:C.light}}>{v.type}</div></div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Maintenance alerts */}
+      <Card style={{padding:"16px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{fontWeight:800,fontSize:14,color:C.text}}>Maintenance Alerts</div>
+          <button onClick={()=>setPage("maintenance")} style={{background:"none",border:"none",color:C.primary,fontWeight:700,fontSize:11,cursor:"pointer"}}>View →</button>
+        </div>
+        {MAINTENANCE_DATA.filter(m=>m.status!=="scheduled").map((m,i,arr)=>(
+          <div key={i} style={{display:"flex",gap:10,padding:"9px 0",borderBottom:i<arr.length-1?`1px solid ${C.borderLight}`:"none",alignItems:"flex-start"}}>
+            <div style={{width:30,height:30,borderRadius:8,background:m.status==="overdue"?"#fee2e2":"#fff7ed",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="alert" size={14} color={m.status==="overdue"?"#dc2626":"#d97706"}/></div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontWeight:700,fontSize:12,color:C.text}}>{m.vessel}</div>
+              <div style={{fontSize:11,color:m.status==="overdue"?C.red:C.orange,marginTop:1}}>{m.task}</div>
+              <div style={{fontSize:10,color:C.light,fontFamily:"monospace"}}>Due: {m.due}</div>
+            </div>
+            <span style={{fontSize:9,fontWeight:800,color:m.status==="overdue"?C.red:C.orange,background:m.status==="overdue"?"#fee2e2":"#fff7ed",padding:"2px 7px",borderRadius:12,whiteSpace:"nowrap"}}>{m.status.toUpperCase()}</span>
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
 }
 
-// ─── Settings ─────────────────────────────────────────────────────────────────
-function SettingsView({ isMobile }) {
-  const consts = [['Journey Baros ↔ VIA','22','min'],['Immigration buffer','35','min'],['Lounge to jetty (VIA)','10','min'],['Depart airport before flight','60','min'],['Flight combine window','20','min'],['Return load max wait','65','min']]
+/* ════════════════════════════════════════
+   BOAT MOVEMENT
+════════════════════════════════════════ */
+function BoatMovement() {
+  const [open,setOpen]=useState("Guest Transfers");
+  const sC={"Guest Transfers":"#2563eb","Activities":"#7c3aed","Staff Ferries":"#0d9488","Supply Ops":"#d97706"};
   return (
-    <>
-      <div style={{ marginBottom:14, fontSize:isMobile?14:16, fontWeight:500 }}>⚙️ Settings</div>
-      <div style={S.card}>
-        <div style={S.cardHdr}>🧮 Algorithm Constants · {RESORT.name}</div>
-        {isMobile ? (
-          <div style={{ padding:12 }}>
-            {consts.map(([n,v,u])=>(
-              <div key={n} style={{ display:'flex', justifyContent:'space-between', padding:'9px 0', borderBottom:`0.5px solid ${B.border}`, fontSize:13 }}>
-                <span style={{ color:B.textSecond }}>{n}</span>
-                <span style={{ fontWeight:600, color:B.freshPalm }}>{v} <span style={{ fontSize:11, color:B.textMuted }}>{u}</span></span>
+    <div>
+      <div style={{marginBottom:16}}>
+        <h1 style={{margin:0,fontSize:20,fontWeight:900,color:C.text}}>Boat Movement</h1>
+        <p style={{margin:"4px 0 0",fontSize:12,color:C.light}}>Wednesday 25 March 2026</p>
+      </div>
+      {Object.entries(MOVEMENTS).map(([sec,rows])=>(
+        <Card key={sec} style={{marginBottom:10,overflow:"hidden"}}>
+          <button onClick={()=>setOpen(open===sec?null:sec)} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"14px 16px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
+            <div style={{width:4,height:20,borderRadius:2,background:sC[sec],flexShrink:0}}/>
+            <span style={{fontWeight:800,fontSize:14,color:C.text,flex:1}}>{sec}</span>
+            <span style={{background:sC[sec],color:"#fff",borderRadius:"50%",width:22,height:22,fontSize:11,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{rows.length}</span>
+            <Icon name="chevron_d" size={16} color={C.light}/>
+          </button>
+          {open===sec&&(
+            <div style={{borderTop:`1px solid ${C.borderLight}`}}>
+              {rows.map((r,i)=>(
+                <div key={i} style={{padding:"13px 16px",background:r.vip?"#fffbeb":i%2?"#fafaf8":"#fff",borderBottom:i<rows.length-1?`1px solid ${C.borderLight}`:"none"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4,gap:8}}>
+                    <span style={{fontFamily:"monospace",fontSize:17,fontWeight:900,color:C.text}}>{r.time}{r.vip?" ⭐":""}</span>
+                    <span style={{background:r.vip?"#fef3c7":"#f1f5f9",color:r.vip?"#92400e":C.mid,padding:"3px 8px",borderRadius:6,fontSize:10,fontWeight:700,flexShrink:0}}>{r.type}</span>
+                  </div>
+                  <div style={{fontSize:13,fontWeight:700,color:C.text}}>{r.vessel}</div>
+                  <div style={{fontSize:12,color:C.mid,marginTop:3,lineHeight:1.4}}>{r.details}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
+   FLEET PROFILES
+════════════════════════════════════════ */
+function Fleet({fleet,setFleet,user}) {
+  const m = useMobile();
+  const [editId,setEditId]=useState(null);
+  const [editVals,setEditVals]=useState({});
+  const [photos,setPhotos]=useState({});
+  const canEdit=user?.isAdmin;
+  const imgRef=useRef({});
+  const startEdit=v=>{setEditId(v.id);setEditVals({fuelCap:v.fuelCap,cons:v.cons,pax:v.pax,refuelAfter:v.refuelAfter,fuelMin:v.fuelMin,status:v.status});};
+  const saveEdit=id=>{setFleet(f=>f.map(v=>v.id===id?{...v,...editVals,fuelCap:+editVals.fuelCap,cons:+editVals.cons,pax:+editVals.pax,refuelAfter:+editVals.refuelAfter,fuelMin:+editVals.fuelMin}:v));setEditId(null);};
+  return (
+    <div>
+      <div style={{marginBottom:16}}><h1 style={{margin:0,fontSize:20,fontWeight:900,color:C.text}}>Fleet Profiles</h1><p style={{margin:"4px 0 0",fontSize:12,color:C.light}}>12 vessels · Baros Maldives</p></div>
+      {/* Single column on mobile, 2-col on tablet+ */}
+      <div style={{display:"grid",gridTemplateColumns:m?"1fr":"1fr 1fr",gap:12}}>
+        {fleet.map(v=>(
+          <Card key={v.id} style={{overflow:"hidden"}}>
+            <div style={{height:110,background:photos[v.id]?`url(${photos[v.id]}) center/cover`:`linear-gradient(135deg,${v.color}22,${v.color}44)`,position:"relative",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {!photos[v.id]&&<div style={{fontSize:30,opacity:.4}}>⚓</div>}
+              <div style={{position:"absolute",top:8,right:8}}><span style={{background:v.status==="active"?"#dcfce7":v.status==="maintenance"?"#fee2e2":"#fef3c7",color:v.status==="active"?"#15803d":v.status==="maintenance"?"#dc2626":"#92400e",padding:"3px 9px",borderRadius:12,fontSize:10,fontWeight:700}}>{v.status}</span></div>
+              {canEdit&&(
+                <><input ref={el=>imgRef.current[v.id]=el} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f){const r=new FileReader();r.onload=x=>setPhotos(p=>({...p,[v.id]:x.target.result}));r.readAsDataURL(f);}}}/>
+                <button onClick={()=>imgRef.current[v.id]?.click()} style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,.5)",border:"none",borderRadius:7,padding:"5px 8px",cursor:"pointer",display:"flex",alignItems:"center",gap:4,color:"#fff",fontSize:10,fontWeight:700}}><Icon name="camera" size={12} color="#fff"/>Photo</button></>
+              )}
+            </div>
+            <div style={{padding:"13px 14px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                <div><div style={{fontWeight:800,fontSize:15,color:C.text}}>{v.id}</div><div style={{fontSize:11,color:C.light}}>{v.type}</div></div>
+                <div style={{textAlign:"right"}}><div style={{fontSize:10,color:C.light}}>{v.engMake}</div><div style={{fontSize:11,fontWeight:700,color:C.mid}}>{v.eng}</div></div>
               </div>
-            ))}
-            <div style={{ display:'flex', justifyContent:'space-between', padding:'9px 0', fontSize:13 }}>
-              <span style={{ fontWeight:500 }}>Total lead time</span>
-              <span style={{ fontWeight:700, color:B.freshPalm }}>127 <span style={{ fontSize:11, color:B.textMuted }}>min</span></span>
+              {editId===v.id?(
+                <div>
+                  {[["fuelCap","Fuel Cap (L)"],["cons","Consumption/hr"],["pax","Pax"],["refuelAfter","Refuel After"],["fuelMin","Fuel Min (L)"]].map(([k,lbl])=>(
+                    <div key={k} style={{marginBottom:8}}>
+                      <label style={{fontSize:10,fontWeight:700,color:C.mid,textTransform:"uppercase",letterSpacing:"0.06em"}}>{lbl}</label>
+                      <input value={editVals[k]||""} onChange={e=>setEditVals(ev=>({...ev,[k]:e.target.value}))} type="number" style={{width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${C.border}`,fontSize:13,marginTop:3,outline:"none"}}/>
+                    </div>
+                  ))}
+                  <div style={{marginBottom:10}}>
+                    <label style={{fontSize:10,fontWeight:700,color:C.mid,textTransform:"uppercase",letterSpacing:"0.06em"}}>Status</label>
+                    <select value={editVals.status||""} onChange={e=>setEditVals(ev=>({...ev,status:e.target.value}))} style={{width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${C.border}`,fontSize:13,marginTop:3}}>
+                      {["active","standby","maintenance"].map(s=><option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div style={{display:"flex",gap:8}}><Btn full onClick={()=>saveEdit(v.id)} iconName="save">Save</Btn><Btn variant="outline" onClick={()=>setEditId(null)} style={{padding:"10px 14px"}}>Cancel</Btn></div>
+                </div>
+              ):(
+                <div>
+                  {[["Fuel Cap",`${v.fuelCap}L`],["Consumption",`${v.cons}L/hr`],["Passengers",`${v.pax}pax`],["Refuel After",`${v.refuelAfter} trips`],["Fuel Min",`${v.fuelMin}L`]].map(([k,val])=>(
+                    <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${C.borderLight}`}}>
+                      <span style={{fontSize:11,color:C.light}}>{k}</span><span style={{fontSize:12,fontWeight:700,color:C.text}}>{val}</span>
+                    </div>
+                  ))}
+                  {canEdit&&<Btn variant="outline" onClick={()=>startEdit(v)} style={{width:"100%",marginTop:10,padding:"9px",fontSize:12}} iconName="edit">Edit</Btn>}
+                </div>
+              )}
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
+   FUEL LOG
+════════════════════════════════════════ */
+function FuelLog({fleet,fuelLog,setFuelLog,fuelBal,setFuelBal,trips,setTrips,sendEmail,saveFuelEntry}) {
+  const m = useMobile();
+  const [tab,setTab]=useState("Overview");
+  const [showAdd,setShowAdd]=useState(false);
+  const [form,setForm]=useState({vessel:fleet[0]?.id||"",date:new Date().toISOString().slice(0,10),supplier:"",litres:"",cost:"",notes:""});
+  const setF=k=>v=>setForm(f=>({...f,[k]:v}));
+  const addEntry=()=>{
+    const e={id:Date.now(),date:form.date,vessel:form.vessel,supplier:form.supplier,litres:+form.litres,cost:+form.cost,notes:form.notes};
+    if(saveFuelEntry) {
+      saveFuelEntry(e);
+    } else {
+      setFuelLog(l=>[e,...l]);
+      setFuelBal(b=>({...b,[form.vessel]:Math.min((b[form.vessel]||0)+e.litres,fleet.find(v=>v.id===form.vessel)?.fuelCap||999)}));
+      setTrips(t=>({...t,[form.vessel]:0}));
+    }
+    sendEmail(mkEmail({to:EMAIL_RCPT.fuel.join(","),subject:`Fuel Log – ${form.vessel}`,body:`${form.vessel} refuelled.\nLitres: ${form.litres}\nSupplier: ${form.supplier}\nDate: ${form.date}`,type:"fuel"}));
+    setShowAdd(false);setForm({vessel:fleet[0]?.id||"",date:new Date().toISOString().slice(0,10),supplier:"",litres:"",cost:"",notes:""});
+  };
+  // gauge cols: 2 on mobile, 3 on tablet, 4 on desktop
+  const gaugeCols = m ? "1fr 1fr" : "repeat(4,1fr)";
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+        <div><h1 style={{margin:0,fontSize:20,fontWeight:900,color:C.text}}>Fuel Log</h1><p style={{margin:"4px 0 0",fontSize:12,color:C.light}}>Fuel tracking & gauges</p></div>
+        <Btn iconName="plus" onClick={()=>setShowAdd(true)} small={m}>Add Entry</Btn>
+      </div>
+      <Tabs tabs={["Overview","Fuel Log"]} active={tab} onChange={setTab}/>
+      {tab==="Overview"&&(
+        <div>
+          {fleet.some(v=>fuelBal[v.id]<=v.fuelMin||(trips[v.id]||0)>=v.refuelAfter)&&(
+            <div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:12,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+              <Icon name="alert" size={18} color="#d97706"/>
+              <div>
+                <div style={{fontWeight:700,fontSize:13,color:"#92400e"}}>Fuel Alert</div>
+                <div style={{fontSize:12,color:"#b45309",marginTop:2}}>{fleet.filter(v=>fuelBal[v.id]<=v.fuelMin||(trips[v.id]||0)>=v.refuelAfter).map(v=>v.id).join(", ")} need refuelling</div>
+              </div>
+            </div>
+          )}
+          <Card style={{padding:"16px",marginBottom:12}}>
+            <div style={{fontWeight:800,fontSize:14,color:C.text,marginBottom:14}}>Fuel Levels</div>
+            <div style={{display:"grid",gridTemplateColumns:gaugeCols,gap:12}}>
+              {fleet.map(v=>{
+                const bal=fuelBal[v.id]||0;
+                const need=bal<=v.fuelMin||(trips[v.id]||0)>=v.refuelAfter;
+                return (
+                  <div key={v.id} style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 6px",borderRadius:12,background:need?"#fff7ed":"#fafbfd",border:`1px solid ${need?"#fed7aa":C.borderLight}`}}>
+                    <Gauge value={bal} max={v.fuelCap} label={v.id} unit="L" color={v.color} size={m?90:100} warn={0.3} crit={0.15}/>
+                    {need&&<span style={{fontSize:9,fontWeight:700,color:"#d97706",marginTop:4,background:"#fef3c7",padding:"2px 6px",borderRadius:5}}>REFUEL</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+          <Card style={{padding:"16px"}}>
+            <div style={{fontWeight:800,fontSize:14,color:C.text,marginBottom:14}}>Running Hours</div>
+            <div style={{display:"grid",gridTemplateColumns:gaugeCols,gap:12}}>
+              {fleet.map(v=>(
+                <div key={v.id} style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 6px",borderRadius:12,background:"#fafbfd",border:`1px solid ${C.borderLight}`}}>
+                  <Gauge value={v.runHrs} max={500} label={v.id} unit="hrs" color="#1d6fa4" size={m?90:100} warn={0.3} crit={0.15}/>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
+      {tab==="Fuel Log"&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {fuelLog.length===0&&<Card style={{padding:"40px 20px",textAlign:"center",color:C.light}}><Icon name="fuel" size={40} color="#d1d5db"/><div style={{marginTop:12,fontWeight:600}}>No entries yet</div></Card>}
+          {fuelLog.map(e=>(
+            <Card key={e.id} style={{padding:"14px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                <div><div style={{fontWeight:800,fontSize:14,color:C.text}}>{e.vessel}</div><div style={{fontSize:11,color:C.light,marginTop:2,fontFamily:"monospace"}}>{e.date}</div></div>
+                <div style={{textAlign:"right"}}><div style={{fontSize:20,fontWeight:900,color:C.primary}}>{e.litres}L</div>{e.cost>0&&<div style={{fontSize:11,color:C.mid}}>MVR {e.cost.toLocaleString()}</div>}</div>
+              </div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {e.supplier&&<span style={{fontSize:11,fontWeight:600,color:C.mid,background:"#f1f5f9",padding:"3px 9px",borderRadius:6}}>{e.supplier}</span>}
+                {e.notes&&<span style={{fontSize:11,color:C.light}}>{e.notes}</span>}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+      {showAdd&&(
+        <Modal title="Add Fuel Entry" onClose={()=>setShowAdd(false)}>
+          <Field label="Vessel"><select value={form.vessel} onChange={e=>setF("vessel")(e.target.value)} style={{width:"100%",padding:"11px 13px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:14,background:"#fafbfc",outline:"none"}}>{fleet.map(v=><option key={v.id} value={v.id}>{v.id}</option>)}</select></Field>
+          <Field label="Date"><Inp value={form.date} onChange={setF("date")} type="date"/></Field>
+          <Field label="Supplier"><Inp value={form.supplier} onChange={setF("supplier")} placeholder="e.g. FSM Hulhumale'"/></Field>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <Field label="Litres"><Inp value={form.litres} onChange={setF("litres")} type="number" placeholder="0"/></Field>
+            <Field label="Cost (MVR)"><Inp value={form.cost} onChange={setF("cost")} type="number" placeholder="0"/></Field>
+          </div>
+          <Field label="Notes"><Inp value={form.notes} onChange={setF("notes")} placeholder="Optional notes"/></Field>
+          <Btn full onClick={addEntry} disabled={!form.vessel||!form.litres}>Save Fuel Entry</Btn>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
+   DUTY ROSTER
+════════════════════════════════════════ */
+function DutyRoster({user}) {
+  const m = useMobile();
+  const canEdit=user?.isAdmin||user?.role==="Super Admin"||user?.role==="T Manager"||user?.role==="TA Manager";
+  const [tab,setTab]=useState("Weekly Grid");
+  const [offset,setOffset]=useState(0);
+  const [roster,setRoster]=useState(initRoster);
+  const [editCell,setEditCell]=useState(null);
+  const week=weekDates(offset);
+  const todayStr=dk(new Date(2026,2,25));
+  const DAY=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const MO=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  useEffect(()=>{
+    setRoster(prev=>{let ch=false;const next={...prev};Object.keys(next).forEach(v=>{week.forEach(d=>{const k=dk(d);if(!next[v][k]){next[v][k]={cap:null,sh:"OFF"};ch=true;}});});return ch?next:prev;});
+  },[offset]);
+  const getCap=id=>CAPTAINS.find(c=>c.id===id);
+  const getSh=id=>SHIFTS.find(s=>s.id===id)||SHIFTS[3];
+  const vessels=FLEET.map(v=>v.id);
+  const onDuty=new Set(Object.values(roster).map(d=>d[todayStr]?.cap).filter(Boolean));
+  const crewed=Object.values(roster).filter(d=>d[todayStr]?.cap).length;
+  const wl=`${week[0].getDate()} ${MO[week[0].getMonth()]} – ${week[6].getDate()} ${MO[week[6].getMonth()]}`;
+  const save=(v,k,cap,sh)=>{setRoster(p=>({...p,[v]:{...p[v],[k]:{cap,sh}}}));setEditCell(null);};
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+        <div><h1 style={{margin:0,fontSize:20,fontWeight:900,color:C.text}}>Duty Roster</h1><p style={{margin:"4px 0 0",fontSize:12,color:C.light}}>Week of {wl}</p></div>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          <button onClick={()=>setOffset(o=>o-1)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${C.border}`,background:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="chevron_r" size={14} color={C.mid} style={{transform:"rotate(180deg)"}}/></button>
+          <button onClick={()=>setOffset(0)} style={{padding:"6px 10px",borderRadius:8,border:`1px solid ${offset===0?C.primary:C.border}`,background:offset===0?C.primary:"#fff",color:offset===0?"#fff":C.mid,fontSize:11,fontWeight:700,cursor:"pointer"}}>Now</button>
+          <button onClick={()=>setOffset(o=>o+1)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${C.border}`,background:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="chevron_r" size={14} color={C.mid}/></button>
+        </div>
+      </div>
+      {/* KPIs — 2×2 */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+        {[{l:"On Duty Today",v:onDuty.size,c:"#15803d",bg:"#dcfce7"},{l:"Captains Off",v:CAPTAINS.length-onDuty.size,c:"#d97706",bg:"#fef3c7"},{l:"Vessels Crewed",v:crewed,c:"#2563eb",bg:"#dbeafe"},{l:"Total Captains",v:CAPTAINS.length,c:"#6d28d9",bg:"#ede9fe"}].map(k=>(
+          <Card key={k.l} style={{padding:"14px"}}>
+            <div style={{fontSize:26,fontWeight:900,color:k.c,lineHeight:1}}>{k.v}</div>
+            <div style={{fontSize:11,color:C.light,marginTop:4}}>{k.l}</div>
+          </Card>
+        ))}
+      </div>
+      <Tabs tabs={["Weekly Grid","Captains","Shifts"]} active={tab} onChange={setTab}/>
+      {/* Weekly Grid — horizontally scrollable on mobile */}
+      {tab==="Weekly Grid"&&(
+        <Card style={{overflow:"hidden"}}>
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+            <div style={{minWidth:520}}>
+              <div style={{display:"grid",gridTemplateColumns:"100px repeat(7,1fr)",background:"#f8fafc",borderBottom:`1px solid ${C.border}`}}>
+                <div style={{padding:"9px 10px",fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",borderRight:`1px solid ${C.borderLight}`}}>Vessel</div>
+                {week.map((d,di)=>{
+                  const isT=dk(d)===todayStr;
+                  return (
+                    <div key={di} style={{padding:"7px 3px",textAlign:"center",borderRight:di<6?`1px solid ${C.borderLight}`:"none",background:isT?"rgba(10,97,82,.07)":"transparent"}}>
+                      <div style={{fontSize:9,fontWeight:700,color:isT?C.primary:C.light,textTransform:"uppercase"}}>{DAY[di]}</div>
+                      <div style={{fontSize:13,fontWeight:900,color:isT?C.primary:C.text}}>{d.getDate()}</div>
+                      {isT&&<div style={{width:4,height:4,borderRadius:"50%",background:C.primary,margin:"2px auto 0"}}/>}
+                    </div>
+                  );
+                })}
+              </div>
+              {vessels.map((vessel,vi)=>{
+                const fi=FLEET.find(f=>f.id===vessel);
+                return (
+                  <div key={vessel} style={{display:"grid",gridTemplateColumns:"100px repeat(7,1fr)",borderBottom:vi<vessels.length-1?`1px solid ${C.borderLight}`:"none",background:vi%2===0?"#fff":"#fafbfd"}}>
+                    <div style={{padding:"9px 10px",borderRight:`1px solid ${C.borderLight}`,display:"flex",alignItems:"center",gap:6}}>
+                      <div style={{width:7,height:7,borderRadius:"50%",background:fi?.color||C.mid,flexShrink:0}}/>
+                      <div><div style={{fontSize:11,fontWeight:700,color:C.text,lineHeight:1.2}}>{vessel}</div><div style={{fontSize:8.5,color:C.light}}>{fi?.type?.split(" ")[0]||""}</div></div>
+                    </div>
+                    {week.map((d,di)=>{
+                      const k=dk(d);
+                      const entry=roster[vessel]?.[k]||{cap:null,sh:"OFF"};
+                      const cap=entry.cap?getCap(entry.cap):null;
+                      const sh=getSh(entry.sh);
+                      const isT=k===todayStr;
+                      return (
+                        <div key={di} onClick={()=>canEdit&&setEditCell({vessel,k})}
+                          style={{padding:"6px 3px",borderRight:di<6?`1px solid ${C.borderLight}`:"none",background:isT?"rgba(10,97,82,.04)":"transparent",cursor:canEdit?"pointer":"default",minHeight:46,display:"flex",alignItems:"center",justifyContent:"center"}}
+                          onMouseEnter={e=>{if(canEdit)e.currentTarget.style.background=isT?"rgba(10,97,82,.08)":"rgba(0,0,0,.03)";}}
+                          onMouseLeave={e=>{e.currentTarget.style.background=isT?"rgba(10,97,82,.04)":"transparent";}}>
+                          {entry.sh==="OFF"||entry.sh==="LEAVE"?(
+                            <span style={{fontSize:9,fontWeight:600,color:entry.sh==="LEAVE"?C.red:C.light,background:entry.sh==="LEAVE"?"#fee2e2":"#f1f5f9",padding:"2px 5px",borderRadius:4}}>{entry.sh==="LEAVE"?"Leave":"Off"}</span>
+                          ):cap?(
+                            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                              <div style={{width:24,height:24,borderRadius:7,background:cap.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8.5,fontWeight:800,color:"#fff"}}>{cap.initials}</div>
+                              <span style={{fontSize:7.5,fontWeight:700,color:sh.color,background:sh.bg,padding:"1px 4px",borderRadius:3}}>{sh.id}</span>
+                            </div>
+                          ):(
+                            <span style={{fontSize:10,color:"#cbd5e1"}}>—</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
           </div>
-        ) : (
-          <table style={S.table}>
-            <thead><tr><th style={S.th}>Parameter</th><th style={S.th}>Value</th><th style={S.th}>Unit</th></tr></thead>
-            <tbody>
-              {consts.map(([n,v,u])=>(<tr key={n}><td style={S.td}>{n}</td><td style={S.td}><strong>{v}</strong></td><td style={S.td}>{u}</td></tr>))}
-              <tr style={{ background:B.palmLight }}>
-                <td style={{ ...S.td, fontWeight:500 }}>Total lead time (formula)</td>
-                <td style={{ ...S.td, fontWeight:700, color:B.freshPalm }}>127</td>
-                <td style={S.td}>min</td>
-              </tr>
-            </tbody>
-          </table>
-        )}
-      </div>
-      <div style={S.card}>
-        <div style={S.cardHdr}>🏝️ Resort Info</div>
-        <div style={{ ...S.cardBody, fontSize:13 }}>
-          <div><strong>Resort:</strong> {RESORT.name} (code: {RESORT.code})</div>
-          <div style={{ marginTop:6 }}><strong>Supabase:</strong> wcpbrbyiakwlnpwpelzi.supabase.co</div>
-          <div style={{ marginTop:6 }}><strong>Platform:</strong> Dhirumbaa FMS Multi-Resort SaaS</div>
+          {canEdit&&<div style={{padding:"8px 12px",background:"#f8fafc",borderTop:`1px solid ${C.borderLight}`,fontSize:11,color:C.light}}>Tap any cell to assign a captain</div>}
+        </Card>
+      )}
+      {tab==="Captains"&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {CAPTAINS.map(cap=>{
+            let days=0;const vs=new Set();
+            week.forEach(d=>{const k=dk(d);vessels.forEach(v=>{if(roster[v]?.[k]?.cap===cap.id){days++;vs.add(v);}});});
+            return (
+              <Card key={cap.id} style={{padding:"14px 16px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:42,height:42,borderRadius:12,background:cap.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#fff",flexShrink:0}}>{cap.initials}</div>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                      <div><div style={{fontWeight:800,fontSize:14,color:C.text}}>{cap.name}</div><div style={{fontSize:11,color:C.light,fontFamily:"monospace"}}>{cap.phone}</div></div>
+                      <span style={{fontSize:14,fontWeight:800,color:cap.color}}>{days}<span style={{fontSize:10,color:C.light,fontWeight:400}}>/7d</span></span>
+                    </div>
+                    <div style={{height:4,background:"#f1f5f9",borderRadius:2,overflow:"hidden",marginBottom:7}}>
+                      <div style={{height:"100%",width:`${Math.round((days/7)*100)}%`,background:cap.color,borderRadius:2}}/>
+                    </div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                      {[...vs].length>0?[...vs].map(v=><span key={v} style={{fontSize:10,fontWeight:600,color:C.mid,background:"#f1f5f9",padding:"2px 7px",borderRadius:5}}>{v}</span>):<span style={{fontSize:10,color:C.light}}>No assignments</span>}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
         </div>
+      )}
+      {tab==="Shifts"&&(
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {SHIFTS.map(st=>(
+            <div key={st.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:st.bg,borderRadius:12,border:`1px solid ${st.color}22`}}>
+              <div style={{width:36,height:36,borderRadius:9,background:st.color,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:11,fontWeight:800,color:"#fff"}}>{st.id}</span></div>
+              <div><div style={{fontWeight:700,fontSize:13,color:C.text}}>{st.label}</div>{st.time&&<div style={{fontSize:11,color:C.mid,marginTop:1,fontFamily:"monospace"}}>{st.time}</div>}</div>
+            </div>
+          ))}
+          <Card style={{padding:"16px",marginTop:6}}>
+            <div style={{fontWeight:800,fontSize:13,color:C.text,marginBottom:10}}>Captain Directory</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {CAPTAINS.map(cap=>(
+                <div key={cap.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#f8fafc",borderRadius:9}}>
+                  <div style={{width:28,height:28,borderRadius:7,background:cap.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9.5,fontWeight:800,color:"#fff",flexShrink:0}}>{cap.initials}</div>
+                  <div><div style={{fontSize:11,fontWeight:700,color:C.text}}>{cap.name}</div><div style={{fontSize:10,color:C.light,fontFamily:"monospace"}}>{cap.phone}</div></div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
+      {editCell&&(
+        <Modal title={`Assign – ${editCell.vessel}`} onClose={()=>setEditCell(null)}>
+          <RosterEdit vessel={editCell.vessel} dayKey={editCell.k} current={roster[editCell.vessel]?.[editCell.k]||{cap:null,sh:"AM"}} onSave={save} onClose={()=>setEditCell(null)}/>
+        </Modal>
+      )}
+    </div>
+  );
+}
+function RosterEdit({vessel,dayKey,current,onSave,onClose}) {
+  const [capId,setCapId]=useState(current.cap||"");
+  const [sh,setSh]=useState(current.sh||"AM");
+  const pts=dayKey.split("-");const MO=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return (
+    <div>
+      <div style={{fontSize:12,color:C.mid,marginBottom:14,fontWeight:600}}>{parseInt(pts[2])} {MO[parseInt(pts[1])-1]} {pts[0]}</div>
+      <Field label="Captain">
+        <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:220,overflowY:"auto"}}>
+          {CAPTAINS.map(cap=>(
+            <button key={cap.id} onClick={()=>setCapId(cap.id)} style={{display:"flex",alignItems:"center",gap:9,padding:"10px 12px",borderRadius:10,border:`1px solid ${capId===cap.id?cap.color:C.border}`,background:capId===cap.id?`${cap.color}11`:"#fff",cursor:"pointer",textAlign:"left"}}>
+              <div style={{width:28,height:28,borderRadius:7,background:cap.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#fff",flexShrink:0}}>{cap.initials}</div>
+              <span style={{fontSize:13,fontWeight:600,color:C.text,flex:1}}>{cap.name}</span>
+              <span style={{fontSize:11,color:C.light,fontFamily:"monospace"}}>{cap.phone}</span>
+              {capId===cap.id&&<Icon name="check" size={14} color={cap.color} sw={2.5}/>}
+            </button>
+          ))}
+          <button onClick={()=>setCapId("")} style={{display:"flex",alignItems:"center",gap:9,padding:"10px 12px",borderRadius:10,border:`1px solid ${!capId?C.red:C.border}`,background:!capId?"#fff1f2":"#fff",cursor:"pointer"}}>
+            <div style={{width:28,height:28,borderRadius:7,background:"#fee2e2",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="x" size={11} color={C.red}/></div>
+            <span style={{fontSize:13,fontWeight:600,color:C.red}}>Unassigned / Off</span>
+          </button>
+        </div>
+      </Field>
+      <Field label="Shift">
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          {SHIFTS.map(s=>(
+            <button key={s.id} onClick={()=>setSh(s.id)} style={{padding:"10px 8px",borderRadius:10,border:`1px solid ${sh===s.id?s.color:C.border}`,background:sh===s.id?s.bg:"#fff",cursor:"pointer",textAlign:"center"}}>
+              <div style={{fontSize:12,fontWeight:700,color:sh===s.id?s.color:C.text}}>{s.label}</div>
+              {s.time&&<div style={{fontSize:9.5,color:sh===s.id?s.color:C.light,marginTop:1,fontFamily:"monospace"}}>{s.time}</div>}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <div style={{display:"flex",gap:8}}>
+        <Btn full onClick={()=>onSave(vessel,dayKey,capId||null,sh)}>Save</Btn>
+        <Btn variant="outline" onClick={onClose} style={{padding:"10px 16px"}}>Cancel</Btn>
       </div>
-    </>
-  )
+    </div>
+  );
 }
 
-// ─── Scheduler: Group Card ─────────────────────────────────────────────────────
-function GroupCard({ group, allGroups, groupIdx }) {
-  const [open, setOpen] = useState(true)
-  const flts    = [...new Set(group.transfers.map(t=>t.flt))]
-  const fltMs   = group.transfers.map(t=>toM(t.fltT)).filter(f=>!isNaN(f))
-  const fltGap  = fltMs.length>1 ? Math.max(...fltMs)-Math.min(...fltMs) : 0
-  const totalPax = group.transfers.reduce((s,t)=>s+t.pax,0)
-  const arrVIA  = toM(group.trf)+ALGO.JOURNEY
-  const buf     = calcBuf(group.trf,fltMs)
-  const recTrf  = fltMs.length ? toT(Math.min(...fltMs)-LEAD) : null
-  const next    = allGroups[groupIdx+1]
-  const rlGap   = next ? toM(next.trf)-toM(group.trf) : 999
-  const hasRL   = rlGap <= (ALGO.JOURNEY*2+ALGO.RL)
-  const runs    = splitByVessel(group.transfers)
-
+/* ════════════════════════════════════════
+   MAINTENANCE
+════════════════════════════════════════ */
+function Maintenance() {
+  const sc={overdue:"#dc2626","due-soon":"#d97706",scheduled:"#0a6152"};
+  const pc={High:["#fee2e2","#dc2626"],Medium:["#fff7ed","#d97706"],Low:["#dcfce7","#15803d"]};
   return (
-    <div style={S.groupCard}>
-      <div style={S.groupHdr} onClick={()=>setOpen(o=>!o)}>
-        <div style={S.trfBadge}>{group.trf}</div>
-        <div style={{ display:'flex', gap:4, flexWrap:'wrap', flex:1 }}>
-          {flts.map(f=><span key={f} style={S.fltTag}>{f}</span>)}
-          {fltGap>0&&fltGap<=ALGO.CW && <span style={S.gapOk}>✓ combine ({fltGap}m)</span>}
-          {fltGap>ALGO.CW            && <span style={S.gapWarn}>⚠ split ({fltGap}m gap)</span>}
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div><h1 style={{margin:0,fontSize:20,fontWeight:900,color:C.text}}>Maintenance</h1><p style={{margin:"4px 0 0",fontSize:12,color:C.light}}>Preventive maintenance schedule</p></div>
+        <Btn iconName="plus" small>Add Task</Btn>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {MAINTENANCE_DATA.map((m,i)=>(
+          <Card key={i} style={{padding:"14px 16px",borderLeft:`4px solid ${sc[m.status]||C.mid}`,background:m.status==="due-soon"?"#fffbeb":m.status==="overdue"?"#fff1f2":"#fff"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+              <div style={{fontWeight:800,fontSize:14,color:C.text}}>{m.vessel}</div>
+              <span style={{background:pc[m.priority][0],color:pc[m.priority][1],padding:"3px 10px",borderRadius:20,fontSize:10,fontWeight:700,flexShrink:0}}>{m.priority}</span>
+            </div>
+            <div style={{fontSize:13,color:C.mid,marginBottom:8}}>{m.task}</div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontFamily:"monospace",fontSize:12,fontWeight:700,color:sc[m.status]}}>Due: {m.due}</span>
+              <span style={{color:sc[m.status],fontWeight:700,fontSize:11,background:m.status==="overdue"?"#fee2e2":m.status==="due-soon"?"#fff7ed":"#dcfce7",padding:"2px 8px",borderRadius:10}}>{m.status}</span>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
+   CHECKLISTS
+════════════════════════════════════════ */
+function Checklists({user,completedChecklists,setCompletedChecklists,sendEmail,saveChecklist,updateChecklist}) {
+  const m = useMobile();
+  const [tab,setTab]=useState("New Checklist");
+  const [sel,setSel]=useState(null);
+  const [vals,setVals]=useState({});
+  const [portHrs,setPortHrs]=useState("");
+  const [stbdHrs,setStbdHrs]=useState("");
+  const [approvals,setApprovals]=useState([]);
+  const isReviewer=user?.isAdmin;
+  const setV=(id,v)=>setVals(p=>({...p,[id]:v}));
+  const answered=CHECKLIST_ITEMS.filter(item=>{const v=vals[item.id];return v&&v!==""}).length;
+  const allDone=answered===CHECKLIST_ITEMS.length;
+  const hasWarn=CHECKLIST_ITEMS.some(item=>{
+    const v=vals[item.id];if(!v)return false;
+    return (item.type==="HLN"&&(v==="High"||v==="Low"))||(item.type==="LN"&&v==="Low")||(item.type==="YN"&&v==="No")||(item.type==="LEAK"&&v==="Yes")||(item.type==="WP"&&v==="No")||(item.type==="ALARM"&&v==="Yes")||((item.type==="KPA"||item.type==="TEMP")&&item.limit&&Number(v)>item.limit);
+  });
+  const submit=()=>{
+    const r={id:Date.now(),vessel:sel,date:new Date().toLocaleDateString(),by:user?.name,hasWarn,taStatus:"Pending",tmStatus:"Pending"};
+    setApprovals(a=>[r,...a]);
+    if(saveChecklist) saveChecklist(r); else setCompletedChecklists(c=>[r,...c]);
+    sendEmail(mkEmail({to:EMAIL_RCPT.checklist.join(","),subject:`Checklist – ${sel}`,body:`Daily checklist submitted for ${sel}.\nBy: ${user?.name}${hasWarn?"\n⚠ Issues flagged.":""}`,type:"checklist"}));
+    setSel(null);setVals({});setPortHrs("");setStbdHrs("");setTab("Completed");
+  };
+  const approve=(id,step,action)=>{
+    const key=step===1?"taStatus":"tmStatus";
+    setApprovals(a=>a.map(r=>r.id===id?{...r,[key]:action}:r));
+    if(updateChecklist) updateChecklist(id,key,action);
+    else setCompletedChecklists(c=>c.map(r=>r.id===id?{...r,[key]:action}:r));
+  };
+  const renderInput=(item)=>{
+    const v=vals[item.id]||"";
+    const bad=(item.type==="HLN"&&(v==="High"||v==="Low"))||(item.type==="LN"&&v==="Low")||(item.type==="YN"&&v==="No")||(item.type==="LEAK"&&v==="Yes")||(item.type==="WP"&&v==="No")||(item.type==="ALARM"&&v==="Yes")||((item.type==="KPA"||item.type==="TEMP")&&item.limit&&Number(v)>item.limit);
+    const ob=(lbl,isAct,isGood,isBad)=>(<button onClick={()=>setV(item.id,lbl)} style={{padding:"6px 12px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",border:"none",background:isAct?(isBad?"#fee2e2":isGood?"#dcfce7":"#dbeafe"):"#f1f5f9",color:isAct?(isBad?"#dc2626":isGood?"#15803d":"#1d4ed8"):C.mid}}>{lbl}</button>);
+    if(item.type==="HLN") return <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{ob("High",v==="High",false,true)}{ob("Low",v==="Low",false,true)}{ob("Normal",v==="Normal",true,false)}</div>;
+    if(item.type==="LN") return <div style={{display:"flex",gap:6}}>{ob("Low",v==="Low",false,true)}{ob("Normal",v==="Normal",true,false)}</div>;
+    if(item.type==="YN") return <div style={{display:"flex",gap:6}}>{ob("Yes",v==="Yes",true,false)}{ob("No",v==="No",false,true)}</div>;
+    if(item.type==="LEAK") return <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>{ob("No",v==="No",true,false)}{ob("Yes",v==="Yes",false,true)}{v==="Yes"&&<span style={{fontSize:11,color:C.red,fontWeight:700}}>⚠ Check immediately</span>}</div>;
+    if(item.type==="WP") return <div style={{display:"flex",gap:6}}>{ob("Yes",v==="Yes",true,false)}{ob("No",v==="No",false,true)}</div>;
+    if(item.type==="ALARM") return <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>{ob("No",v==="No",true,false)}{ob("Yes",v==="Yes",false,true)}{v==="Yes"&&<span style={{fontSize:11,color:C.red,fontWeight:700}}>⚠ Investigate</span>}</div>;
+    if(item.type==="VOLT") return <div style={{display:"flex",alignItems:"center",gap:7}}><input value={v} onChange={e=>setV(item.id,e.target.value)} type="number" placeholder="12.6" style={{width:80,padding:"6px 9px",borderRadius:7,border:`1px solid ${v?C.primary:C.border}`,fontSize:13,fontFamily:"monospace",outline:"none"}}/><span style={{fontSize:11,color:C.mid}}>V</span>{v&&<span style={{fontSize:10,color:Number(v)>=12&&Number(v)<=14.4?"#15803d":C.red,fontWeight:700}}>{Number(v)>=12&&Number(v)<=14.4?"✓":"⚠"}</span>}</div>;
+    if(item.type==="KPA"||item.type==="TEMP") return <div style={{display:"flex",alignItems:"center",gap:7}}><input value={v} onChange={e=>setV(item.id,e.target.value)} type="number" placeholder="0" style={{width:72,padding:"6px 9px",borderRadius:7,border:`1px solid ${v?(bad?C.red:C.primary):C.border}`,fontSize:13,fontFamily:"monospace",outline:"none"}}/><span style={{fontSize:11,color:C.mid}}>{item.unit}</span>{v&&item.limit&&<span style={{fontSize:10,color:bad?C.red:"#15803d",fontWeight:700}}>{bad?`⚠ Exceeds ${item.limit}`:"✓ OK"}</span>}</div>;
+    return null;
+  };
+  return (
+    <div>
+      <div style={{marginBottom:14}}><h1 style={{margin:0,fontSize:20,fontWeight:900,color:C.text}}>Daily Checklist</h1><p style={{margin:"4px 0 0",fontSize:12,color:C.light}}>Baros Daily Maintenance Check Sheet</p></div>
+      <Tabs tabs={["New Checklist","Completed",...(isReviewer?["Approvals"]:[])]} active={tab} onChange={setTab}/>
+
+      {tab==="New Checklist"&&!sel&&(
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {FLEET.map(v=>(
+            <button key={v.id} onClick={()=>{setSel(v.id);setVals({});}} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderRadius:12,border:`1px solid ${C.border}`,background:"#fff",cursor:"pointer",textAlign:"left"}}>
+              <div style={{width:38,height:38,borderRadius:10,background:`${v.color}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>⚓</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:700,fontSize:14,color:C.text}}>{v.id}</div>
+                <div style={{fontSize:11,color:C.light,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.eng} · {v.engMake}</div>
+              </div>
+              <span style={{background:v.status==="active"?"#dcfce7":v.status==="maintenance"?"#fee2e2":"#fef3c7",color:v.status==="active"?"#15803d":v.status==="maintenance"?"#dc2626":"#92400e",padding:"3px 9px",borderRadius:12,fontSize:10,fontWeight:700,flexShrink:0}}>{v.status}</span>
+              <Icon name="chevron_r" size={16} color={C.light}/>
+            </button>
+          ))}
         </div>
-        <div style={{ display:'flex', gap:6, alignItems:'center', flexShrink:0 }}>
-          {hasRL && <span style={S.rlBadge}>↩ return load</span>}
-          <span style={{ fontSize:11, color:B.textSecond }}>{totalPax} pax</span>
-          <span style={{ fontSize:11, color:B.textMuted }}>{open?'▲':'▼'}</span>
+      )}
+
+      {tab==="New Checklist"&&sel&&(
+        <div>
+          {/* Header */}
+          <div style={{background:"#0d1f3c",borderRadius:14,padding:"14px 16px",marginBottom:12,color:"#fff"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+              <div><div style={{fontSize:10,color:"rgba(255,255,255,.45)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:3}}>Daily Maintenance Check List</div><div style={{fontSize:17,fontWeight:900}}>{sel}</div></div>
+              <div style={{textAlign:"right"}}><div style={{fontSize:9,color:"rgba(255,255,255,.4)"}}>Date</div><div style={{fontSize:12,fontWeight:700}}>{new Date().toLocaleDateString("en-GB")}</div></div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {[["Port Running Hrs",portHrs,setPortHrs],["Stbd Running Hrs",stbdHrs,setStbdHrs]].map(([lbl,val,setter])=>(
+                <div key={lbl} style={{background:"rgba(255,255,255,.08)",borderRadius:8,padding:"7px 10px"}}>
+                  <div style={{fontSize:9,color:"rgba(255,255,255,.4)",textTransform:"uppercase",marginBottom:3}}>{lbl}</div>
+                  <input value={val} onChange={e=>setter(e.target.value)} placeholder="hours" type="number" style={{width:"100%",background:"rgba(255,255,255,.12)",border:"none",borderRadius:5,padding:"4px 7px",color:"#fff",fontSize:13,fontFamily:"monospace",outline:"none"}}/>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <button onClick={()=>setSel(null)} style={{background:"none",border:"none",color:C.mid,cursor:"pointer",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:5,padding:0}}>
+              ← Back
+            </button>
+            <span style={{background:"#f0fdf4",color:C.primary,padding:"3px 10px",borderRadius:12,fontSize:10,fontWeight:700}}>{answered}/20 complete</span>
+          </div>
+          <div style={{height:4,background:"#f1f5f9",borderRadius:2,overflow:"hidden",marginBottom:12}}>
+            <div style={{height:"100%",width:`${(answered/20)*100}%`,background:hasWarn?"linear-gradient(90deg,#ea580c,#ef4444)":"linear-gradient(90deg,#0a6152,#22c55e)",borderRadius:2}}/>
+          </div>
+
+          {/* Mobile-friendly: each item is a card */}
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
+            {CHECKLIST_ITEMS.map((item)=>{
+              const v=vals[item.id]||"";
+              const bad=(item.type==="HLN"&&(v==="High"||v==="Low"))||(item.type==="LN"&&v==="Low")||(item.type==="YN"&&v==="No")||(item.type==="LEAK"&&v==="Yes")||(item.type==="WP"&&v==="No")||(item.type==="ALARM"&&v==="Yes")||((item.type==="KPA"||item.type==="TEMP")&&item.limit&&Number(v)>item.limit);
+              const good=v!==""&&!bad;
+              return (
+                <div key={item.id} style={{padding:"13px 14px",borderRadius:12,background:bad?"#fff8f5":good?"#fafffe":"#fff",border:`1px solid ${bad?"#fca5a5":good?"#bbf7d0":C.border}`}}>
+                  <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:10}}>
+                    <div style={{width:24,height:24,borderRadius:7,background:bad?"#fee2e2":good?"#dcfce7":"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:bad?"#dc2626":good?"#15803d":C.light,flexShrink:0}}>{String(item.id).padStart(2,"0")}</div>
+                    <div style={{fontSize:13,fontWeight:600,color:C.text,lineHeight:1.4,flex:1}}>{item.desc}</div>
+                  </div>
+                  <div style={{paddingLeft:34}}>
+                    {renderInput(item)}
+                    <input placeholder="Remarks…" style={{width:"100%",padding:"7px 10px",borderRadius:8,border:`1px solid ${C.borderLight}`,fontSize:12,color:C.text,background:"transparent",outline:"none",marginTop:8}}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{background:"#f8f7f4",borderRadius:10,padding:"11px 13px",marginBottom:12,fontSize:12,color:C.mid,lineHeight:1.5}}>
+            <strong>Instructions:</strong> Put tick mark after checking. Make remarks if any repair/damage happen.
+          </div>
+          {allDone&&(
+            <div style={{background:hasWarn?"#fff7ed":"#f0fdf4",border:`1px solid ${hasWarn?"#fed7aa":"#bbf7d0"}`,borderRadius:12,padding:"16px"}}>
+              <div style={{fontWeight:800,fontSize:14,color:hasWarn?"#c2410c":"#15803d",marginBottom:6}}>{hasWarn?"⚠ Issues noted":"✓ All 20 checks complete"}</div>
+              <p style={{fontSize:12,color:hasWarn?"#92400e":"#166534",marginBottom:12}}>Will be sent to Transport Asst. Manager → Transport Manager for approval.</p>
+              <Btn full onClick={submit} iconName="send">Submit for Approval</Btn>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab==="Completed"&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {completedChecklists.length===0&&<Card style={{padding:"40px 20px",textAlign:"center",color:C.light}}><Icon name="checklist" size={40} color="#d1d5db"/><div style={{marginTop:12,fontWeight:600}}>No completed checklists yet</div></Card>}
+          {completedChecklists.map(cl=>(
+            <Card key={cl.id} style={{padding:"14px 16px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                <div><div style={{fontWeight:800,fontSize:14,color:C.text}}>{cl.vessel}</div><div style={{fontSize:11,color:C.light,marginTop:2}}>{cl.date} · {cl.by}</div></div>
+                {cl.hasWarn&&<span style={{background:"#fff7ed",color:"#c2410c",padding:"3px 9px",borderRadius:12,fontSize:10,fontWeight:700}}>⚠ Issues</span>}
+              </div>
+              {[{role:"TA Manager",key:"taStatus"},{role:"T Manager",key:"tmStatus"}].map(({role,key})=>(
+                <div key={key} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderTop:`1px solid ${C.borderLight}`}}>
+                  <div style={{width:7,height:7,borderRadius:"50%",background:cl[key]==="Approved"?"#16a34a":cl[key]==="Rejected"?C.red:"#f59e0b"}}/>
+                  <span style={{fontSize:12,color:C.mid,flex:1}}>{role}</span>
+                  <span style={{fontSize:11,fontWeight:700,color:cl[key]==="Approved"?"#16a34a":cl[key]==="Rejected"?C.red:"#f59e0b"}}>{cl[key]}</span>
+                </div>
+              ))}
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {tab==="Approvals"&&isReviewer&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {approvals.length===0&&<Card style={{padding:"40px 20px",textAlign:"center",color:C.light}}><Icon name="mail" size={40} color="#d1d5db"/><div style={{marginTop:12,fontWeight:600}}>No pending approvals</div></Card>}
+          {approvals.map(cl=>(
+            <Card key={cl.id} style={{padding:"14px 16px"}}>
+              <div style={{fontWeight:800,fontSize:14,color:C.text,marginBottom:2}}>{cl.vessel}</div>
+              <div style={{fontSize:11,color:C.light,marginBottom:12}}>{cl.date} · {cl.by}{cl.hasWarn?" · ⚠ Issues noted":""}</div>
+              {(user?.role==="TA Manager"||user?.isAdmin)&&cl.taStatus==="Pending"&&(
+                <div style={{marginBottom:12}}>
+                  <div style={{fontSize:11,fontWeight:700,color:C.mid,marginBottom:7,textTransform:"uppercase",letterSpacing:"0.06em"}}>TA Manager Review</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}><Btn variant="green" onClick={()=>approve(cl.id,1,"Approved")}>✓ Approve</Btn><Btn variant="danger" onClick={()=>approve(cl.id,1,"Rejected")}>✕ Reject</Btn></div>
+                </div>
+              )}
+              {(user?.role==="T Manager"||user?.isAdmin)&&cl.taStatus==="Approved"&&cl.tmStatus==="Pending"&&(
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:C.mid,marginBottom:7,textTransform:"uppercase",letterSpacing:"0.06em"}}>T Manager – Final Review</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}><Btn variant="green" onClick={()=>approve(cl.id,2,"Approved")}>✓ Final Approve</Btn><Btn variant="danger" onClick={()=>approve(cl.id,2,"Rejected")}>✕ Reject</Btn></div>
+                </div>
+              )}
+              {[{role:"TA Manager",key:"taStatus"},{role:"T Manager",key:"tmStatus"}].map(({role,key})=>(
+                <div key={key} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderTop:`1px solid ${C.borderLight}`}}>
+                  <div style={{width:7,height:7,borderRadius:"50%",background:cl[key]==="Approved"?"#16a34a":cl[key]==="Rejected"?C.red:"#f59e0b"}}/>
+                  <span style={{fontSize:12,color:C.mid,flex:1}}>{role}</span>
+                  <span style={{fontSize:11,fontWeight:700,color:cl[key]==="Approved"?"#16a34a":cl[key]==="Rejected"?C.red:"#f59e0b"}}>{cl[key]}</span>
+                </div>
+              ))}
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
+   REPORTS
+════════════════════════════════════════ */
+function Reports({completedChecklists}) {
+  const [tab,setTab]=useState("Export");
+  const rpts=[{label:"Daily Movement Report",icon:"movement"},{label:"Monthly Fuel Summary",icon:"fuel"},{label:"Fleet Fuel Balance",icon:"fleet"},{label:"Activity Log",icon:"checklist"},{label:"Maintenance Report",icon:"maintenance"},{label:"Crew Hours Report",icon:"roster"}];
+  const dlCSV=name=>{const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent("Date,Vessel,Details\n2026-03-25,Ixora,Guest Transfer");a.download=name.replace(/ /g,"_")+".csv";a.click();};
+  return (
+    <div>
+      <div style={{marginBottom:16}}><h1 style={{margin:0,fontSize:20,fontWeight:900,color:C.text}}>Reports</h1><p style={{margin:"4px 0 0",fontSize:12,color:C.light}}>Export & download reports</p></div>
+      <Tabs tabs={["Export","Completed Checklists"]} active={tab} onChange={setTab}/>
+      {tab==="Export"&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {rpts.map(r=>(
+            <Card key={r.label} style={{padding:"14px 16px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:38,height:38,borderRadius:10,background:C.primaryGlow,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name={r.icon} size={18} color={C.primary}/></div>
+                <div style={{flex:1,minWidth:0}}><div style={{fontWeight:700,fontSize:14,color:C.text}}>{r.label}</div><div style={{fontSize:11,color:C.light,marginTop:1}}>Export as CSV or PDF</div></div>
+                <div style={{display:"flex",gap:7,flexShrink:0}}>
+                  <Btn small variant="outline" iconName="download" onClick={()=>dlCSV(r.label)}>CSV</Btn>
+                  <Btn small variant="outline" iconName="pdf">PDF</Btn>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+      {tab==="Completed Checklists"&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {completedChecklists.length===0&&<Card style={{padding:"40px 20px",textAlign:"center",color:C.light}}><Icon name="reports" size={40} color="#d1d5db"/><div style={{marginTop:12,fontWeight:600}}>No completed checklists</div></Card>}
+          {completedChecklists.map(cl=>(
+            <Card key={cl.id} style={{padding:"14px 16px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                <div><div style={{fontWeight:700,fontSize:14,color:C.text}}>{cl.vessel}</div><div style={{fontSize:11,color:C.light}}>{cl.date} · {cl.by}</div></div>
+                <div style={{display:"flex",gap:7,alignItems:"center",flexShrink:0}}>
+                  <span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:12,background:cl.tmStatus==="Approved"?"#dcfce7":cl.tmStatus==="Rejected"?"#fee2e2":"#fef3c7",color:cl.tmStatus==="Approved"?"#15803d":cl.tmStatus==="Rejected"?C.red:"#92400e"}}>{cl.tmStatus}</span>
+                  <Btn small variant="outline" iconName="download">Export</Btn>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
+   MAIL CENTRE
+════════════════════════════════════════ */
+function MailCentre({emails,onCompose}) {
+  const m = useMobile();
+  const [tab,setTab]=useState("Inbox");
+  const [sel,setSel]=useState(null);
+  const [composing,setComposing]=useState(false);
+  const [draft,setDraft]=useState({to:"",subject:"",body:""});
+  const tC={system:"#1d6fa4",checklist:"#15803d",fuel:"#d97706",manual:"#6d28d9"};
+  const list=tab==="Inbox"?emails.filter(e=>e.type!=="manual"):emails.filter(e=>e.type==="manual");
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+        <div><h1 style={{margin:0,fontSize:20,fontWeight:900,color:C.text}}>Mail Centre</h1><p style={{margin:"4px 0 0",fontSize:12,color:C.light}}>Automated & manual emails</p></div>
+        <Btn iconName="send" onClick={()=>setComposing(true)} small={m}>Compose</Btn>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
+        {[{l:"Total",v:emails.length,c:"#1d6fa4"},{l:"Unread",v:emails.filter(e=>!e.read).length,c:"#d97706"},{l:"Automated",v:emails.filter(e=>e.type!=="manual").length,c:"#15803d"}].map(s=>(
+          <Card key={s.l} style={{padding:"12px 14px"}}>
+            <div style={{fontSize:22,fontWeight:900,color:s.c}}>{s.v}</div>
+            <div style={{fontSize:11,color:C.light,marginTop:2}}>{s.l}</div>
+          </Card>
+        ))}
+      </div>
+      <Tabs tabs={["Inbox","Sent"]} active={tab} onChange={t=>{setTab(t);setSel(null);}}/>
+      {/* On mobile: list full width, detail opens as overlay */}
+      <Card style={{overflow:"hidden"}}>
+        {list.length===0&&<div style={{padding:"40px 20px",textAlign:"center",color:C.light}}><Icon name="inbox" size={36} color="#d1d5db"/><div style={{marginTop:10,fontWeight:600}}>No emails</div></div>}
+        {list.map(em=>(
+          <div key={em.id} onClick={()=>setSel(em)} style={{padding:"13px 16px",borderBottom:`1px solid ${C.borderLight}`,cursor:"pointer",background:sel?.id===em.id?"#f0fdf4":"#fff",borderLeft:`3px solid ${tC[em.type]||C.border}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:3,gap:8}}>
+              <span style={{fontWeight:em.read?600:800,fontSize:13,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{em.subject}</span>
+              <span style={{fontSize:10,color:C.light,flexShrink:0}}>{new Date(em.timestamp).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}</span>
+            </div>
+            <div style={{fontSize:11,color:C.mid}}>To: {em.to.split(",")[0]}{em.to.includes(",")?" +more":""}</div>
+            <div style={{fontSize:11,color:C.light,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{em.body.slice(0,60)}…</div>
+          </div>
+        ))}
+      </Card>
+      {/* Email detail — as modal/sheet on mobile */}
+      {sel&&(
+        <Modal title={sel.subject} onClose={()=>setSel(null)}>
+          <div style={{fontSize:11,color:C.light,marginBottom:3}}>To: <strong style={{color:C.mid}}>{sel.to}</strong></div>
+          <div style={{fontSize:11,color:C.light,marginBottom:16}}>{new Date(sel.timestamp).toLocaleString("en-GB")} MVT</div>
+          <div style={{fontSize:13,color:C.text,lineHeight:1.7,whiteSpace:"pre-wrap",background:"#faf9f7",borderRadius:9,padding:"13px 14px",border:`1px solid ${C.border}`}}>{sel.body}</div>
+        </Modal>
+      )}
+      {composing&&(
+        <Modal title="Compose Email" onClose={()=>setComposing(false)}>
+          <Field label="To"><Inp value={draft.to} onChange={v=>setDraft(d=>({...d,to:v}))} placeholder="recipient@baros.com"/></Field>
+          <Field label="Subject"><Inp value={draft.subject} onChange={v=>setDraft(d=>({...d,subject:v}))} placeholder="Subject…"/></Field>
+          <Field label="Message"><textarea value={draft.body} onChange={e=>setDraft(d=>({...d,body:e.target.value}))} placeholder="Write your message…" style={{width:"100%",padding:"11px 13px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:14,color:C.text,background:"#fafbfc",outline:"none",minHeight:130,resize:"vertical",fontFamily:"inherit"}}/></Field>
+          <Btn full iconName="send" onClick={()=>{onCompose(mkEmail({to:draft.to,subject:draft.subject,body:draft.body,type:"manual"}));setComposing(false);setDraft({to:"",subject:"",body:""});}}>Send Email</Btn>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
+   APP SHELL
+════════════════════════════════════════ */
+const NAV=[
+  {id:"dashboard",  label:"Dashboard",    icon:"dashboard"},
+  {id:"movement",   label:"Boat Movement",icon:"movement"},
+  {id:"fleet",      label:"Fleet",        icon:"fleet"},
+  {id:"fuel",       label:"Fuel Log",     icon:"fuel"},
+  {id:"roster",     label:"Duty Roster",  icon:"roster"},
+  {id:"maintenance",label:"Maintenance",  icon:"maintenance"},
+  {id:"checklists", label:"Checklists",   icon:"checklist"},
+  {id:"reports",    label:"Reports",      icon:"reports"},
+  {id:"mail",       label:"Mail",         icon:"mail"},
+];
+const BOTTOM_NAV=[
+  {id:"dashboard",  label:"Home",    icon:"dashboard"},
+  {id:"movement",   label:"Movement",icon:"movement"},
+  {id:"fuel",       label:"Fuel",    icon:"fuel"},
+  {id:"checklists", label:"Checklist",icon:"checklist"},
+  {id:"more",       label:"More",    icon:"menu"},
+];
+const DRAWER_NAV=[
+  {id:"fleet",      label:"Fleet",      icon:"fleet"},
+  {id:"roster",     label:"Roster",     icon:"roster"},
+  {id:"maintenance",label:"Maintenance",icon:"maintenance"},
+  {id:"reports",    label:"Reports",    icon:"reports"},
+  {id:"mail",       label:"Mail",       icon:"mail"},
+];
+
+function Login({onLogin}) {
+  const [un,setUn]=useState(""); const [pw,setPw]=useState(""); const [err,setErr]=useState(""); const [ld,setLd]=useState(false); const [show,setShow]=useState(false);
+  const go=()=>{setErr("");setLd(true);setTimeout(()=>{const u=USERS.find(u=>u.username===un.trim()&&u.password===pw);if(u)onLogin(u);else setErr("Invalid credentials.");setLd(false);},600);};
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0a1120 0%,#0f1f38 50%,#082018 100%)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"'Plus Jakarta Sans','Segoe UI',sans-serif"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');*{box-sizing:border-box;margin:0;padding:0;}`}</style>
+      <div style={{width:"100%",maxWidth:390}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:64,height:64,borderRadius:20,background:"linear-gradient(135deg,#0f7a67,#0a6152)",marginBottom:14,boxShadow:"0 8px 24px rgba(10,97,82,.5)"}}>
+            <Icon name="anchor" size={28} color="#fff" sw={1.8}/>
+          </div>
+          <div style={{fontSize:22,fontWeight:900,color:"#fff",letterSpacing:"0.1em"}}>BAROS</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,.3)",letterSpacing:"0.2em",fontWeight:600,marginTop:4}}>VESSEL MANAGEMENT SYSTEM</div>
+        </div>
+        <div style={{background:"rgba(255,255,255,.07)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,.1)",borderRadius:20,padding:"24px 22px",boxShadow:"0 20px 60px rgba(0,0,0,.4)"}}>
+          <h2 style={{fontSize:17,fontWeight:800,color:"#fff",marginBottom:4}}>Welcome back</h2>
+          <p style={{fontSize:12,color:"rgba(255,255,255,.38)",marginBottom:20}}>Sign in to your VMS account</p>
+          {err&&<div style={{background:"rgba(239,68,68,.15)",border:"1px solid rgba(239,68,68,.3)",color:"#fca5a5",borderRadius:9,padding:"9px 13px",fontSize:13,fontWeight:600,marginBottom:14}}>{err}</div>}
+          <div style={{marginBottom:12}}>
+            <label style={{display:"block",fontSize:10,fontWeight:700,color:"rgba(255,255,255,.38)",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.08em"}}>Username</label>
+            <input value={un} onChange={e=>setUn(e.target.value)} placeholder="Enter username" onKeyDown={e=>e.key==="Enter"&&go()} style={{width:"100%",padding:"12px 13px",borderRadius:11,border:"1px solid rgba(255,255,255,.12)",fontSize:14,color:"#fff",background:"rgba(255,255,255,.07)",outline:"none"}}/>
+          </div>
+          <div style={{marginBottom:20}}>
+            <label style={{display:"block",fontSize:10,fontWeight:700,color:"rgba(255,255,255,.38)",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.08em"}}>Password</label>
+            <div style={{position:"relative"}}>
+              <input value={pw} onChange={e=>setPw(e.target.value)} type={show?"text":"password"} placeholder="Enter password" onKeyDown={e=>e.key==="Enter"&&go()} style={{width:"100%",padding:"12px 42px 12px 13px",borderRadius:11,border:"1px solid rgba(255,255,255,.12)",fontSize:14,color:"#fff",background:"rgba(255,255,255,.07)",outline:"none"}}/>
+              <button onClick={()=>setShow(!show)} style={{position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",display:"flex"}}><Icon name="eye" size={16} color="rgba(255,255,255,.35)"/></button>
+            </div>
+          </div>
+          <button onClick={go} disabled={ld||!un||!pw} style={{width:"100%",padding:"13px",borderRadius:11,background:!ld&&un&&pw?"linear-gradient(135deg,#0f7a67,#0a6152)":"rgba(255,255,255,.08)",color:!ld&&un&&pw?"#fff":"rgba(255,255,255,.3)",border:"none",fontSize:14,fontWeight:700,cursor:ld||!un||!pw?"not-allowed":"pointer",boxShadow:!ld&&un&&pw?"0 4px 14px rgba(10,97,82,.45)":"none"}}>{ld?"Signing in…":"Sign In →"}</button>
+          <div style={{marginTop:20,background:"rgba(255,255,255,.04)",borderRadius:10,padding:"12px 13px",border:"1px solid rgba(255,255,255,.07)"}}>
+            <div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,.25)",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.1em"}}>Quick access</div>
+            {[["superadmin","Baros@2026","Super Admin"],["ops.manager","Ops@2026","Admin"],["nasru","Captain@2026","Captain"],["tamanager","TAMgr@2026","TA Manager"]].map(([u,p,r])=>(
+              <div key={u} onClick={()=>{setUn(u);setPw(p);}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",cursor:"pointer",borderBottom:"1px solid rgba(255,255,255,.06)"}}>
+                <span style={{fontSize:12,fontFamily:"monospace",color:"rgba(255,255,255,.6)"}}>{u}</span>
+                <span style={{fontSize:10,color:"rgba(255,255,255,.25)",background:"rgba(255,255,255,.07)",padding:"2px 7px",borderRadius:5}}>{r}</span>
+              </div>
+            ))}
+            <div style={{fontSize:10,color:"rgba(255,255,255,.18)",marginTop:7}}>Tap any row to auto-fill</div>
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {open && (
-        <>
-          {runs.map((run,ri) => {
-            const cfg = VESSEL_CFG[run.tt]
-            return (
-              <div key={ri} style={S.runBlock}>
-                <div style={S.vTag(run.tt)}>{cfg.icon} {cfg.label}</div>
-                {run.transfers.map((t,ti) => (
-                  <div key={ti} style={{ ...S.row, ...(ti===0?{borderTop:'none'}:{}) }}>
-                    <span style={S.rmTag}>R{t.room}</span>
-                    <span style={S.typeTag}>{t.type}</span>
-                    <span style={S.guestName}>{t.name}</span>
-                    {t.pax>0 && <span style={{ fontSize:11, color:B.textSecond, flexShrink:0 }}>×{t.pax}</span>}
-                    {t.vip   && <span style={vipStyle(t.vip)}>{t.vip}</span>}
-                    {t.comment && <span style={S.commentTxt} title={t.comment}>{t.comment}</span>}
+export default function App() {
+  const [user,setUser]=useState(null);
+  const [page,setPage]=useState("dashboard");
+  const [fleet,setFleet]=useState(FLEET);
+  const [fuelLog,setFuelLog]=useState(FUEL_LOG_INIT);
+  const [fuelBal,setFuelBal]=useState({Serenity:280,Ixora:85,Vitesse:310,Tara:110,Xari:420,Heliconia:180,Isadora:160,Nooma:120,Areena:240,Wahoo:140,"Party Craft":200,Dingy:50});
+  const [trips,setTrips]=useState({Serenity:5,Ixora:11,Vitesse:2,Tara:13,Xari:8,Heliconia:6,Isadora:7,Nooma:4,Areena:5,Wahoo:3,"Party Craft":9,Dingy:4});
+  const [completedChecklists,setCompletedChecklists]=useState([]);
+  const [emails,setEmails]=useState([
+    mkEmail({to:"tamanager@baros.com",subject:"System: VMS Platform Activated",body:"Baros VMS is now active. Automated emails operational.",type:"system"}),
+    mkEmail({to:"ops@baros.com,transport@baros.com",subject:"Fuel Alert – Ixora & Tara",body:"Ixora: 85L remaining (lower cap: 80L)\nTara: 110L remaining (lower cap: 100L)\n\nPlease arrange refuelling.",type:"fuel"}),
+  ]);
+  const [dbReady,setDbReady]=useState(false);
+  const [now,setNow]=useState(new Date());
+  const [sidebarOpen,setSidebarOpen]=useState(false);
+  const [drawerOpen,setDrawerOpen]=useState(false);
+  const w=useWidth();
+  const isMobile=w<768;
+  const isTablet=w>=768&&w<1100;
+
+  useEffect(()=>{const t=setInterval(()=>setNow(new Date()),10000);return()=>clearInterval(t);},[]);
+
+  /* ── Load all data from Supabase on mount ── */
+  useEffect(()=>{
+    async function loadAll() {
+      try {
+        // Fleet
+        const {data:fleetData} = await db.from("fleet").select("*");
+        if(fleetData&&fleetData.length>0) {
+          setFleet(fleetData.map(v=>({
+            id:v.id, type:v.type, color:v.color,
+            fuelCap:v.fuel_cap, cons:v.cons, pax:v.pax,
+            refuelAfter:v.refuel_after, fuelMin:v.fuel_min,
+            status:v.status, runHrs:v.run_hrs,
+            eng:v.eng, engMake:v.eng_make, photo:null,
+          })));
+        }
+        // Fuel balances
+        const {data:balData} = await db.from("fuel_balances").select("*");
+        if(balData&&balData.length>0) {
+          const bal={}, tc={};
+          balData.forEach(r=>{bal[r.vessel_id]=r.balance; tc[r.vessel_id]=r.trip_count;});
+          setFuelBal(bal); setTrips(tc);
+        }
+        // Fuel log
+        const {data:logData} = await db.from("fuel_log").select("*").order("created_at",{ascending:false}).limit(50);
+        if(logData&&logData.length>0) {
+          setFuelLog(logData.map(r=>({id:r.id,date:r.date,vessel:r.vessel,supplier:r.supplier,litres:r.litres,cost:r.cost,notes:r.notes})));
+        }
+        // Checklists
+        const {data:clData} = await db.from("checklists").select("*").order("created_at",{ascending:false}).limit(50);
+        if(clData&&clData.length>0) {
+          setCompletedChecklists(clData.map(r=>({id:r.id,vessel:r.vessel,date:new Date(r.created_at).toLocaleDateString(),by:r.submitted_by,hasWarn:r.has_warning,taStatus:r.ta_status,tmStatus:r.tm_status})));
+        }
+        // Emails
+        const {data:emailData} = await db.from("emails").select("*").order("created_at",{ascending:false}).limit(30);
+        if(emailData&&emailData.length>0) {
+          setEmails(emailData.map(r=>({id:r.id,to:r.to_addr,from:r.from_addr,subject:r.subject,body:r.body,type:r.type,read:r.read,timestamp:r.created_at})));
+        }
+        setDbReady(true);
+      } catch(err) {
+        console.error("Supabase load error:",err);
+        setDbReady(true); // still show app with local data
+      }
+    }
+    loadAll();
+  },[]);
+
+  /* ── Save email to Supabase ── */
+  const sendEmail=useCallback(async (email)=>{
+    setEmails(prev=>[email,...prev]);
+    try {
+      await db.from("emails").insert({
+        to_addr:email.to, from_addr:email.from,
+        subject:email.subject, body:email.body, type:email.type,
+      });
+    } catch(err){console.error("Email save error:",err);}
+  },[]);
+
+  /* ── Save fuel entry to Supabase ── */
+  const saveFuelEntry=useCallback(async (entry)=>{
+    setFuelLog(l=>[entry,...l]);
+    setFuelBal(b=>({...b,[entry.vessel]:Math.min((b[entry.vessel]||0)+entry.litres, fleet.find(v=>v.id===entry.vessel)?.fuelCap||999)}));
+    setTrips(t=>({...t,[entry.vessel]:0}));
+    try {
+      await db.from("fuel_log").insert({
+        date:entry.date, vessel:entry.vessel,
+        supplier:entry.supplier, litres:entry.litres,
+        cost:entry.cost, notes:entry.notes,
+        created_by:user?.name||"VMS",
+      });
+      await db.from("fuel_balances").upsert({
+        vessel_id:entry.vessel,
+        balance:Math.min((fuelBal[entry.vessel]||0)+entry.litres, fleet.find(v=>v.id===entry.vessel)?.fuelCap||999),
+        trip_count:0,
+        updated_at:new Date().toISOString(),
+      });
+    } catch(err){console.error("Fuel save error:",err);}
+  },[fleet,fuelBal,user]);
+
+  /* ── Save checklist to Supabase ── */
+  const saveChecklist=useCallback(async (cl)=>{
+    setCompletedChecklists(c=>[cl,...c]);
+    try {
+      const {data} = await db.from("checklists").insert({
+        vessel:cl.vessel, submitted_by:cl.by,
+        has_warning:cl.hasWarn,
+        ta_status:"Pending", tm_status:"Pending",
+      }).select().single();
+      if(data) {
+        setCompletedChecklists(c=>c.map(r=>r.id===cl.id?{...r,id:data.id}:r));
+      }
+    } catch(err){console.error("Checklist save error:",err);}
+  },[]);
+
+  /* ── Update checklist approval in Supabase ── */
+  const updateChecklist=useCallback(async (id,key,value)=>{
+    setCompletedChecklists(c=>c.map(r=>r.id===id?{...r,[key]:value}:r));
+    try {
+      const dbKey = key==="taStatus"?"ta_status":"tm_status";
+      await db.from("checklists").update({[dbKey]:value}).eq("id",id);
+    } catch(err){console.error("Checklist update error:",err);}
+  },[]);
+
+  const nav=p=>{if(p==="more"){setDrawerOpen(true);return;}setPage(p);setSidebarOpen(false);setDrawerOpen(false);};
+
+  if(!user) return <Login onLogin={u=>{setUser(u);setPage("dashboard");}}/>;
+
+  /* ── Loading screen while DB connects ── */
+  if(!dbReady) return (
+    <div style={{minHeight:"100vh",background:"#0a1120",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+      <div style={{width:56,height:56,borderRadius:16,background:"linear-gradient(135deg,#0f7a67,#0a6152)",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:20,boxShadow:"0 8px 24px rgba(10,97,82,.5)"}}>
+        <Icon name="anchor" size={26} color="#fff" sw={1.8}/>
+      </div>
+      <div style={{fontSize:18,fontWeight:800,color:"#fff",letterSpacing:"0.08em",marginBottom:8}}>BAROS VMS</div>
+      <div style={{fontSize:12,color:"rgba(255,255,255,.4)",marginBottom:32}}>Connecting to database…</div>
+      <div style={{display:"flex",gap:6}}>
+        {[0,1,2].map(i=><div key={i} style={{width:8,height:8,borderRadius:"50%",background:"#0a6152",animation:`pulse 1.2s ${i*0.2}s infinite`}}/>)}
+      </div>
+      <style>{`@keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}`}</style>
+    </div>
+  );
+
+  const unread=emails.filter(e=>!e.read).length;
+  const pageLabel=NAV.find(n=>n.id===page)?.label||"Dashboard";
+  const PAGES={
+    dashboard:   <Dashboard setPage={nav} fleet={fleet} fuelBal={fuelBal} trips={trips}/>,
+    movement:    <BoatMovement/>,
+    fleet:       <Fleet fleet={fleet} setFleet={setFleet} user={user}/>,
+    fuel:        <FuelLog fleet={fleet} fuelLog={fuelLog} setFuelLog={setFuelLog} fuelBal={fuelBal} setFuelBal={setFuelBal} trips={trips} setTrips={setTrips} sendEmail={sendEmail} saveFuelEntry={saveFuelEntry}/>,
+    roster:      <DutyRoster user={user}/>,
+    maintenance: <Maintenance/>,
+    checklists:  <Checklists user={user} completedChecklists={completedChecklists} setCompletedChecklists={setCompletedChecklists} sendEmail={sendEmail} saveChecklist={saveChecklist} updateChecklist={updateChecklist}/>,
+    reports:     <Reports completedChecklists={completedChecklists}/>,
+    mail:        <MailCentre emails={emails} onCompose={sendEmail}/>,
+  };
+
+  return (
+    <div style={{display:"flex",height:"100vh",background:C.bg,fontFamily:"'Plus Jakarta Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0}
+        ::-webkit-scrollbar{width:3px;height:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(0,0,0,.14);border-radius:3px}
+        button,input,select,textarea{font-family:inherit;-webkit-tap-highlight-color:transparent;}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes slideIn{from{transform:translateX(-100%)}to{transform:translateX(0)}}
+        @keyframes drawerUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+        .snav:hover{background:rgba(255,255,255,.07)!important}
+        input[type=number]{-moz-appearance:textfield;}
+        input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
+      `}</style>
+
+      {/* SIDEBAR (desktop only) */}
+      {!isMobile&&(
+        <aside style={{width:isTablet?62:244,background:"linear-gradient(180deg,#0d1526 0%,#080f1c 100%)",display:"flex",flexDirection:"column",flexShrink:0,borderRight:"1px solid rgba(255,255,255,.05)",boxShadow:"2px 0 18px rgba(0,0,0,.2)"}}>
+          <div style={{padding:isTablet?"18px 12px":"20px 18px 16px",borderBottom:"1px solid rgba(255,255,255,.06)",display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:36,height:36,borderRadius:11,background:"linear-gradient(135deg,#0f7a67,#0a5547)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"0 2px 10px rgba(10,97,82,.4)"}}>
+              <Icon name="anchor" size={17} color="#fff" sw={1.9}/>
+            </div>
+            {!isTablet&&<div><div style={{fontSize:14,fontWeight:800,color:"#fff",letterSpacing:"0.1em",lineHeight:1}}>BAROS</div><div style={{fontSize:8.5,color:"rgba(255,255,255,.3)",letterSpacing:"0.2em",fontWeight:600,marginTop:3}}>MALDIVES · VMS</div></div>}
+          </div>
+          <nav style={{flex:1,overflowY:"auto",padding:isTablet?"8px 7px":"10px 10px",scrollbarWidth:"none"}}>
+            {NAV.map(n=>{
+              const active=page===n.id;
+              const badge=n.id==="mail"?unread:0;
+              return (
+                <button key={n.id} onClick={()=>nav(n.id)} className="snav" title={isTablet?n.label:undefined}
+                  style={{display:"flex",alignItems:"center",width:"100%",padding:isTablet?"10px 0":"8px 10px",borderRadius:10,border:"none",cursor:"pointer",gap:isTablet?0:9,marginBottom:1,background:active?"rgba(255,255,255,.1)":"transparent",color:active?"rgba(255,255,255,.95)":"rgba(255,255,255,.4)",justifyContent:isTablet?"center":"flex-start",position:"relative",transition:"all .15s"}}>
+                  {active&&!isTablet&&<div style={{position:"absolute",left:0,top:"50%",transform:"translateY(-50%)",width:3,height:18,borderRadius:"0 2px 2px 0",background:"linear-gradient(180deg,#34d399,#10b981)"}}/>}
+                  <div style={{width:isTablet?30:26,height:isTablet?30:26,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",background:active?"rgba(255,255,255,.12)":"transparent",flexShrink:0}}>
+                    <Icon name={n.icon} size={isTablet?15:14} color={active?"rgba(255,255,255,.95)":"rgba(255,255,255,.42)"} sw={active?2:1.7}/>
                   </div>
-                ))}
+                  {!isTablet&&<span style={{fontSize:12.5,fontWeight:active?700:400,flex:1}}>{n.label}</span>}
+                  {!isTablet&&badge>0&&<span style={{background:"#ef4444",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{badge}</span>}
+                </button>
+              );
+            })}
+          </nav>
+          {!isTablet&&(
+            <div style={{padding:"10px 12px 14px",borderTop:"1px solid rgba(255,255,255,.06)"}}>
+              <div style={{background:"rgba(255,255,255,.06)",borderRadius:12,padding:"10px 12px",border:"1px solid rgba(255,255,255,.07)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:9}}>
+                  <div style={{width:32,height:32,borderRadius:9,background:user.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"#fff",flexShrink:0}}>{user.initials}</div>
+                  <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,.88)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.name}</div><div style={{fontSize:10,color:"rgba(255,255,255,.32)",marginTop:1}}>{user.role}</div></div>
+                  <button onClick={()=>setUser(null)} style={{background:"rgba(255,255,255,.07)",border:"none",cursor:"pointer",display:"flex",padding:6,borderRadius:7}}><Icon name="logout" size={13} color="rgba(255,255,255,.45)"/></button>
+                </div>
               </div>
-            )
+            </div>
+          )}
+        </aside>
+      )}
+
+      {/* MOBILE SIDEBAR OVERLAY */}
+      {isMobile&&sidebarOpen&&(
+        <>
+          <div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:40}}/>
+          <aside style={{position:"fixed",left:0,top:0,bottom:0,width:260,background:"linear-gradient(180deg,#0d1526,#080f1c)",zIndex:50,animation:"slideIn .25s ease",display:"flex",flexDirection:"column",boxShadow:"6px 0 30px rgba(0,0,0,.4)"}}>
+            <div style={{padding:"20px 16px 14px",borderBottom:"1px solid rgba(255,255,255,.06)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:34,height:34,borderRadius:10,background:"linear-gradient(135deg,#0f7a67,#0a5547)",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="anchor" size={16} color="#fff" sw={1.9}/></div>
+                <div><div style={{fontSize:14,fontWeight:800,color:"#fff",letterSpacing:"0.1em"}}>BAROS</div><div style={{fontSize:8.5,color:"rgba(255,255,255,.28)",letterSpacing:"0.18em"}}>MALDIVES · VMS</div></div>
+              </div>
+              <button onClick={()=>setSidebarOpen(false)} style={{background:"rgba(255,255,255,.08)",border:"none",borderRadius:8,padding:8,cursor:"pointer",display:"flex"}}><Icon name="x" size={15} color="rgba(255,255,255,.6)"/></button>
+            </div>
+            <nav style={{flex:1,padding:"10px",overflowY:"auto"}}>
+              {NAV.map(n=>{
+                const active=page===n.id;
+                return (
+                  <button key={n.id} onClick={()=>nav(n.id)} style={{display:"flex",alignItems:"center",width:"100%",padding:"12px 12px",borderRadius:10,border:"none",cursor:"pointer",gap:11,marginBottom:1,background:active?"rgba(255,255,255,.1)":"transparent",color:active?"rgba(255,255,255,.95)":"rgba(255,255,255,.44)",position:"relative",textAlign:"left"}}>
+                    {active&&<div style={{position:"absolute",left:0,top:"50%",transform:"translateY(-50%)",width:3,height:16,borderRadius:"0 2px 2px 0",background:"linear-gradient(180deg,#34d399,#10b981)"}}/>}
+                    <div style={{width:30,height:30,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",background:active?"rgba(255,255,255,.13)":"transparent",flexShrink:0}}><Icon name={n.icon} size={15} color={active?"rgba(255,255,255,.95)":"rgba(255,255,255,.44)"} sw={active?2:1.7}/></div>
+                    <span style={{fontSize:14,fontWeight:active?700:400,flex:1}}>{n.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+            <div style={{padding:"12px",borderTop:"1px solid rgba(255,255,255,.06)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:9,padding:"10px 11px",background:"rgba(255,255,255,.06)",borderRadius:11}}>
+                <div style={{width:34,height:34,borderRadius:9,background:user.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#fff",flexShrink:0}}>{user.initials}</div>
+                <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,.88)"}}>{user.name}</div><div style={{fontSize:11,color:"rgba(255,255,255,.32)"}}>{user.role}</div></div>
+                <button onClick={()=>{setUser(null);setSidebarOpen(false);}} style={{background:"rgba(255,255,255,.08)",border:"none",cursor:"pointer",display:"flex",padding:7,borderRadius:7}}><Icon name="logout" size={14} color="rgba(255,255,255,.45)"/></button>
+              </div>
+            </div>
+          </aside>
+        </>
+      )}
+
+      {/* MAIN */}
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        {/* TOPBAR */}
+        <header style={{background:"rgba(255,255,255,.9)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderBottom:"1px solid rgba(0,0,0,.07)",padding:"0 16px",height:54,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0,boxShadow:"0 1px 0 rgba(0,0,0,.04),0 2px 8px rgba(0,0,0,.03)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            {isMobile&&<button onClick={()=>setSidebarOpen(true)} style={{width:36,height:36,borderRadius:10,border:"1px solid rgba(0,0,0,.08)",background:"rgba(255,255,255,.8)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="menu" size={16} color={C.mid}/></button>}
+            <div style={{display:"flex",alignItems:"center",gap:7}}>
+              {!isMobile&&<><span style={{fontSize:11,color:"#c8d0da",fontWeight:500}}>Baros VMS</span><span style={{fontSize:11,color:"#dde2e8"}}>›</span></>}
+              <div style={{width:24,height:24,borderRadius:7,background:C.primaryGlow,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name={NAV.find(n=>n.id===page)?.icon||"dashboard"} size={12} color={C.primary} sw={2}/></div>
+              <span style={{fontSize:14,fontWeight:700,color:C.text,letterSpacing:"-0.01em"}}>{pageLabel}</span>
+            </div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            {!isMobile&&<span style={{background:"rgba(124,58,237,.09)",color:C.purple,border:"1px solid rgba(124,58,237,.14)",padding:"4px 10px",borderRadius:20,fontSize:10,fontWeight:700}}>{user.role}</span>}
+            <button onClick={()=>nav("mail")} style={{position:"relative",width:34,height:34,borderRadius:9,border:"1px solid rgba(0,0,0,.07)",background:unread>0?"rgba(217,119,6,.07)":"rgba(255,255,255,.7)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <Icon name="bell" size={15} color={unread>0?C.gold:C.mid}/>
+              {unread>0&&<span style={{position:"absolute",top:7,right:7,width:7,height:7,borderRadius:"50%",background:"#ef4444",border:"1.5px solid #fff"}}/>}
+            </button>
+            {!isMobile&&(
+              <div style={{display:"flex",alignItems:"center",gap:5,background:"rgba(0,0,0,.04)",border:"1px solid rgba(0,0,0,.06)",borderRadius:9,padding:"5px 10px"}}>
+                <Icon name="clock" size={11} color={C.light}/>
+                <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:12,fontWeight:600,color:C.text}}>{now.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",timeZone:"Indian/Maldives"})}</span>
+                <span style={{fontSize:9.5,color:C.light}}>MVT</span>
+              </div>
+            )}
+            <div style={{width:30,height:30,borderRadius:9,background:user.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"#fff",flexShrink:0}}>{user.initials}</div>
+            {!isMobile&&<button onClick={()=>setUser(null)} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",border:"1px solid rgba(0,0,0,.08)",borderRadius:8,background:"rgba(255,255,255,.8)",fontSize:11,color:C.mid,cursor:"pointer",fontWeight:600}}><Icon name="logout" size={12} color={C.mid}/>Sign out</button>}
+          </div>
+        </header>
+
+        <main key={page} style={{flex:1,overflowY:"auto",padding:isMobile?"14px 14px":"22px 26px",paddingBottom:isMobile?"76px":"22px",animation:"fadeIn .2s ease",WebkitOverflowScrolling:"touch"}}>
+          {PAGES[page]||<div style={{padding:40,textAlign:"center",color:C.mid,fontWeight:600}}>Page not found</div>}
+        </main>
+      </div>
+
+      {/* MOBILE BOTTOM NAV */}
+      {isMobile&&(
+        <nav style={{position:"fixed",bottom:0,left:0,right:0,height:62,background:"rgba(255,255,255,.92)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderTop:"1px solid rgba(0,0,0,.08)",display:"flex",alignItems:"stretch",zIndex:30,boxShadow:"0 -4px 20px rgba(0,0,0,.07)"}}>
+          {BOTTOM_NAV.map(n=>{
+            const active=n.id!=="more"&&page===n.id;
+            return (
+              <button key={n.id} onClick={()=>nav(n.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,background:"none",border:"none",cursor:"pointer",padding:"6px 4px",color:active?C.primary:C.light,position:"relative",WebkitTapHighlightColor:"transparent"}}>
+                {active&&<div style={{position:"absolute",inset:"6px 50%",width:40,transform:"translateX(-50%)",background:C.primaryGlow,borderRadius:10,zIndex:0}}/>}
+                <div style={{position:"relative",zIndex:1}}><Icon name={n.icon} size={20} color={active?C.primary:C.light} sw={active?2:1.7}/></div>
+                <span style={{fontSize:9.5,fontWeight:active?800:500,whiteSpace:"nowrap",position:"relative",zIndex:1}}>{n.label}</span>
+              </button>
+            );
           })}
-          <div style={S.timingBar}>
-            <span>→ arrives VIA {toT(arrVIA)}</span>
-            {recTrf && <span style={{ color: buf!==null&&buf<0?'#92400E':'#065F46' }}>formula TRF: {recTrf} ({buf!==null?fmtB(buf):'—'})</span>}
-            {hasRL&&next && <span style={{ color:B.success }}>↩ window {toT(arrVIA)}–{toT(arrVIA+ALGO.RL)}</span>}
+        </nav>
+      )}
+
+      {/* MORE DRAWER */}
+      {isMobile&&drawerOpen&&(
+        <>
+          <div onClick={()=>setDrawerOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:40}}/>
+          <div style={{position:"fixed",bottom:62,left:0,right:0,background:"rgba(248,250,252,.97)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderRadius:"22px 22px 0 0",zIndex:50,padding:"14px 16px 28px",animation:"drawerUp .25s ease",borderTop:"1px solid rgba(0,0,0,.08)",boxShadow:"0 -8px 30px rgba(0,0,0,.12)"}}>
+            <div style={{width:36,height:4,borderRadius:2,background:"#d1d5db",margin:"0 auto 14px"}}/>
+            <div style={{fontSize:10,fontWeight:700,color:C.light,marginBottom:12,textTransform:"uppercase",letterSpacing:"0.1em"}}>More Modules</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9}}>
+              {DRAWER_NAV.map(n=>{
+                const active=page===n.id;
+                const badge=n.id==="mail"?unread:0;
+                return (
+                  <button key={n.id} onClick={()=>nav(n.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"15px 8px",borderRadius:14,border:`1px solid ${active?"rgba(10,97,82,.2)":C.border}`,background:active?C.primaryLight:"#fff",cursor:"pointer",gap:7,position:"relative",boxShadow:active?"0 2px 10px rgba(10,97,82,.1)":"0 1px 3px rgba(0,0,0,.04)"}}>
+                    <div style={{width:38,height:38,borderRadius:11,background:active?C.primaryGlow:"rgba(0,0,0,.04)",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name={n.icon} size={19} color={active?C.primary:C.mid} sw={active?2:1.7}/></div>
+                    <span style={{fontSize:11,fontWeight:700,color:active?C.primary:C.text,textAlign:"center"}}>{n.label}</span>
+                    {badge>0&&<span style={{position:"absolute",top:7,right:7,background:"#ef4444",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}>{badge}</span>}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </>
       )}
     </div>
-  )
-}
-
-// ─── Scheduler: Main View ──────────────────────────────────────────────────────
-// ─── Smart Scheduler ──────────────────────────────────────────────────────────
-
-const SCHED_GROUPS = [
-  {
-    id: 'transfers',
-    label: 'Transfers',
-    cats: [
-      { id:'arrivals',   icon:'🛬', label:'Arrivals',   color:'#1A4530' },
-      { id:'departures', icon:'✈️', label:'Departures', color:'#374151' },
-    ]
-  },
-  {
-    id: 'activities',
-    label: 'Activities',
-    cats: [
-      { id:'excursions', icon:'🤿', label:'Excursions / Water Sports', color:'#0369A1' },
-      { id:'diving',     icon:'🐠', label:'Diving',                    color:'#0891B2' },
-      { id:'snorkeling', icon:'🐢', label:'Snorkeling',                color:'#059669' },
-      { id:'fnb',        icon:'🍽️', label:'Destination Dining',        color:'#B45309' },
-    ]
-  },
-]
-
-const VESSELS_LIST = ['Ixora', 'Tara', 'Serenity', 'Xari']
-const VESSEL_COL   = { Ixora:'#1A4530', Tara:'#0369A1', Serenity:'#7C3AED', Xari:'#B45309' }
-
-const autoVessel = (pax, vip) => {
-  if (vip && vip.toLowerCase() !== 'no' && vip !== '') return 'Serenity'
-  return pax <= 6 ? 'Tara' : 'Ixora'
-}
-
-const calcBoatDispatch = (eta) => {
-  if (!eta || !eta.includes(':')) return '—'
-  const [h, m] = eta.split(':').map(Number)
-  const tot = h * 60 + m - 57
-  if (tot < 0) return '—'
-  return `${String(Math.floor(tot / 60)).padStart(2,'0')}:${String(tot % 60).padStart(2,'0')}`
-}
-
-// ─── Parse any file format ────────────────────────────────────────────────────
-const parseFile = async (file, catId, date) => {
-  const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs')
-
-  const fmt = (v) => {
-    if (!v && v !== 0) return ''
-    if (v instanceof Date) return v.toTimeString().slice(0, 5)
-    return String(v).trim()
-  }
-
-  let wb
-  if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-    // PDF: extract text and try to parse as table
-    return { rows: [], note: 'PDF parsing not yet supported. Please use Excel or CSV.' }
-  } else if (file.type.startsWith('image/')) {
-    return { rows: [], note: 'Image files not yet supported. Please use Excel or CSV.' }
-  } else {
-    const buf = await file.arrayBuffer()
-    wb = XLSX.read(buf, { type: 'array', cellDates: true })
-  }
-
-  // Find best matching sheet
-  const cats = ['arrival','departure','excursion','diving','snorkel','fnb','dining','activity']
-  const sheetName = wb.SheetNames.find(s =>
-    cats.some(c => s.toLowerCase().includes(c)) ||
-    s.toLowerCase().includes(catId.toLowerCase().slice(0,4))
-  ) || wb.SheetNames[0]
-
-  const ws  = wb.Sheets[sheetName]
-  const raw = XLSX.utils.sheet_to_json(ws, { defval: '' })
-
-  const rows = raw.map(r => ({
-    resort_id:      BAROS_RESORT_ID,
-    schedule_date:  date,
-    type:           catId,
-    flight_time:    fmt(r['FLIGHT TIME']   || r['TIME']          || r['TRANSFER TIME'] || r['DEPARTURE TIME'] || ''),
-    flight_number:  fmt(r['FLIGHT NUMBER'] || r['FLIGHT']        || r['FLIGHT NO']     || '').toUpperCase(),
-    transfer_time:  fmt(r['TRANSFER TIME'] || ''),
-    checkout_time:  fmt(r['CHECKOUT TIME'] || ''),
-    room:           fmt(r['ROOM']          || r['VILLA']         || ''),
-    guest_name:     fmt(r['GUEST NAME']    || r['NAME']          || r['GUEST']         || ''),
-    pax:            parseInt(r['PAX']      || r['GUESTS']        || r['NO OF GUESTS']  || 1) || 1,
-    meal_plan:      fmt(r['MP']            || r['MEAL PLAN']     || r['MEAL']          || ''),
-    operator:       fmt(r['OPERATOR']      || r['OPERTOR']       || r['TRANSFER']      || ''),
-    spc:            ['yes','1','true'].includes(String(r['SPC'] || '').toLowerCase()),
-    vip:            fmt(r['VIP'] || ''),
-    room_type:      fmt(r['ROOM TYPE']     || r['ROOM TTPE']     || ''),
-    nights:         parseInt(r['NIGHTS']   || r['NGHTS']         || 0) || null,
-    departure_date: fmt(r['DEPARTURE']     || r['CHECKOUT']      || ''),
-    member:         ['yes','1','true'].includes(String(r['MEM'] || r['MEMBER'] || '').toLowerCase()),
-    butler:         fmt(r['BUTLER'] || ''),
-    confirmation:   fmt(r['CONFIRMATION']  || r['CONF']          || ''),
-    comments:       fmt(r['COMMENTS']      || r['NOTES']         || r['REMARKS']       || ''),
-    assigned_vessel: autoVessel(
-      parseInt(r['PAX'] || 1) || 1,
-      fmt(r['VIP'] || '')
-    ),
-  })).filter(r => r.guest_name || r.room || r.flight_number)
-
-  return { rows, note: null }
-}
-
-// ─── Single upload card ───────────────────────────────────────────────────────
-function UploadCard({ cat, date, data, fr24Map, fr24Loading, onUpload, onRefreshFR24 }) {
-  const fileRef    = useRef()
-  const [busy, setBusy]       = useState(false)
-  const [msg,  setMsg]        = useState('')
-  const [open, setOpen]       = useState(false)
-  const [vessels, setVessels] = useState({})
-
-  const hasData  = data && data.length > 0
-  const totalPax = data ? data.reduce((s,r) => s + (r.pax||0), 0) : 0
-
-  const handleFile = async (file) => {
-    if (!file) return
-    setBusy(true)
-    setMsg('Reading file…')
-    try {
-      const { rows, note } = await parseFile(file, cat.id, date)
-      if (note) { setMsg(note); setBusy(false); return }
-      setMsg(`Saving ${rows.length} rows…`)
-      await sb.from('boat_schedule').delete()
-        .eq('resort_id', BAROS_RESORT_ID)
-        .eq('schedule_date', date)
-        .eq('type', cat.id)
-      if (rows.length > 0) await sb.from('boat_schedule').insert(rows)
-      onUpload(cat.id, rows)
-      if (cat.id === 'arrivals') {
-        const fns = [...new Set(rows.map(r => r.flight_number).filter(Boolean))]
-        if (fns.length) onRefreshFR24(fns)
-      }
-      setMsg(`✓ ${rows.length} records loaded`)
-      setOpen(true)
-    } catch(e) {
-      setMsg('Error: ' + e.message)
-    }
-    setBusy(false)
-  }
-
-  return (
-    <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:10, overflow:'hidden' }}>
-      {/* Card header */}
-      <div
-        onClick={() => hasData && setOpen(o => !o)}
-        style={{ padding:'14px 16px', display:'flex', alignItems:'center', gap:12, cursor:hasData?'pointer':'default', background:hasData?B.pearl:B.white }}
-      >
-        <div style={{ width:40, height:40, borderRadius:9, background:cat.color+'18', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>
-          {cat.icon}
-        </div>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontWeight:600, fontSize:13, color:B.textPrimary }}>{cat.label}</div>
-          {hasData
-            ? <div style={{ fontSize:11, color:cat.color, fontWeight:500, marginTop:1 }}>{data.length} trips · {totalPax} pax · {[...new Set(data.map(r=>r.assigned_vessel).filter(Boolean))].join(', ')}</div>
-            : <div style={{ fontSize:11, color:B.textMuted, marginTop:1 }}>No data — upload a file to load</div>
-          }
-        </div>
-        <div style={{ display:'flex', gap:8, alignItems:'center' }} onClick={e=>e.stopPropagation()}>
-          {cat.id === 'arrivals' && hasData && (
-            <button onClick={()=>{const f=[...new Set(data.map(r=>r.flight_number).filter(Boolean))];if(f.length)onRefreshFR24(f)}} disabled={fr24Loading}
-              style={{ padding:'5px 10px', borderRadius:6, border:`0.5px solid ${B.border}`, background:'transparent', color:B.textSecond, fontSize:11, cursor:'pointer', whiteSpace:'nowrap' }}>
-              {fr24Loading?'↻':'✈ FR24'}
-            </button>
-          )}
-          <input ref={fileRef} type="file" accept=".ods,.xlsx,.xls,.csv,.pdf,image/*" style={{ display:'none' }} onChange={e=>handleFile(e.target.files[0])} />
-          <button onClick={()=>fileRef.current.click()} disabled={busy}
-            style={{ padding:'6px 14px', borderRadius:6, border:`1.5px solid ${cat.color}`, background:hasData?'transparent':cat.color, color:hasData?cat.color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
-            {busy ? '⏳' : hasData ? '↻ Update' : '⬆ Upload'}
-          </button>
-        </div>
-        {hasData && <span style={{ color:B.textMuted, fontSize:11 }}>{open?'▲':'▼'}</span>}
-      </div>
-
-      {/* Upload message */}
-      {msg && (
-        <div style={{ padding:'6px 16px', fontSize:11, borderTop:`0.5px solid ${B.border}`,
-          color: msg.startsWith('✓')?'#059669': msg.startsWith('Error')?'#DC2626':B.textSecond,
-          background: msg.startsWith('✓')?'#F0FDF4': msg.startsWith('Error')?'#FEF2F2':B.pearl }}>
-          {msg}
-        </div>
-      )}
-
-      {/* Supported formats note */}
-      {!hasData && (
-        <div style={{ padding:'8px 16px', fontSize:10, color:B.textMuted, borderTop:`0.5px solid ${B.border}`, display:'flex', gap:8 }}>
-          {['Excel (.xlsx)', 'ODS', 'CSV', 'PDF (text)', 'Image'].map(f => (
-            <span key={f} style={{ background:B.pearl, borderRadius:4, padding:'2px 7px' }}>{f}</span>
-          ))}
-        </div>
-      )}
-
-      {/* Data table */}
-      {open && hasData && <SchedTable rows={data} catId={cat.id} fr24Map={fr24Map} vessels={vessels} setVessels={setVessels} />}
-    </div>
-  )
-}
-
-// ─── Table ────────────────────────────────────────────────────────────────────
-function SchedTable({ rows, catId, fr24Map, vessels, setVessels }) {
-  const isArr = catId === 'arrivals'
-  const isDep = catId === 'departures'
-
-  const TH = { padding:'8px 10px', textAlign:'left', fontSize:10, color:'rgba(255,255,255,0.75)', fontWeight:600, letterSpacing:'1px', textTransform:'uppercase', whiteSpace:'nowrap' }
-  const TD = { padding:'8px 10px', verticalAlign:'middle', borderBottom:`0.5px solid ${B.border}` }
-
-  const hdr = isArr
-    ? ['', 'Flight', 'Sched', 'Status', 'FR24 ETA', '⚓ Boat Out', 'Vessel', 'Room', 'Guest', 'PAX', 'Operator', 'Meal', 'Butler', 'Notes']
-    : isDep
-    ? ['Transfer', 'Checkout', '', 'Flight', 'Flt Time', 'Vessel', 'Room', 'Guest', 'PAX', 'Operator', 'Meal', 'Butler', 'Notes']
-    : ['Time', 'Vessel', 'Room', 'Guest', 'PAX', 'Notes']
-
-  return (
-    <div style={{ overflowX:'auto', borderTop:`0.5px solid ${B.border}` }}>
-      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, minWidth: isArr?1050:isDep?900:600 }}>
-        <thead>
-          <tr style={{ background:B.freshPalm }}>
-            {hdr.map((h,i) => <th key={i} style={TH}>{h}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => {
-            const fr       = fr24Map[r.flight_number] || {}
-            const eta      = fr.eta || r.fr24_eta || r.flight_time || '—'
-            const boat     = fr.boat_dispatch || calcBoatDispatch(eta)
-            const status   = fr.status || (r.flight_number ? 'Scheduled' : '—')
-            const sColor   = status==='Landed'?'#059669':status==='Airborne'?'#2563EB':'#9CA3AF'
-            const sBg      = status==='Landed'?'#ECFDF5':status==='Airborne'?'#EFF6FF':'#F9FAFB'
-            const isVip    = r.vip && r.vip.toLowerCase()!=='no' && r.vip!==''
-            const rowBg    = isVip?'#FFFBEB':r.spc?'#EFF6FF':i%2===0?B.white:B.pearl
-            const code     = r.flight_number?.replace(/[0-9]/g,'').trim()
-            const info     = AIRLINE_INFO?.[code] || {}
-            const vessel   = vessels[i] || r.assigned_vessel || 'Ixora'
-
-            const VesselPicker = () => (
-              <select value={vessel} onChange={e=>setVessels(v=>({...v,[i]:e.target.value}))}
-                style={{ fontSize:11, padding:'3px 6px', borderRadius:5, border:`1.5px solid ${VESSEL_COL[vessel]||B.border}`, color:VESSEL_COL[vessel]||B.textPrimary, fontWeight:600, background:'#fff', cursor:'pointer', outline:'none' }}>
-                {VESSELS_LIST.map(v=><option key={v} value={v}>{v}</option>)}
-              </select>
-            )
-
-            const Logo = () => info.logo
-              ? <img src={info.logo} alt={code} style={{ width:28,height:28,objectFit:'contain' }} onError={e=>e.target.style.display='none'} />
-              : <div style={{ width:28,height:28,background:info.color||B.freshPalm,borderRadius:5,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:9,fontWeight:700 }}>{code}</div>
-
-            const GuestCell = () => (
-              <td style={{...TD,maxWidth:150,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                <div style={{ fontWeight:500 }}>{r.guest_name||'—'}</div>
-                {isVip && <div style={{ fontSize:9,color:B.gold,fontWeight:700 }}>⭐ {r.vip}</div>}
-                {r.spc  && <div style={{ fontSize:9,color:'#2563EB',fontWeight:700 }}>★ Special</div>}
-              </td>
-            )
-
-            if (isArr) return (
-              <tr key={i} style={{ background:rowBg }}>
-                <td style={TD}><Logo/></td>
-                <td style={{...TD,fontFamily:'monospace',fontWeight:700,fontSize:13}}>{r.flight_number||'—'}</td>
-                <td style={{...TD,fontFamily:'monospace',color:'#9CA3AF'}}>{r.flight_time||'—'}</td>
-                <td style={TD}><span style={{ background:sBg,color:sColor,borderRadius:99,padding:'2px 9px',fontSize:10,fontWeight:600,whiteSpace:'nowrap' }}>{status}</span></td>
-                <td style={{...TD,fontFamily:'monospace',fontWeight:700,color:'#2563EB',fontSize:14}}>{eta}</td>
-                <td style={{...TD,fontFamily:'monospace',fontWeight:700,color:B.gold,fontSize:14}}>{boat}</td>
-                <td style={TD}><VesselPicker/></td>
-                <td style={{...TD,fontWeight:600}}>{r.room||'—'}</td>
-                <GuestCell/>
-                <td style={{...TD,textAlign:'center',fontWeight:700}}>{r.pax}</td>
-                <td style={{...TD,fontSize:11,color:B.textSecond}}>{r.operator||'—'}</td>
-                <td style={{...TD,fontSize:11}}>{r.meal_plan||'—'}</td>
-                <td style={{...TD,fontSize:11}}>{r.butler||'—'}</td>
-                <td style={{...TD,fontSize:11,color:B.textMuted,maxWidth:120,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.comments||'—'}</td>
-              </tr>
-            )
-
-            if (isDep) return (
-              <tr key={i} style={{ background:rowBg }}>
-                <td style={{...TD,fontFamily:'monospace',fontWeight:700,color:B.gold,fontSize:14}}>{r.transfer_time||r.flight_time||'—'}</td>
-                <td style={{...TD,fontFamily:'monospace',color:'#9CA3AF'}}>{r.checkout_time||'—'}</td>
-                <td style={TD}><Logo/></td>
-                <td style={{...TD,fontFamily:'monospace',fontWeight:700,fontSize:13}}>{r.flight_number||'—'}</td>
-                <td style={{...TD,fontFamily:'monospace',color:'#9CA3AF'}}>{r.flight_time||'—'}</td>
-                <td style={TD}><VesselPicker/></td>
-                <td style={{...TD,fontWeight:600}}>{r.room||'—'}</td>
-                <GuestCell/>
-                <td style={{...TD,textAlign:'center',fontWeight:700}}>{r.pax}</td>
-                <td style={{...TD,fontSize:11,color:B.textSecond}}>{r.operator||'—'}</td>
-                <td style={{...TD,fontSize:11}}>{r.meal_plan||'—'}</td>
-                <td style={{...TD,fontSize:11}}>{r.butler||'—'}</td>
-                <td style={{...TD,fontSize:11,color:B.textMuted,maxWidth:120,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.comments||'—'}</td>
-              </tr>
-            )
-
-            return (
-              <tr key={i} style={{ background:rowBg }}>
-                <td style={{...TD,fontFamily:'monospace',fontWeight:700,color:B.freshPalm}}>{r.flight_time||r.transfer_time||'—'}</td>
-                <td style={TD}><VesselPicker/></td>
-                <td style={{...TD,fontWeight:600}}>{r.room||'—'}</td>
-                <GuestCell/>
-                <td style={{...TD,textAlign:'center',fontWeight:700}}>{r.pax}</td>
-                <td style={{...TD,fontSize:11,color:B.textSecond}}>{r.operator||'—'}</td>
-                <td style={{...TD,fontSize:11,color:B.textMuted,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.comments||'—'}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-// ─── Main Scheduler View ───────────────────────────────────────────────────────
-function SchedulerView({ isMobile }) {
-  const today    = new Date().toLocaleDateString('en-CA', { timeZone:'Indian/Maldives' })
-  const tomorrow = new Date(Date.now()+86400000).toLocaleDateString('en-CA', { timeZone:'Indian/Maldives' })
-
-  const [dayTab,      setDayTab]      = useState('today')
-  const [schedData,   setSchedData]   = useState({})
-  const [fr24Map,     setFr24Map]     = useState({})
-  const [fr24Loading, setFr24Loading] = useState(false)
-  const [lastSync,    setLastSync]    = useState(null)
-  const [clock,       setClock]       = useState(new Date())
-
-  const viewDate = dayTab === 'today' ? today : tomorrow
-
-  useEffect(() => {
-    const t = setInterval(() => setClock(new Date()), 1000)
-    return () => clearInterval(t)
-  }, [])
-
-  // Load from Supabase
-  useEffect(() => {
-    const load = async (date, label) => {
-      try {
-        const { data } = await sb.from('boat_schedule').select('*')
-          .eq('resort_id', BAROS_RESORT_ID)
-          .eq('schedule_date', date)
-          .order('flight_time', { ascending: true })
-        if (data?.length) {
-          const map = {}
-          SCHED_GROUPS.forEach(g => g.cats.forEach(cat => {
-            const rows = data.filter(r => r.type === cat.id)
-            if (rows.length) map[`${label}-${cat.id}`] = rows
-          }))
-          setSchedData(prev => ({ ...prev, ...map }))
-          const fns = [...new Set(data.filter(r=>r.type==='arrivals').map(r=>r.flight_number).filter(Boolean))]
-          if (fns.length) fetchFR24(fns)
-        }
-      } catch(e) {}
-    }
-    load(today, 'today')
-    load(tomorrow, 'tomorrow')
-  }, [])
-
-  const fetchFR24 = async (flightNos) => {
-    setFr24Loading(true)
-    try {
-      const callsigns = flightNos.map(f => {
-        const u = f.toUpperCase()
-        for (const [iata, icao] of Object.entries(IATA_TO_ICAO)) {
-          if (u.startsWith(iata)) return icao + u.slice(iata.length)
-        }
-        return u
-      }).join(',')
-      const res  = await fetch(`/.netlify/functions/fr24?flights=${callsigns}&mode=live`)
-      const json = await res.json()
-      if (json.data?.length) {
-        const map = {}
-        json.data.forEach(d => {
-          flightNos.forEach(f => {
-            const u = f.toUpperCase()
-            const cs = (() => {
-              for (const [iata,icao] of Object.entries(IATA_TO_ICAO)) {
-                if (u.startsWith(iata)) return icao + u.slice(iata.length)
-              }
-              return u
-            })()
-            if (cs === d.callsign) {
-              const now = Date.now()/1000
-              const R=6371,dLat=(4.1755-d.lat)*Math.PI/180,dLon=(73.5293-d.lon)*Math.PI/180
-              const a=Math.sin(dLat/2)**2+Math.cos(d.lat*Math.PI/180)*Math.cos(4.1755*Math.PI/180)*Math.sin(dLon/2)**2
-              const km=R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))
-              const secs = d.gspeed>0 ? (km/(d.gspeed*1.852))*3600*1.05 : null
-              const etaTs  = secs ? now+secs : null
-              const boatTs = etaTs ? etaTs-57*60 : null
-              const fmtT   = ts => ts ? new Date(ts*1000).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Indian/Maldives'}) : null
-              map[f] = { status: d.alt<100?'Landed':'Airborne', eta:fmtT(etaTs), boat_dispatch:fmtT(boatTs) }
-            }
-          })
-        })
-        setFr24Map(prev => ({ ...prev, ...map }))
-        setLastSync(new Date())
-      }
-    } catch(e) {}
-    setFr24Loading(false)
-  }
-
-  const handleUpload = (catId, rows) => {
-    setSchedData(prev => ({ ...prev, [`${dayTab}-${catId}`]: rows }))
-  }
-
-  const getData = (catId) => schedData[`${dayTab}-${catId}`] || []
-
-  const allRows = SCHED_GROUPS.flatMap(g => g.cats.flatMap(c => getData(c.id)))
-  const totalPax  = allRows.reduce((s,r) => s+(r.pax||0), 0)
-  const totalArr  = getData('arrivals').length
-  const totalDep  = getData('departures').length
-  const vipCount  = allRows.filter(r => r.vip && r.vip.toLowerCase()!=='no' && r.vip!=='').length
-  const airborne  = Object.values(fr24Map).filter(f => f.status==='Airborne').length
-
-  const todayLabel    = new Date(today+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short'})
-  const tomorrowLabel = new Date(tomorrow+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short'})
-
-  return (
-    <div>
-      {/* Header */}
-      <div style={{ background:B.freshPalm, borderRadius:10, padding:isMobile?'14px':'18px 24px', marginBottom:16 }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
-          <div>
-            <div style={{ fontSize:10, letterSpacing:'2px', color:'rgba(255,255,255,0.4)', textTransform:'uppercase', marginBottom:4 }}>Baros Maldives · Operations</div>
-            <div style={{ fontSize:isMobile?16:22, fontWeight:600, color:'#fff' }}>Smart Scheduler</div>
-            <div style={{ fontSize:11, color:'rgba(255,255,255,0.45)', marginTop:2 }}>Boat Transfer & Activity Planning</div>
-          </div>
-          <div style={{ textAlign:'right' }}>
-            <div style={{ fontSize:isMobile?22:30, fontWeight:300, color:B.gold, fontFamily:'monospace', letterSpacing:2 }}>
-              {clock.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Indian/Maldives'})}
-            </div>
-            <div style={{ fontSize:10, color:'rgba(255,255,255,0.35)', marginTop:2 }}>
-              {lastSync ? `FR24 synced ${lastSync.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} MVT` : 'Maldives Time (MVT)'}
-            </div>
-          </div>
-        </div>
-
-        {/* Day selector */}
-        <div style={{ display:'flex', gap:10, marginTop:14, flexWrap:'wrap', alignItems:'center' }}>
-          {[
-            { id:'today',    label:'Today',    sub:todayLabel },
-            { id:'tomorrow', label:'Tomorrow', sub:tomorrowLabel },
-          ].map(d => (
-            <button key={d.id} onClick={() => setDayTab(d.id)}
-              style={{ padding:'8px 22px', borderRadius:7, cursor:'pointer', textAlign:'left',
-                border:`1.5px solid ${dayTab===d.id?'#fff':'rgba(255,255,255,0.2)'}`,
-                background: dayTab===d.id?'rgba(255,255,255,0.15)':'transparent', color:'#fff',
-                fontWeight: dayTab===d.id?600:400, fontSize:13 }}>
-              <div>{d.label}</div>
-              <div style={{ fontSize:10, opacity:.55, marginTop:1 }}>{d.sub}</div>
-            </button>
-          ))}
-          <div style={{ marginLeft:'auto', display:'flex', gap:8, alignItems:'center' }}>
-            {fr24Loading && <span style={{ fontSize:11, color:'#34D399' }}>↻ Syncing FR24…</span>}
-            {airborne > 0 && <span style={{ fontSize:11, background:'rgba(52,211,153,0.15)', color:'#34D399', borderRadius:99, padding:'4px 10px', border:'0.5px solid rgba(52,211,153,0.3)' }}>● {airborne} airborne</span>}
-          </div>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div style={{ display:'flex', gap:10, marginBottom:16, flexWrap:'wrap' }}>
-        {[
-          { label:'Arrivals',   val:totalArr,  color:B.freshPalm },
-          { label:'Departures', val:totalDep,  color:'#374151'   },
-          { label:'Total PAX',  val:totalPax,  color:'#0369A1'   },
-          { label:'VIP',        val:vipCount,  color:B.gold      },
-          { label:'Airborne',   val:airborne,  color:'#2563EB'   },
-        ].map(s => (
-          <div key={s.label} style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:8, padding:'8px 16px', display:'flex', gap:10, alignItems:'center' }}>
-            <div style={{ fontSize:22, fontWeight:700, color:s.color, fontFamily:'monospace' }}>{s.val}</div>
-            <div style={{ fontSize:10, color:B.textMuted, textTransform:'uppercase', letterSpacing:'.8px' }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Groups */}
-      {SCHED_GROUPS.map(group => (
-        <div key={group.id} style={{ marginBottom:20 }}>
-          <div style={{ fontSize:11, fontWeight:600, color:B.textMuted, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:10, paddingLeft:2 }}>
-            {group.label}
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            {group.cats.map(cat => (
-              <UploadCard
-                key={cat.id}
-                cat={cat}
-                date={viewDate}
-                data={getData(cat.id)}
-                fr24Map={fr24Map}
-                fr24Loading={fr24Loading}
-                onUpload={(_catId, rows) => handleUpload(cat.id, rows)}
-                onRefreshFR24={fetchFR24}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-
-
-// ─── Duty Roster ──────────────────────────────────────────────────────────────
-const SHIFT_CODES = [
-  { code:'G',  label:'On Duty',         bg:'#5B9BD5', text:'#fff' },
-  { code:'O',  label:'Regular Off Day', bg:'#E8734A', text:'#fff' },
-  { code:'AL', label:'Annual Leave',    bg:'#9B59B6', text:'#fff' },
-  { code:'RR', label:'Rest & Relaxation',bg:'#27AE60',text:'#fff' },
-  { code:'PH', label:'Public Holiday',  bg:'#E74C3C', text:'#fff' },
-  { code:'S',  label:'Standby',         bg:'#F39C12', text:'#fff' },
-  { code:'SL', label:'Sick Leave',      bg:'#95A5A6', text:'#fff' },
-  { code:'T',  label:'Training',        bg:'#16A085', text:'#fff' },
-]
-const SHIFT_MAP   = Object.fromEntries(SHIFT_CODES.map(s=>[s.code,s]))
-const SHIFT_CYCLE = SHIFT_CODES.map(s=>s.code)
-
-const INITIAL_MEMBERS = [
-  { id:'BM01233', name:'Ahmed Rasheed',  role:'Senior Captain', initials:'AR' },
-  { id:'BM02508', name:'Mohamed Saeed', role:'Captain',         initials:'MS' },
-  { id:'BM02429', name:'Hassan Ali',    role:'Captain',         initials:'HA' },
-  { id:'BM02665', name:'Ali Moosa',     role:'Boat Crew',       initials:'AM' },
-  { id:'BM02643', name:'Omar Faiz',     role:'Boat Crew',       initials:'OF' },
-  { id:'BM01573', name:'Ibrahim Hassan',role:'Engineer',        initials:'IH' },
-]
-
-function RosterView({ user, isMobile }) {
-  const now = new Date()
-  const initPeriod = () => {
-    if (now.getDate() >= 21) return { year: now.getFullYear(), month: now.getMonth() }
-    return now.getMonth() === 0
-      ? { year: now.getFullYear() - 1, month: 11 }
-      : { year: now.getFullYear(), month: now.getMonth() - 1 }
-  }
-  const [year,  setYear]  = useState(initPeriod().year)
-  const [month, setMonth] = useState(initPeriod().month)
-  const [locked, setLocked] = useState(false)
-  const [members] = useState(INITIAL_MEMBERS)
-  const [activeCell, setActiveCell] = useState(null)
-  const canEdit = user?.role === 'super_admin' || user?.role === 'resort_admin'
-
-  const nextMonth = month === 11 ? 0 : month + 1
-  const nextYear  = month === 11 ? year + 1 : year
-  const endOfStartMonth = new Date(year, month + 1, 0).getDate()
-
-  const days = [
-    ...Array.from({ length: endOfStartMonth - 20 }, (_, i) => {
-      const d = new Date(year, month, 21 + i)
-      return { day: 21 + i, month, year, dow: ['S','M','T','W','T','F','S'][d.getDay()], key: `${year}-${month}-${21+i}` }
-    }),
-    ...Array.from({ length: 20 }, (_, i) => {
-      const d = new Date(nextYear, nextMonth, i + 1)
-      return { day: i + 1, month: nextMonth, year: nextYear, dow: ['S','M','T','W','T','F','S'][d.getDay()], key: `${nextYear}-${nextMonth}-${i+1}` }
-    }),
-  ]
-
-  const initRoster = () => {
-    const r = {}
-    members.forEach(m => { days.forEach(d => { r[`${m.id}-${d.key}`] = d.day % 7 === 0 ? 'O' : 'G' }) })
-    return r
-  }
-  const [roster, setRoster] = useState(initRoster)
-
-  const periodKey = `${year}-${month}`
-  const prevPeriodKey = useRef(periodKey)
-  if (prevPeriodKey.current !== periodKey) { prevPeriodKey.current = periodKey; setRoster(initRoster()) }
-
-  const setShift = (memberId, dayKey, code) => {
-    setRoster(r => ({...r, [`${memberId}-${dayKey}`]: code}))
-    setActiveCell(null)
-  }
-
-  const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
-  const SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  const prevPeriod = () => { if (month===0) { setMonth(11); setYear(y=>y-1) } else setMonth(m=>m-1) }
-  const nextPeriod = () => { if (month===11) { setMonth(0); setYear(y=>y+1) } else setMonth(m=>m+1) }
-  const countCode = (memberId, code) => days.filter(d => roster[`${memberId}-${d.key}`]===code).length
-  const periodLabel = `21 ${SHORT[month]} – 20 ${SHORT[nextMonth]} ${nextYear}`
-
-  return (
-    <div style={{ fontFamily:'var(--font-sans,system-ui)' }}>
-      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:isMobile?10:16, flexWrap:'wrap' }}>
-        {canEdit && !locked && (
-          <button onClick={()=>setLocked(false)} style={{ padding:isMobile?'5px 10px':'7px 18px', borderRadius:4, border:'none', background:B.freshPalm, color:'#fff', fontWeight:600, fontSize:isMobile?11:13, cursor:'pointer' }}>
-            {isMobile?'PREPARE':'PREPARE ROSTER'}
-          </button>
-        )}
-        <div style={{ flex:1, textAlign:'center' }}>
-          <div style={{ fontSize:isMobile?14:18, fontWeight:600 }}>Boat Operations Duty Roster</div>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:10, marginTop:4 }}>
-            <button onClick={prevPeriod} style={{ border:'none', background:'transparent', cursor:'pointer', fontSize:16, color:B.textSecond }}>‹</button>
-            <span style={{ fontSize:15, fontWeight:500 }}>{periodLabel}</span>
-            <button onClick={nextPeriod} style={{ border:'none', background:'transparent', cursor:'pointer', fontSize:16, color:B.textSecond }}>›</button>
-          </div>
-          {canEdit && <div style={{ fontSize:11, color:B.textSecond, marginTop:2 }}>{locked?'Roster locked':'Click any cell to select status'}</div>}
-        </div>
-        {canEdit && (
-          <button onClick={()=>setLocked(l=>!l)} style={{ padding:isMobile?'5px 10px':'7px 18px', borderRadius:4, border:'none', background: locked?B.success:B.danger, color:'#fff', fontWeight:600, fontSize:isMobile?11:13, cursor:'pointer' }}>
-            {locked ? (isMobile?'UNLOCK':'UNLOCK ROSTER') : (isMobile?'LOCK':'LOCK ROSTER')}
-          </button>
-        )}
-      </div>
-
-      <div style={{ overflowX:'auto', background:B.white, border:`0.5px solid ${B.border}`, borderRadius:8, WebkitOverflowScrolling:'touch' }}>
-        <table style={{ borderCollapse:'collapse', minWidth:'100%', fontSize:12 }}>
-          <thead>
-            <tr style={{ background:B.pearl }}>
-              <th style={{ padding:isMobile?'6px 8px':'8px 12px', textAlign:'left', borderBottom:`0.5px solid ${B.border}`, minWidth:isMobile?90:120, position:'sticky', left:0, background:B.pearl, zIndex:2 }}>
-                <span style={{ fontSize:11, color:B.textSecond, fontWeight:500 }}>MEMBER</span>
-              </th>
-              {days.map(d => {
-                const isToday = d.day===now.getDate()&&d.month===now.getMonth()&&d.year===now.getFullYear()
-                const isFirst = d.day === 1
-                return (
-                  <th key={d.key} style={{ padding:'6px 4px', textAlign:'center', borderBottom:`0.5px solid ${B.border}`, minWidth:36, fontWeight:isToday?700:400, color:isToday?'#0EA5E9':B.textPrimary, borderLeft: isFirst?`2px solid ${B.borderMid}`:'none' }}>
-                    {d.day}
-                  </th>
-                )
-              })}
-              <th style={{ padding:'6px 8px', textAlign:'center', borderBottom:`0.5px solid ${B.border}`, minWidth:36, fontSize:10, color:B.textSecond }}>OFF</th>
-              <th style={{ padding:'6px 8px', textAlign:'center', borderBottom:`0.5px solid ${B.border}`, minWidth:36, fontSize:10, color:B.textSecond }}>AL</th>
-            </tr>
-            <tr style={{ background:B.pearl }}>
-              <th style={{ padding:'2px 12px', borderBottom:'1px solid rgba(26,69,48,0.12)', position:'sticky', left:0, background:B.pearl, zIndex:2 }}></th>
-              {days.map(d => (
-                <th key={d.key} style={{ padding:'2px 4px', textAlign:'center', borderBottom:'1px solid rgba(26,69,48,0.12)', fontSize:10, color:B.textSecond, fontWeight:400, borderLeft: d.day===1?`2px solid ${B.borderMid}`:'none' }}>{d.dow}</th>
-              ))}
-              <th style={{ borderBottom:'1px solid rgba(26,69,48,0.12)' }}></th>
-              <th style={{ borderBottom:'1px solid rgba(26,69,48,0.12)' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {members.map((m, mi) => (
-              <tr key={m.id} style={{ background: mi%2===0 ? B.white : B.pearl }}>
-                <td style={{ padding:'6px 12px', borderBottom:`0.5px solid ${B.border}`, position:'sticky', left:0, background: mi%2===0?B.white:B.pearl, zIndex:1, minWidth:120 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <div style={{ width:28, height:28, borderRadius:'50%', background:'rgba(14,165,233,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:600, color:'#0369A1', flexShrink:0 }}>{m.initials}</div>
-                    <div>
-                      <div style={{ fontWeight:500, fontSize:12, whiteSpace:'nowrap' }}>{m.id}</div>
-                      <div style={{ fontSize:10, color:B.textSecond, whiteSpace:'nowrap' }}>{m.role}</div>
-                    </div>
-                  </div>
-                </td>
-                {days.map(d => {
-                  const rKey = `${m.id}-${d.key}`
-                  const code = roster[rKey] || 'G'
-                  const shift = SHIFT_MAP[code] || SHIFT_MAP['G']
-                  const isToday = d.day===now.getDate()&&d.month===now.getMonth()&&d.year===now.getFullYear()
-                  const isActive = activeCell === rKey
-                  return (
-                    <td key={d.key} style={{ padding:0, textAlign:'center', borderBottom:`0.5px solid ${B.border}`, outline: isToday?`2px solid ${B.freshPalm}`:'none', outlineOffset:'-2px', borderLeft: d.day===1?`2px solid ${B.borderMid}`:'none' }}>
-                      {isActive && canEdit && !locked ? (
-                        <select
-                          autoFocus
-                          value={code}
-                          onChange={e => setShift(m.id, d.key, e.target.value)}
-                          onBlur={() => setActiveCell(null)}
-                          style={{ width:'100%', fontSize:10, border:'none', background:shift.bg, color:shift.text, fontWeight:700, padding:'6px 2px', cursor:'pointer', outline:'none', minWidth:34 }}
-                        >
-                          {SHIFT_CODES.map(s => <option key={s.code} value={s.code}>{s.code} – {s.label}</option>)}
-                        </select>
-                      ) : (
-                        <div
-                          onClick={() => canEdit && !locked && setActiveCell(rKey)}
-                          style={{ background:shift.bg, color:shift.text, fontWeight:700, fontSize:11, padding:'7px 2px', minWidth:34, userSelect:'none', cursor:(canEdit&&!locked)?'pointer':'default' }}
-                          title={shift.label}
-                        >{code}</div>
-                      )}
-                    </td>
-                  )
-                })}
-                <td style={{ padding:'4px 8px', textAlign:'center', borderBottom:`0.5px solid ${B.border}`, fontWeight:600, fontSize:12, color:'#E8734A' }}>{countCode(m.id,'O')}</td>
-                <td style={{ padding:'4px 8px', textAlign:'center', borderBottom:`0.5px solid ${B.border}`, fontWeight:600, fontSize:12, color:'#9B59B6' }}>{countCode(m.id,'AL')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div style={{ display:'flex', flexWrap:'wrap', gap:12, marginTop:16, justifyContent:'center', padding:'10px 0' }}>
-        {SHIFT_CODES.map(s => (
-          <div key={s.code} style={{ display:'flex', alignItems:'center', gap:6, fontSize:12 }}>
-            <div style={{ width:24, height:24, background:s.bg, borderRadius:4, display:'flex', alignItems:'center', justifyContent:'center', color:s.text, fontWeight:700, fontSize:11 }}>{s.code}</div>
-            <span style={{ color:B.textSecond }}>{s.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-
-// ─── Flight Tracker ───────────────────────────────────────────────────────────
-
-const IATA_TO_ICAO = {
-  // Domestic & seaplane
-  Q2:'DQA',  NR:'MLD',  TM:'TMW',  VL:'VLL',
-  // International
-  '3U':'CSC', '6E':'IGO', AF:'AFR', AI:'AIC', AK:'AXM',
-  B4:'ZAN',  BA:'BAW',  BS:'UBG', CX:'CPA', DE:'CFG',
-  EK:'UAE',  EY:'ETD',  FD:'AIQ', FZ:'FDB', G9:'ABY',
-  GF:'GFA',  H4:'HSK',  IB:'IBE', JD:'CBJ', JL:'JAL',
-  KL:'KLM',  LH:'DLH',  LO:'LOT', LX:'SWR', MF:'CXA',
-  MH:'MAS',  MO:'NMB',  MS:'MSR', MU:'CES', NH:'ANA',
-  NO:'ESS',  NR:'MLD',  OD:'BTK', OS:'AUA', PG:'BKP',
-  Q2:'DQA',  QR:'QTR',  SQ:'SIA', SU:'AFL', TK:'THY',
-  UL:'ALK',  UX:'AEA',  VS:'VIR', WK:'EDW', WY:'OMA',
-}
-
-const AIRLINE_INFO = {
-  EK: { name:'Emirates',             logo:'https://www.gstatic.com/flights/airline_logos/70px/EK.png', color:'#C60C30' },
-  QR: { name:'Qatar Airways',        logo:'https://www.gstatic.com/flights/airline_logos/70px/QR.png', color:'#5C0632' },
-  BA: { name:'British Airways',      logo:'https://www.gstatic.com/flights/airline_logos/70px/BA.png', color:'#075AAA' },
-  SQ: { name:'Singapore Airlines',   logo:'https://www.gstatic.com/flights/airline_logos/70px/SQ.png', color:'#192F5D' },
-  EY: { name:'Etihad Airways',       logo:'https://www.gstatic.com/flights/airline_logos/70px/EY.png', color:'#BD8B13' },
-  TK: { name:'Turkish Airlines',     logo:'https://www.gstatic.com/flights/airline_logos/70px/TK.png', color:'#C8102E' },
-  MH: { name:'Malaysia Airlines',    logo:'https://www.gstatic.com/flights/airline_logos/70px/MH.png', color:'#003087' },
-  OD: { name:'Batik Air Malaysia',   logo:'https://www.gstatic.com/flights/airline_logos/70px/OD.png', color:'#8B0000' },
-  UL: { name:'SriLankan Airlines',   logo:'https://www.gstatic.com/flights/airline_logos/70px/UL.png', color:'#5B2D8E' },
-  GF: { name:'Gulf Air',             logo:'https://www.gstatic.com/flights/airline_logos/70px/GF.png', color:'#C8102E' },
-  WY: { name:'Oman Air',             logo:'https://www.gstatic.com/flights/airline_logos/70px/WY.png', color:'#C8102E' },
-  FZ: { name:'flydubai',             logo:'https://www.gstatic.com/flights/airline_logos/70px/FZ.png', color:'#E8413A' },
-  AI: { name:'Air India',            logo:'https://www.gstatic.com/flights/airline_logos/70px/AI.png', color:'#E03C31' },
-  '6E':{ name:'IndiGo',              logo:'https://www.gstatic.com/flights/airline_logos/70px/6E.png', color:'#1B4FA0' },
-  MU: { name:'China Eastern',        logo:'https://www.gstatic.com/flights/airline_logos/70px/MU.png', color:'#E4002B' },
-  MF: { name:'Xiamen Airlines',      logo:'https://www.gstatic.com/flights/airline_logos/70px/MF.png', color:'#0055A5' },
-  AK: { name:'AirAsia',              logo:'https://www.gstatic.com/flights/airline_logos/70px/AK.png', color:'#FF0000' },
-  BS: { name:'US-Bangla Airlines',   logo:'https://www.gstatic.com/flights/airline_logos/70px/BS.png', color:'#E31837' },
-  KL: { name:'KLM',                  logo:'https://www.gstatic.com/flights/airline_logos/70px/KL.png', color:'#009FE3' },
-  LH: { name:'Lufthansa',            logo:'https://www.gstatic.com/flights/airline_logos/70px/LH.png', color:'#05164D' },
-  AF: { name:'Air France',           logo:'https://www.gstatic.com/flights/airline_logos/70px/AF.png', color:'#002157' },
-  LX: { name:'Swiss',                logo:'https://www.gstatic.com/flights/airline_logos/70px/LX.png', color:'#E4002B' },
-  DE: { name:'Condor',               logo:'https://www.gstatic.com/flights/airline_logos/70px/DE.png', color:'#FF6600' },
-  WK: { name:'Edelweiss Air',        logo:'https://www.gstatic.com/flights/airline_logos/70px/WK.png', color:'#1A5276' },
-  G9: { name:'Air Arabia',           logo:'https://www.gstatic.com/flights/airline_logos/70px/G9.png', color:'#E31837' },
-  NO: { name:'Neos',                 logo:'https://www.gstatic.com/flights/airline_logos/70px/NO.png', color:'#FF6600' },
-  LO: { name:'LOT Polish Airlines',  logo:'https://www.gstatic.com/flights/airline_logos/70px/LO.png', color:'#005CA9' },
-  NR: { name:'Manta Air',            logo:'https://www.gstatic.com/flights/airline_logos/70px/NR.png', color:'#0077C8' },
-  Q2: { name:'Maldivian',            logo:'https://www.gstatic.com/flights/airline_logos/70px/Q2.png', color:'#006341' },
-}
-
-const AIRPORT_NAMES = {
-  DXB:'Dubai', DOH:'Doha', AUH:'Abu Dhabi', MCT:'Muscat', BAH:'Bahrain',
-  SHJ:'Sharjah', SIN:'Singapore', KUL:'Kuala Lumpur', CMB:'Colombo',
-  IST:'Istanbul', PVG:'Shanghai', XMN:'Xiamen', LGW:'London Gatwick',
-  LHR:'London Heathrow', FRA:'Frankfurt', ZRH:'Zurich', WAW:'Warsaw',
-  MXP:'Milan', FCO:'Rome', CDG:'Paris', BOM:'Mumbai', DEL:'Delhi',
-  TRV:'Thiruvananthapuram', COK:'Kochi', MAA:'Chennai', BLR:'Bengaluru',
-  HYD:'Hyderabad', CCU:'Kolkata', DAC:'Dhaka', MLE:'Malé VIA',
-}
-
-const SCHEDULE = [
-  { flight:'FZ1025', airline:'flydubai',           orig:'DXB', arr:'01:10', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'WY383',  airline:'Oman Air',            orig:'MCT', arr:'03:30', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'WY384',  airline:'Oman Air',            orig:'MCT', arr:'03:30', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'GF144',  airline:'Gulf Air',            orig:'BAH', arr:'06:35', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'EK656',  airline:'Emirates',            orig:'DXB', arr:'07:35', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'QR672',  airline:'Qatar Airways',       orig:'DOH', arr:'07:50', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'WK066',  airline:'Edelweiss Air',       orig:'ZRH', arr:'07:50', days:['Sun','Tue','Thu','Sat'] },
-  { flight:'WK067',  airline:'Edelweiss Air',       orig:'ZRH', arr:'07:50', days:['Sun','Tue','Thu','Sat'] },
-  { flight:'G9093',  airline:'Air Arabia',          orig:'SHJ', arr:'08:10', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'G9094',  airline:'Air Arabia',          orig:'SHJ', arr:'08:10', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'EY260',  airline:'Etihad Airways',      orig:'AUH', arr:'09:00', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'BA060',  airline:'British Airways',     orig:'LGW', arr:'09:40', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'BA061',  airline:'British Airways',     orig:'LGW', arr:'09:40', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'AK74',   airline:'AirAsia',             orig:'KUL', arr:'09:55', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'DE2320', airline:'Condor',              orig:'FRA', arr:'10:00', days:['Sun','Tue','Thu','Sat'] },
-  { flight:'DE2321', airline:'Condor',              orig:'FRA', arr:'10:00', days:['Sun','Tue','Thu','Sat'] },
-  { flight:'NO510',  airline:'Neos',                orig:'MXP', arr:'09:15', days:['Sun','Tue','Thu','Sat'] },
-  { flight:'NO511',  airline:'Neos',                orig:'FCO', arr:'09:15', days:['Sun','Tue','Thu','Sat'] },
-  { flight:'MH485',  airline:'Malaysia Airlines',   orig:'KUL', arr:'11:00', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'SQ432',  airline:'Singapore Airlines',  orig:'SIN', arr:'11:40', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'MF889',  airline:'Xiamen Airlines',     orig:'XMN', arr:'12:10', days:['Mon','Wed','Fri'] },
-  { flight:'TK734',  airline:'Turkish Airlines',    orig:'IST', arr:'12:35', days:['Sun','Tue','Thu','Sat'] },
-  { flight:'MU235',  airline:'China Eastern',       orig:'PVG', arr:'17:50', days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'OD293',  airline:'Batik Air Malaysia',  orig:'KUL', arr:null,    days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'OD295',  airline:'Batik Air Malaysia',  orig:'KUL', arr:null,    days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'UL101',  airline:'SriLankan Airlines',  orig:'CMB', arr:null,    days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'UL103',  airline:'SriLankan Airlines',  orig:'CMB', arr:null,    days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  { flight:'UL115',  airline:'SriLankan Airlines',  orig:'CMB', arr:null,    days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-]
-
-const FLIGHT_ORIGINS = {
-  ...Object.fromEntries(SCHEDULE.map(s => [s.flight, s.orig])),
-  // Common alternates not in schedule
-  AK72:'KUL', AK76:'KUL', AK78:'KUL',
-  EK658:'DXB', EK660:'DXB', EK652:'DXB',
-  QR670:'DOH', QR674:'DOH',
-  SQ430:'SIN', SQ434:'SIN',
-  MH483:'KUL', MH487:'KUL',
-  TK736:'IST', TK732:'IST',
-  MU233:'PVG', MU237:'PVG',
-  UL105:'CMB', UL107:'CMB',
-  OD291:'KUL', OD297:'KUL',
-}
-
-const toCallsign = (flight) => {
-  const f = flight.toUpperCase().trim()
-  for (const [iata, icao] of Object.entries(IATA_TO_ICAO)) {
-    if (f.startsWith(iata)) return icao + f.slice(iata.length)
-  }
-  return f
-}
-
-const getCode = (flight) => {
-  const f = flight.toUpperCase()
-  for (const code of Object.keys(AIRLINE_INFO)) {
-    if (f.startsWith(code)) return code
-  }
-  return f.replace(/[0-9]/g,'').trim()
-}
-
-const fmtTime = ts => {
-  if (!ts) return '—'
-  return new Date(ts*1000).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Indian/Maldives'})
-}
-const fmtDur = s => {
-  if (s<=0) return 'Arrived'
-  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60)
-  return h>0?`${h}h ${m}m`:`${m}m`
-}
-
-const MLE_LAT=4.1755, MLE_LON=73.5293
-const distToMLE = (lat,lon) => {
-  const R=6371, dLat=(MLE_LAT-lat)*Math.PI/180, dLon=(MLE_LON-lon)*Math.PI/180
-  const a=Math.sin(dLat/2)**2+Math.cos(lat*Math.PI/180)*Math.cos(MLE_LAT*Math.PI/180)*Math.sin(dLon/2)**2
-  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))
-}
-
-function AirlineLogo({ code, size=36 }) {
-  const info = AIRLINE_INFO[code] || {}
-  const [err, setErr] = useState(false)
-  if (info.logo && !err) {
-    return <img src={info.logo} alt={code} style={{width:size,height:size,objectFit:'contain'}} onError={()=>setErr(true)} />
-  }
-  return (
-    <div style={{width:size,height:size,background:info.color||B.freshPalm,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:size*0.3,fontWeight:700}}>
-      {code}
-    </div>
-  )
-}
-
-function TodayScheduleTable({ onTrack, trackedFlights }) {
-  const now = new Date()
-  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-  const today = dayNames[now.getDay()]
-  const nowMins = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Indian/Maldives'}).split(':').map(Number).reduce((a,b,i)=>i===0?a+b*60:a+b,0)
-
-  const todayFlights = SCHEDULE
-    .filter(f => f.days.includes(today))
-    .sort((a,b) => (a.arr||'99:99').localeCompare(b.arr||'99:99'))
-
-  if (!todayFlights.length) return null
-
-  return (
-    <div style={{background:B.white,border:`0.5px solid ${B.border}`,borderRadius:10,overflow:'hidden',marginBottom:16}}>
-      <div style={{padding:'10px 16px',background:B.pearl,borderBottom:`0.5px solid ${B.border}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div style={{fontWeight:600,fontSize:13,color:B.textPrimary}}>
-          Today's Arrivals
-          <span style={{fontWeight:400,fontSize:11,color:B.textMuted,marginLeft:8}}>
-            {now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short',timeZone:'Indian/Maldives'})}
-          </span>
-        </div>
-        <span style={{fontSize:11,color:B.textMuted}}>{todayFlights.length} flights</span>
-      </div>
-      <div style={{overflowX:'auto'}}>
-        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:500}}>
-          <thead>
-            <tr style={{background:B.pearl,borderBottom:`0.5px solid ${B.border}`}}>
-              {['Airline','Flight','From','ETA','Status',''].map(h=>(
-                <th key={h} style={{padding:'7px 12px',textAlign:'left',fontSize:10,color:B.textMuted,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase'}}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {todayFlights.map((f,i) => {
-              const code = getCode(f.flight)
-              const arrMins = f.arr ? f.arr.split(':').map(Number).reduce((a,b,i)=>i===0?a+b*60:a+b,0) : null
-              const isLanded   = arrMins !== null && nowMins > arrMins + 20
-              const isArriving = arrMins !== null && !isLanded && nowMins > arrMins - 90
-              const isTracked  = trackedFlights.includes(f.flight)
-              const statusLabel = isLanded ? '✓ Landed' : isArriving ? '● Arriving' : 'Scheduled'
-              const statusColor = isLanded ? '#059669' : isArriving ? '#2563EB' : B.textMuted
-              const statusBg    = isLanded ? '#ECFDF5' : isArriving ? '#EFF6FF' : B.pearl
-              return (
-                <tr key={i} style={{borderBottom:`0.5px solid ${B.border}`,background:i%2===0?B.white:B.pearl}}>
-                  <td style={{padding:'8px 12px'}}>
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <AirlineLogo code={code} size={28} />
-                    </div>
-                  </td>
-                  <td style={{padding:'8px 12px'}}>
-                    <div style={{fontWeight:700,color:B.textPrimary,fontFamily:'monospace',fontSize:13}}>{f.flight}</div>
-                    <div style={{fontSize:10,color:B.textMuted}}>{f.airline}</div>
-                  </td>
-                  <td style={{padding:'8px 12px'}}>
-                    <div style={{fontWeight:600,color:B.textPrimary}}>{f.orig}</div>
-                    <div style={{fontSize:10,color:B.textMuted}}>{AIRPORT_NAMES[f.orig]||f.orig}</div>
-                  </td>
-                  <td style={{padding:'8px 12px',fontFamily:'monospace',fontWeight:700,color:B.textPrimary,fontSize:13}}>{f.arr||'—'}</td>
-                  <td style={{padding:'8px 12px'}}>
-                    <span style={{background:statusBg,color:statusColor,borderRadius:99,padding:'3px 10px',fontSize:10,fontWeight:600}}>{statusLabel}</span>
-                  </td>
-                  <td style={{padding:'8px 12px',textAlign:'right'}}>
-                    {isTracked
-                      ? <span style={{fontSize:10,color:B.gold,fontWeight:500}}>● Tracking</span>
-                      : <button onClick={()=>onTrack(f.flight)} style={{padding:'4px 10px',borderRadius:4,border:`0.5px solid ${B.freshPalm}`,background:'transparent',color:B.freshPalm,fontSize:11,cursor:'pointer',fontWeight:500}}>+ Track</button>
-                    }
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
-function FlightCard({ flight, data, isMobile, onRemove }) {
-  const now = Date.now()/1000
-  const code = getCode(flight)
-  const info = AIRLINE_INFO[code] || { name:code, color:B.freshPalm }
-  const hasData   = data && data.lat
-  const isGround  = hasData && data.alt < 200
-  const isAir     = hasData && !isGround
-  const kmLeft    = hasData ? distToMLE(data.lat, data.lon) : null
-  const speedKmh  = hasData && data.gspeed>0 ? data.gspeed*1.852 : null
-
-  // Priority: FR24 summary ETA > position-based calculation
-  let etaTs = null
-  if (data?.fr24_eta) {
-    // FR24 gives ISO timestamp or Unix
-    const ts = typeof data.fr24_eta === 'number' ? data.fr24_eta : Date.parse(data.fr24_eta)/1000
-    if (ts && ts > now) etaTs = ts
-  }
-  if (!etaTs && data?.estimated_arr) {
-    const ts = typeof data.estimated_arr === 'number' ? data.estimated_arr : Date.parse(data.estimated_arr)/1000
-    if (ts && ts > now) etaTs = ts
-  }
-  if (!etaTs && data?.scheduled_arr) {
-    const ts = typeof data.scheduled_arr === 'number' ? data.scheduled_arr : Date.parse(data.scheduled_arr)/1000
-    if (ts) etaTs = ts
-  }
-  // Fallback: calculate from position if no FR24 ETA
-  if (!etaTs && kmLeft && speedKmh) {
-    etaTs = now + (kmLeft/speedKmh*3600)*1.05
-  }
-
-  const etaSecs  = etaTs ? Math.max(0, etaTs - now) : null
-  const boatTs   = etaTs ? etaTs - 57*60 : null
-  const depTs    = data?.actual_dep ? (typeof data.actual_dep === 'number' ? data.actual_dep : Date.parse(data.actual_dep)/1000) : null
-  const progress = isAir && etaSecs ? Math.min(95,Math.max(5,100-(etaSecs/7200*100))) : isGround?100:0
-
-  const statusLabel = isGround?'Landed':isAir?'Airborne':'Scheduled'
-  const statusColor = isGround?'#059669':isAir?'#2563EB':'#6B7280'
-  const statusBg    = isGround?'#ECFDF5':isAir?'#EFF6FF':'#F9FAFB'
-
-  const orig = data?.orig || FLIGHT_ORIGINS[flight] || null
-
-  return (
-    <div style={{background:B.white,border:`0.5px solid ${B.border}`,borderRadius:12,overflow:'hidden',marginBottom:14,boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
-      {/* Header */}
-      <div style={{padding:'12px 16px',display:'flex',alignItems:'center',gap:12,borderBottom:`0.5px solid ${B.border}`,background:B.pearl}}>
-        <div style={{width:44,height:44,borderRadius:8,background:'#fff',border:`0.5px solid ${B.border}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden',padding:3}}>
-          <AirlineLogo code={code} size={36} />
-        </div>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:18,fontWeight:700,color:B.textPrimary,letterSpacing:'-0.3px'}}>
-            {code} <span style={{color:info.color||B.freshPalm}}>{flight.slice(code.length)}</span>
-          </div>
-          <div style={{fontSize:11,color:B.textSecond,marginTop:1}}>
-            {info.name} {hasData && data.alt ? `· ${data.alt?.toLocaleString()} ft · ${data.gspeed} kts` : '· Awaiting position'}
-          </div>
-        </div>
-        <span style={{background:statusBg,color:statusColor,borderRadius:99,padding:'4px 12px',fontSize:11,fontWeight:600,display:'flex',alignItems:'center',gap:5,flexShrink:0}}>
-          <span style={{width:6,height:6,borderRadius:'50%',background:statusColor,display:'inline-block'}}/>
-          {statusLabel}
-        </span>
-        <button onClick={onRemove} style={{background:'transparent',border:'none',color:B.textMuted,cursor:'pointer',fontSize:20,lineHeight:1,padding:'0 2px',flexShrink:0}}>×</button>
-      </div>
-
-      {/* Route bar */}
-      <div style={{padding:'14px 16px',borderBottom:`0.5px solid ${B.border}`}}>
-        <div style={{display:'flex',alignItems:'center',gap:12}}>
-          <div style={{textAlign:'left',minWidth:64}}>
-            <div style={{fontSize:22,fontWeight:700,color:B.textPrimary,letterSpacing:1}}>{orig||'—'}</div>
-            <div style={{fontSize:11,color:B.textSecond,marginTop:1}}>{orig?AIRPORT_NAMES[orig]||orig:'Origin'}</div>
-          </div>
-          <div style={{flex:1}}>
-            <div style={{fontSize:10,color:B.textMuted,textAlign:'center',marginBottom:5}}>
-              {isAir ? fmtDur(etaSecs||0)+' to MLE' : isGround?'Arrived':'No position yet'}
-            </div>
-            <div style={{height:4,background:B.breeze,borderRadius:99,position:'relative'}}>
-              <div style={{width:`${progress}%`,height:'100%',background:isGround?'#059669':info.color||B.freshPalm,borderRadius:99,transition:'width 2s ease'}}/>
-              {isAir && progress>5 && (
-                <span style={{position:'absolute',top:-8,left:`${Math.min(progress,93)}%`,transform:'translateX(-50%)',fontSize:14}}>✈️</span>
-              )}
-            </div>
-            <div style={{fontSize:10,color:B.textMuted,textAlign:'center',marginTop:3}}>{Math.round(progress)}%</div>
-          </div>
-          <div style={{textAlign:'right',minWidth:64}}>
-            <div style={{fontSize:22,fontWeight:700,color:B.textPrimary,letterSpacing:1}}>MLE</div>
-            <div style={{fontSize:11,color:B.textSecond,marginTop:1}}>Malé VIA</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Info grid */}
-      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr 1fr':'repeat(4,1fr)'}}>
-        {[
-          {label:'Departed',       value:depTs?fmtTime(depTs):'—',                   color:B.textPrimary,                  sub:'actual time'},
-          {label:'ETA Malé',       value:etaTs?fmtTime(etaTs):'—',                    color:isAir?'#2563EB':B.textPrimary,  sub: data?.fr24_eta ? 'via FR24' : 'estimated'},
-          {label:'⚓ Boat Dispatch',value:boatTs?fmtTime(boatTs):'—',                  color:B.gold,                         sub:boatTs&&boatTs>now?'upcoming':'—'},
-          {label:'Remaining',      value:isAir?fmtDur(etaSecs||0):isGround?'Arrived':'Pending', color:B.textPrimary,         sub:isAir?'to MLE':''},
-        ].map((item,i)=>(
-          <div key={i} style={{padding:'12px 14px',borderRight:i<3?`0.5px solid ${B.border}`:'none',borderBottom:'none'}}>
-            <div style={{fontSize:10,color:B.textMuted,textTransform:'uppercase',letterSpacing:'.8px',marginBottom:4}}>{item.label}</div>
-            <div style={{fontSize:16,fontWeight:700,color:item.color,fontFamily:'monospace'}}>{item.value}</div>
-            <div style={{fontSize:10,color:B.textMuted,marginTop:2}}>{item.sub}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Telemetry */}
-      {hasData && (
-        <div style={{padding:'8px 14px',background:B.pearl,borderTop:`0.5px solid ${B.border}`,display:'flex',gap:20,flexWrap:'wrap'}}>
-          {[
-            {l:'Alt',   v:data.alt?data.alt.toLocaleString()+' ft':'—'},
-            {l:'Speed', v:data.gspeed?data.gspeed+' kts':'—'},
-            {l:'Hdg',   v:data.track?data.track+'°':'—'},
-            {l:'Pos',   v:data.lat?`${data.lat.toFixed(2)}°N  ${data.lon.toFixed(2)}°E`:'—'},
-          ].map(item=>(
-            <div key={item.l} style={{display:'flex',gap:5,alignItems:'center'}}>
-              <span style={{fontSize:10,color:B.textMuted,textTransform:'uppercase',letterSpacing:'.5px'}}>{item.l}</span>
-              <span style={{fontSize:11,color:B.textPrimary,fontFamily:'monospace',fontWeight:500}}>{item.v}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function FlightTrackerView({ isMobile }) {
-  const [tracked,   setTracked]   = useState([])
-  const [liveData,  setLiveData]  = useState({})
-  const [input,     setInput]     = useState('')
-  const [loading,   setLoading]   = useState(false)
-  const [isLive,    setIsLive]    = useState(false)
-  const [clock,     setClock]     = useState(new Date())
-  const [refreshIn, setRefreshIn] = useState(30)
-
-  useEffect(() => {
-    const t = setInterval(()=>setClock(new Date()),1000)
-    return ()=>clearInterval(t)
-  },[])
-
-  const fetchAll = async (flights) => {
-    if (!flights.length) return
-    setLoading(true)
-    try {
-      const callsigns = flights.map(toCallsign).join(',')
-      const today = new Date().toISOString().slice(0,10)
-
-      // Fetch both live position AND flight summary in parallel
-      const [liveRes, summaryRes] = await Promise.all([
-        fetch(`/.netlify/functions/fr24?flights=${callsigns}&mode=live`),
-        fetch(`/.netlify/functions/fr24?flights=${callsigns}&mode=summary&date=${today}`),
-      ])
-
-      const liveJson    = liveRes.ok    ? await liveRes.json()    : { data: [] }
-      const summaryJson = summaryRes.ok ? await summaryRes.json() : { data: [] }
-
-      setIsLive(true)
-
-      // Build map from live data (position, speed, altitude)
-      const map = {}
-      if (liveJson.data?.length > 0) {
-        liveJson.data.forEach(d => {
-          flights.forEach(f => {
-            if (toCallsign(f) === d.callsign) {
-              map[f] = {
-                ...map[f],
-                lat: d.lat, lon: d.lon, alt: d.alt,
-                gspeed: d.gspeed, track: d.track,
-                callsign: d.callsign,
-                orig: FLIGHT_ORIGINS[f] || null,
-              }
-            }
-          })
-        })
-      }
-
-      // Overlay summary data (precise dep/arr times from FR24)
-      if (summaryJson.data?.length > 0) {
-        summaryJson.data.forEach(d => {
-          const fn = d.flight_number || d.callsign || ''
-          flights.forEach(f => {
-            if (
-              fn.replace(/\s/g,'').toUpperCase() === f.toUpperCase() ||
-              (d.callsign && d.callsign === toCallsign(f))
-            ) {
-              map[f] = {
-                ...map[f],
-                orig: d.orig_iata || d.airport_from_iata || FLIGHT_ORIGINS[f] || map[f]?.orig || null,
-                dest: d.dest_iata || d.airport_to_iata || 'MLE',
-                scheduled_arr: d.scheduled_time_arr || d.sta || null,
-                actual_arr:    d.actual_time_arr    || d.ata || null,
-                estimated_arr: d.estimated_time_arr || d.eta || null,
-                scheduled_dep: d.scheduled_time_dep || d.std || null,
-                actual_dep:    d.actual_time_dep    || d.atd || null,
-                status:        d.status || null,
-                fr24_eta:      d.estimated_time_arr || d.eta || null,
-              }
-            }
-          })
-        })
-      }
-
-      if (Object.keys(map).length > 0) {
-        setLiveData(prev => ({ ...prev, ...map }))
-      }
-    } catch(e) { console.log('FR24 error:', e) }
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    if (!tracked.length) return
-    fetchAll(tracked)
-    const t = setInterval(()=>{
-      setRefreshIn(r=>{ if(r<=1){fetchAll(tracked);return 30} return r-1 })
-    },1000)
-    return ()=>clearInterval(t)
-  },[tracked])
-
-  const addFlight = (fn) => {
-    const f = (fn||input).toUpperCase().replace(/\s/g,'')
-    if (!f || tracked.includes(f)) { setInput(''); return }
-    const n = [...tracked, f]
-    setTracked(n)
-    setInput('')
-    setTimeout(()=>fetchAll(n),100)
-  }
-
-  const removeFlight = f => {
-    setTracked(t=>t.filter(x=>x!==f))
-    setLiveData(d=>{ const n={...d}; delete n[f]; return n })
-  }
-
-  const airborne = tracked.filter(f=>liveData[f]&&liveData[f].alt>200).length
-  const landed   = tracked.filter(f=>liveData[f]&&liveData[f].alt<=200).length
-
-  return (
-    <div>
-      {/* Header */}
-      <div style={{background:B.freshPalm,borderRadius:10,padding:isMobile?'16px':'20px 24px',marginBottom:16}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
-          <div>
-            <div style={{fontSize:10,letterSpacing:'2px',color:'rgba(255,255,255,0.45)',textTransform:'uppercase',marginBottom:4}}>Dhirumbaa · Live Operations</div>
-            <div style={{fontSize:isMobile?16:22,fontWeight:600,color:'#fff'}}>Flight Tracker</div>
-            <div style={{fontSize:11,color:'rgba(255,255,255,0.5)',marginTop:2}}>Velana International Airport · North Malé Atoll</div>
-          </div>
-          <div style={{textAlign:'right'}}>
-            <div style={{fontSize:isMobile?22:30,fontWeight:300,color:B.gold,fontFamily:'monospace',letterSpacing:2}}>
-              {clock.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Indian/Maldives'})}
-            </div>
-            <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginTop:2}}>Maldives Time (MVT)</div>
-          </div>
-        </div>
-        <div style={{display:'flex',gap:10,marginTop:14,flexWrap:'wrap',alignItems:'center'}}>
-          {[
-            {val:airborne,          label:'Airborne', color:'#34D399'},
-            {val:landed,            label:'Landed',   color:'rgba(255,255,255,0.7)'},
-            {val:tracked.length-airborne-landed, label:'Pending', color:'rgba(255,255,255,0.4)'},
-            {val:tracked.length,    label:'Tracked',  color:B.gold},
-          ].map(s=>(
-            <div key={s.label} style={{background:'rgba(255,255,255,0.08)',borderRadius:8,padding:'6px 14px',textAlign:'center'}}>
-              <div style={{fontSize:18,fontWeight:700,color:s.color,fontFamily:'monospace'}}>{s.val}</div>
-              <div style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:'.8px'}}>{s.label}</div>
-            </div>
-          ))}
-          <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:8}}>
-            {isLive && <span style={{fontSize:10,background:'rgba(52,211,153,0.15)',color:'#34D399',border:'0.5px solid rgba(52,211,153,0.3)',borderRadius:99,padding:'3px 10px'}}>● Live</span>}
-            <span style={{fontSize:10,color:'rgba(255,255,255,0.3)'}}>↻ {refreshIn}s</span>
-            <button onClick={()=>fetchAll(tracked)} disabled={loading} style={{fontSize:10,background:'rgba(255,255,255,0.1)',border:'0.5px solid rgba(255,255,255,0.15)',color:'rgba(255,255,255,0.7)',borderRadius:99,padding:'4px 12px',cursor:'pointer'}}>
-              {loading?'Loading…':'↻ Refresh'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Add flight input */}
-      <div style={{display:'flex',gap:10,marginBottom:16}}>
-        <input
-          value={input}
-          onChange={e=>setInput(e.target.value.toUpperCase())}
-          onKeyDown={e=>e.key==='Enter'&&addFlight()}
-          placeholder="Add flight — e.g. EK656, QR672, MH485, SQ432"
-          style={{...INP,flex:1,letterSpacing:1}}
-        />
-        <button onClick={()=>addFlight()} style={BTN_PRIMARY}>+ Track</button>
-      </div>
-
-      {/* Today's schedule table */}
-      <TodayScheduleTable onTrack={addFlight} trackedFlights={tracked} />
-
-      {/* Live tracked cards */}
-      {tracked.length > 0 && (
-        <div style={{marginTop:4}}>
-          <div style={{fontSize:11,fontWeight:600,color:B.textMuted,textTransform:'uppercase',letterSpacing:'1px',marginBottom:10}}>Live Tracking</div>
-          {tracked.map(f=>(
-            <FlightCard key={f} flight={f} data={liveData[f]} isMobile={isMobile} onRemove={()=>removeFlight(f)} />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-
-// ─── App Shell ────────────────────────────────────────────────────────────────
-export default function DhirumbaaFMS() {
-  const [user, setUser] = useState(null)
-  const [nav,  setNav]  = useState('dashboard')
-  const isMobile = useIsMobile()
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data:{ session } }) => {
-      if (session) setUser({ username:session.user.email.split('@')[0], role:'resort_admin', session })
-    })
-    const { data:{ subscription } } = supabase.auth.onAuthStateChange((_,session) => {
-      if (!session) setUser(null)
-    })
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const logout = async () => { await supabase.auth.signOut(); setUser(null) }
-
-  if (!user) return <LoginPage onLogin={setUser} />
-
-  return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100vh', fontFamily:"'Work Sans', system-ui, sans-serif", background:B.pearl, color:B.textPrimary, overflowX:'hidden' }}>
-
-      {/* Top bar */}
-      <div style={{ display:'flex', alignItems:'center', gap:isMobile?8:14, padding:isMobile?'0 14px':'0 24px', height:isMobile?52:58, background:B.freshPalm, color:B.white, flexShrink:0 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <div style={{ width:isMobile?24:28, height:isMobile?24:28, borderRadius:'50%', background:B.gold, display:'flex', alignItems:'center', justifyContent:'center', fontSize:isMobile?12:14, flexShrink:0 }}>⚓</div>
-          <div style={{ fontSize:isMobile?13:16, fontWeight:600, letterSpacing:'0.5px', color:B.white }}>Dhirumbaa FMS</div>
-        </div>
-        {!isMobile && (
-          <>
-            <div style={{ width:1, height:20, background:'rgba(255,255,255,0.12)', margin:'0 4px' }} />
-            <span style={{ fontSize:12, color:'rgba(255,255,255,0.55)', letterSpacing:'.3px' }}>{RESORT.name}</span>
-          </>
-        )}
-        <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:isMobile?8:12 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:6, padding:isMobile?'4px 8px':'5px 12px', background:'rgba(255,255,255,0.06)', borderRadius:99, border:'0.5px solid rgba(255,255,255,0.1)' }}>
-            <div style={{ width:isMobile?20:22, height:isMobile?20:22, borderRadius:'50%', background:B.gold, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:600, color:B.midnight }}>
-              {user.username.slice(0,2).toUpperCase()}
-            </div>
-            {!isMobile && <span style={{ fontSize:12, color:'rgba(255,255,255,0.7)' }}>{user.username}</span>}
-          </div>
-          <button onClick={logout} style={{ padding:isMobile?'4px 10px':'5px 14px', border:'0.5px solid rgba(255,255,255,0.15)', borderRadius:99, background:'transparent', color:'rgba(255,255,255,0.55)', cursor:'pointer', fontSize:11 }}>
-            {isMobile ? '↩' : 'Sign out'}
-          </button>
-        </div>
-      </div>
-
-      {/* Main layout */}
-      <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
-
-        {/* Desktop sidebar */}
-        {!isMobile && (
-          <div style={{ width:210, background:B.midnight, display:'flex', flexDirection:'column', flexShrink:0, overflowY:'auto' }}>
-            <div style={{ padding:'20px 18px 8px', fontSize:9, color:'rgba(255,255,255,0.2)', letterSpacing:'2px', textTransform:'uppercase' }}>Navigation</div>
-            {NAV.map(item => (
-              <div key={item.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'11px 18px', cursor:'pointer', background: nav===item.id?'rgba(255,255,255,0.07)':'transparent', color: nav===item.id?B.white:'rgba(255,255,255,0.45)', borderLeft: nav===item.id?`3px solid ${B.gold}`:'3px solid transparent', fontSize:12, transition:'all .15s', userSelect:'none', letterSpacing:'.3px' }} onClick={()=>setNav(item.id)}>
-                <span style={{ fontSize:15, flexShrink:0, opacity: nav===item.id?1:0.6 }}>{item.icon}</span>
-                <span>{item.label}</span>
-                {item.id==='scheduler' && <span style={{ marginLeft:'auto', fontSize:9, padding:'2px 6px', borderRadius:99, background:B.goldLight, color:B.gold, letterSpacing:'.5px', textTransform:'uppercase' }}>New</span>}
-              </div>
-            ))}
-            <div style={{ flex:1 }} />
-            <div style={{ margin:'12px', padding:'12px 14px', background:'rgba(164,162,96,0.08)', borderRadius:6, border:'0.5px solid rgba(164,162,96,0.15)' }}>
-              <div style={{ fontSize:9, letterSpacing:'2px', color:'rgba(255,255,255,0.25)', textTransform:'uppercase', marginBottom:4 }}>Platform</div>
-              <div style={{ fontSize:11, color:'rgba(255,255,255,0.45)' }}>Dhirumbaa FMS v2</div>
-              <div style={{ fontSize:10, color:B.gold, marginTop:2 }}>Multi-resort · Maldives</div>
-            </div>
-          </div>
-        )}
-
-        {/* Content area */}
-        <div style={{ flex:1, overflow:'auto', padding:isMobile?'14px 12px 80px':'24px', display:'flex', flexDirection:'column' }}>
-          <div style={{ flex:1 }}>
-            {nav==='dashboard' && <Dashboard user={user} isMobile={isMobile} />}
-            {nav==='flights'   && <FlightTrackerView isMobile={isMobile} />}
-            {nav==='scheduler' && <SchedulerView isMobile={isMobile} />}
-            {nav==='roster'    && <RosterView user={user} isMobile={isMobile} />}
-            {nav==='vessels'   && <VesselsView isMobile={isMobile} />}
-            {nav==='team'      && <TeamView isMobile={isMobile} />}
-            {nav==='fuel-log'  && <FuelLogView isMobile={isMobile} />}
-            {nav==='settings'  && <SettingsView isMobile={isMobile} />}
-          </div>
-
-          {!isMobile && (
-            <div style={{ marginTop:28, paddingTop:16, borderTop:`0.5px solid ${B.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:8 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                <span style={{ fontSize:13, color:B.gold }}>⚓</span>
-                <span style={{ fontSize:12, fontWeight:500, color:B.textSecond, letterSpacing:'.3px' }}>Dhirumbaa FMS</span>
-                <span style={{ fontSize:11, color:B.textMuted }}>v2.0 · Multi-Resort Fleet Management</span>
-              </div>
-              <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-                <span style={{ fontSize:11, color:B.textMuted }}>🏝 {RESORT.name}</span>
-                <span style={{ fontSize:11, color:B.textMuted }}>{new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</span>
-                <span style={{ fontSize:11, padding:'2px 10px', borderRadius:99, background:B.successLight, color:B.success, fontWeight:500 }}>● Live</span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Mobile bottom tab bar */}
-      {isMobile && (
-        <div style={{ position:'fixed', bottom:0, left:0, right:0, background:B.midnight, borderTop:`1px solid rgba(255,255,255,0.08)`, display:'flex', zIndex:100, paddingBottom:'env(safe-area-inset-bottom)' }}>
-          {NAV.map(item => (
-            <button key={item.id} onClick={()=>setNav(item.id)} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'8px 4px', border:'none', background:'transparent', cursor:'pointer', gap:3, borderTop: nav===item.id?`2px solid ${B.gold}`:'2px solid transparent' }}>
-              <span style={{ fontSize:18 }}>{item.icon}</span>
-              <span style={{ fontSize:9, color: nav===item.id?B.gold:'rgba(255,255,255,0.35)', letterSpacing:'.3px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:52 }}>{item.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
+  );
 }
