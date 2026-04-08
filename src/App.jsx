@@ -752,10 +752,14 @@ const parseFile = async (file, catId, date) => {
         await new Promise((resolve, reject) => {
           const s = document.createElement('script')
           s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
-          s.onload = resolve
+          s.onload = () => {
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+            resolve()
+          }
           s.onerror = reject
           document.head.appendChild(s)
         })
+      } else {
         window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
       }
 
@@ -836,7 +840,7 @@ const parseFile = async (file, catId, date) => {
 
       return { rows, note: rows.length === 0 ? 'No rows found in PDF. Check column headers match expected format.' : null }
     } catch(e) {
-      return { rows: [], note: 'PDF error: ' + e.message + '. Try saving as Excel (.xlsx) for best results.' }
+      return { rows: [], note: null, pdfError: e.message }
     }
   }
 
@@ -912,6 +916,13 @@ function UploadCard({ cat, date, data, fr24Map, fr24Loading, onUpload, onRefresh
 
   const hasData  = data && data.length > 0
   const totalPax = data ? data.reduce((s,r) => s + (r.pax||0), 0) : 0
+  // Clear PDF error message after 5 seconds
+  useEffect(() => {
+    if (msg && msg.includes('PDF')) {
+      const t = setTimeout(() => setMsg(''), 5000)
+      return () => clearTimeout(t)
+    }
+  }, [msg])
 
   const handleFile = async (file) => {
     if (!file) return
