@@ -1928,6 +1928,237 @@ function FlightTrackerView({ isMobile }) {
 }
 
 
+// ─── Vessels View ────────────────────────────────────────────────────────────
+function VesselsView({ isMobile }) {
+  const [vessels, setVessels] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ name:'', type:'', capacity:'', status:'active', notes:'' })
+
+  useEffect(() => {
+    sb.from('fleet').select('*').eq('resort_id', BAROS_RESORT_ID).then(({ data }) => {
+      if (data) setVessels(data)
+      setLoading(false)
+    })
+  }, [])
+
+  const save = async () => {
+    const { data } = await sb.from('fleet').insert({ ...form, resort_id: BAROS_RESORT_ID }).select().single()
+    if (data) { setVessels(v => [...v, data]); setShowForm(false); setForm({ name:'', type:'', capacity:'', status:'active', notes:'' }) }
+  }
+
+  const del = async (id) => {
+    await sb.from('fleet').delete().eq('id', id)
+    setVessels(v => v.filter(x => x.id !== id))
+  }
+
+  return (
+    <div>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+        <div><div style={{ fontSize:18, fontWeight:600 }}>⛵ Vessels</div><div style={{ fontSize:12, color:B.textSecond }}>Fleet management</div></div>
+        <button onClick={() => setShowForm(s => !s)} style={BTN_PRIMARY}>+ Add Vessel</button>
+      </div>
+      {showForm && (
+        <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:10, padding:20, marginBottom:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr':'1fr 1fr', gap:12 }}>
+            {[['name','Name'],['type','Type'],['capacity','Capacity'],['notes','Notes']].map(([k,l]) => (
+              <div key={k}>
+                <div style={{ fontSize:11, color:B.textMuted, marginBottom:4 }}>{l}</div>
+                <input value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} style={INP} />
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop:12, display:'flex', gap:8 }}>
+            <button onClick={save} style={BTN_PRIMARY}>Save</button>
+            <button onClick={() => setShowForm(false)} style={{ ...BTN_PRIMARY, background:'transparent', color:B.textSecond, border:`0.5px solid ${B.border}` }}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {loading ? <div style={{ padding:40, textAlign:'center', color:B.textMuted }}>Loading...</div> : (
+        <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr':'1fr 1fr', gap:12 }}>
+          {vessels.map(v => (
+            <div key={v.id} style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:10, padding:16 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                <div>
+                  <div style={{ fontWeight:600, fontSize:15 }}>{v.name}</div>
+                  <div style={{ fontSize:12, color:B.textSecond, marginTop:2 }}>{v.type} · Cap: {v.capacity}</div>
+                  {v.notes && <div style={{ fontSize:11, color:B.textMuted, marginTop:4 }}>{v.notes}</div>}
+                </div>
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  <span style={{ fontSize:10, padding:'2px 8px', borderRadius:99, background: v.status==='active'?'#ECFDF5':'#FEF2F2', color: v.status==='active'?'#059669':'#DC2626', fontWeight:600 }}>{v.status}</span>
+                  <button onClick={() => del(v.id)} style={{ background:'transparent', border:'none', color:'#DC2626', cursor:'pointer', fontSize:14 }}>×</button>
+                </div>
+              </div>
+            </div>
+          ))}
+          {vessels.length === 0 && <div style={{ padding:40, textAlign:'center', color:B.textMuted, gridColumn:'1/-1' }}>No vessels added yet</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Team View ────────────────────────────────────────────────────────────────
+function TeamView({ isMobile }) {
+  const [team, setTeam] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ name:'', role:'', contact:'', status:'active', notes:'' })
+
+  useEffect(() => {
+    sb.from('captains').select('*').eq('resort_id', BAROS_RESORT_ID).then(({ data }) => {
+      if (data) setTeam(data)
+      setLoading(false)
+    })
+  }, [])
+
+  const save = async () => {
+    const { data } = await sb.from('captains').insert({ ...form, resort_id: BAROS_RESORT_ID }).select().single()
+    if (data) { setTeam(t => [...t, data]); setShowForm(false); setForm({ name:'', role:'', contact:'', status:'active', notes:'' }) }
+  }
+
+  const del = async (id) => {
+    await sb.from('captains').delete().eq('id', id)
+    setTeam(t => t.filter(x => x.id !== id))
+  }
+
+  const roles = ['Senior Captain','Captain','Boat Crew','Engineer','Deckhand']
+
+  return (
+    <div>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+        <div><div style={{ fontSize:18, fontWeight:600 }}>👥 Team</div><div style={{ fontSize:12, color:B.textSecond }}>Boat operations crew</div></div>
+        <button onClick={() => setShowForm(s => !s)} style={BTN_PRIMARY}>+ Add Member</button>
+      </div>
+      {showForm && (
+        <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:10, padding:20, marginBottom:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr':'1fr 1fr', gap:12 }}>
+            <div><div style={{ fontSize:11, color:B.textMuted, marginBottom:4 }}>Name</div><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={INP} /></div>
+            <div><div style={{ fontSize:11, color:B.textMuted, marginBottom:4 }}>Role</div>
+              <select value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} style={INP}>
+                <option value="">Select role</option>
+                {roles.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div><div style={{ fontSize:11, color:B.textMuted, marginBottom:4 }}>Contact</div><input value={form.contact} onChange={e=>setForm(f=>({...f,contact:e.target.value}))} style={INP} /></div>
+            <div><div style={{ fontSize:11, color:B.textMuted, marginBottom:4 }}>Notes</div><input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={INP} /></div>
+          </div>
+          <div style={{ marginTop:12, display:'flex', gap:8 }}>
+            <button onClick={save} style={BTN_PRIMARY}>Save</button>
+            <button onClick={() => setShowForm(false)} style={{ ...BTN_PRIMARY, background:'transparent', color:B.textSecond, border:`0.5px solid ${B.border}` }}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {loading ? <div style={{ padding:40, textAlign:'center', color:B.textMuted }}>Loading...</div> : (
+        <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr':'1fr 1fr 1fr', gap:12 }}>
+          {team.map(m => (
+            <div key={m.id} style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:10, padding:16 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+                  <div style={{ width:36, height:36, borderRadius:'50%', background:B.freshPalm, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:13 }}>{(m.name||'').slice(0,2).toUpperCase()}</div>
+                  <div>
+                    <div style={{ fontWeight:600 }}>{m.name}</div>
+                    <div style={{ fontSize:11, color:B.textSecond }}>{m.role}</div>
+                    {m.contact && <div style={{ fontSize:11, color:B.textMuted }}>{m.contact}</div>}
+                  </div>
+                </div>
+                <button onClick={() => del(m.id)} style={{ background:'transparent', border:'none', color:'#DC2626', cursor:'pointer', fontSize:14 }}>×</button>
+              </div>
+            </div>
+          ))}
+          {team.length === 0 && <div style={{ padding:40, textAlign:'center', color:B.textMuted, gridColumn:'1/-1' }}>No team members added yet</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Fuel Log View ────────────────────────────────────────────────────────────
+function FuelLogView({ isMobile }) {
+  const [logs, setLogs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ vessel_name:'', date:'', fuel_added:'', fuel_cost:'', notes:'' })
+
+  useEffect(() => {
+    sb.from('fuel_log').select('*').eq('resort_id', BAROS_RESORT_ID).order('date', { ascending:false }).limit(50).then(({ data }) => {
+      if (data) setLogs(data)
+      setLoading(false)
+    })
+  }, [])
+
+  const save = async () => {
+    const { data } = await sb.from('fuel_log').insert({ ...form, resort_id: BAROS_RESORT_ID }).select().single()
+    if (data) { setLogs(l => [data, ...l]); setShowForm(false); setForm({ vessel_name:'', date:'', fuel_added:'', fuel_cost:'', notes:'' }) }
+  }
+
+  const totalFuel = logs.reduce((s,l) => s + (parseFloat(l.fuel_added)||0), 0)
+  const totalCost = logs.reduce((s,l) => s + (parseFloat(l.fuel_cost)||0), 0)
+
+  return (
+    <div>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+        <div><div style={{ fontSize:18, fontWeight:600 }}>⛽ Fuel Log</div><div style={{ fontSize:12, color:B.textSecond }}>Fleet fuel tracking</div></div>
+        <button onClick={() => setShowForm(s => !s)} style={BTN_PRIMARY}>+ Add Entry</button>
+      </div>
+
+      <div style={{ display:'flex', gap:12, marginBottom:16, flexWrap:'wrap' }}>
+        {[
+          { label:'Total Fuel', val: totalFuel.toFixed(0) + ' L', color:B.freshPalm },
+          { label:'Total Cost', val: 'MVR ' + totalCost.toFixed(0), color:B.gold },
+          { label:'Entries', val: logs.length, color:'#6B7280' },
+        ].map(s => (
+          <div key={s.label} style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:8, padding:'10px 18px', display:'flex', gap:10, alignItems:'center' }}>
+            <div style={{ fontSize:20, fontWeight:700, color:s.color }}>{s.val}</div>
+            <div style={{ fontSize:10, color:B.textMuted, textTransform:'uppercase', letterSpacing:'.8px' }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {showForm && (
+        <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:10, padding:20, marginBottom:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr':'1fr 1fr', gap:12 }}>
+            {[['vessel_name','Vessel'],['date','Date'],['fuel_added','Fuel Added (L)'],['fuel_cost','Cost (MVR)'],['notes','Notes']].map(([k,l]) => (
+              <div key={k}>
+                <div style={{ fontSize:11, color:B.textMuted, marginBottom:4 }}>{l}</div>
+                <input type={k==='date'?'date':'text'} value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} style={INP} />
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop:12, display:'flex', gap:8 }}>
+            <button onClick={save} style={BTN_PRIMARY}>Save</button>
+            <button onClick={() => setShowForm(false)} style={{ ...BTN_PRIMARY, background:'transparent', color:B.textSecond, border:`0.5px solid ${B.border}` }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:10, overflow:'hidden' }}>
+        {loading ? <div style={{ padding:40, textAlign:'center', color:B.textMuted }}>Loading...</div> : (
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+              <thead><tr style={{ background:B.freshPalm }}>
+                {['Date','Vessel','Fuel (L)','Cost (MVR)','Notes'].map(h => <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontSize:11, color:'rgba(255,255,255,0.8)', fontWeight:600, letterSpacing:'1px', textTransform:'uppercase' }}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {logs.map((l,i) => (
+                  <tr key={l.id} style={{ borderBottom:`0.5px solid ${B.border}`, background:i%2===0?B.white:B.pearl }}>
+                    <td style={{ padding:'9px 14px' }}>{l.date}</td>
+                    <td style={{ padding:'9px 14px', fontWeight:500 }}>{l.vessel_name}</td>
+                    <td style={{ padding:'9px 14px', fontFamily:'monospace' }}>{l.fuel_added}</td>
+                    <td style={{ padding:'9px 14px', fontFamily:'monospace', color:B.gold }}>{l.fuel_cost}</td>
+                    <td style={{ padding:'9px 14px', color:B.textMuted }}>{l.notes}</td>
+                  </tr>
+                ))}
+                {logs.length === 0 && <tr><td colSpan={5} style={{ padding:40, textAlign:'center', color:B.textMuted }}>No fuel entries yet</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── App Shell ────────────────────────────────────────────────────────────────
 export default function DhirumbaaFMS() {
   const [user, setUser] = useState(null)
