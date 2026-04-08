@@ -1360,15 +1360,20 @@ function RosterView({ user, isMobile }) {
                   return (
                     <td key={d.key} style={{ padding:0, textAlign:'center', borderBottom:`0.5px solid ${B.border}`, outline: isToday?`2px solid ${B.freshPalm}`:'none', outlineOffset:'-2px', borderLeft: d.day===1?`2px solid ${B.borderMid}`:'none' }}>
                       {isActive && canEdit && !locked ? (
-                        <select
+                        <input
                           autoFocus
                           value={code}
-                          onChange={e => setShift(m.id, d.key, e.target.value)}
+                          onChange={e => {
+                            const v = e.target.value.toUpperCase().slice(0,3)
+                            setShift(m.id, d.key, v)
+                          }}
                           onBlur={() => setActiveCell(null)}
-                          style={{ width:'100%', fontSize:10, border:'none', background:shift.bg, color:shift.text, fontWeight:700, padding:'6px 2px', cursor:'pointer', outline:'none', minWidth:34 }}
-                        >
+                          list={`shift-codes-${m.id}`}
+                          style={{ width:'100%', fontSize:10, border:'none', background:shift.bg, color:shift.text, fontWeight:700, padding:'6px 2px', cursor:'pointer', outline:'none', minWidth:34, textAlign:'center' }}
+                        />
+                        <datalist id={`shift-codes-${m.id}`}>
                           {SHIFT_CODES.map(s => <option key={s.code} value={s.code}>{s.code} – {s.label}</option>)}
-                        </select>
+                        </datalist>
                       ) : (
                         <div
                           onClick={() => canEdit && !locked && setActiveCell(rKey)}
@@ -1392,6 +1397,65 @@ function RosterView({ user, isMobile }) {
           <div key={s.code} style={{ display:'flex', alignItems:'center', gap:6, fontSize:12 }}>
             <div style={{ width:24, height:24, background:s.bg, borderRadius:4, display:'flex', alignItems:'center', justifyContent:'center', color:s.text, fontWeight:700, fontSize:11 }}>{s.code}</div>
             <span style={{ color:B.textSecond }}>{s.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Daily summary: Leave / Off / Training */}
+      <RosterDaySummary members={members} roster={roster} days={days} />
+    </div>
+  )
+}
+
+function RosterDaySummary({ members, roster, days }) {
+  const today = new Date()
+  const todayKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`
+  const todayDay = days.find(d => d.key === todayKey)
+
+  const getStatus = (code) => {
+    if (code === 'AL' || code === 'SL' || code === 'HL') return 'leave'
+    if (code === 'O')  return 'off'
+    if (code === 'TR') return 'training'
+    return null
+  }
+
+  const onLeave    = members.filter(m => { const c = roster[`${m.id}-${todayKey}`]; return getStatus(c)==='leave' })
+  const onOff      = members.filter(m => { const c = roster[`${m.id}-${todayKey}`]; return getStatus(c)==='off' })
+  const onTraining = members.filter(m => { const c = roster[`${m.id}-${todayKey}`]; return getStatus(c)==='training' })
+
+  // Find who comes back from leave tomorrow
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate()+1)
+  const tomorrowKey = `${tomorrow.getFullYear()}-${tomorrow.getMonth()}-${tomorrow.getDate()}`
+  const backTomorrow = members.filter(m => {
+    const todayCode = roster[`${m.id}-${todayKey}`]
+    const tomorrowCode = roster[`${m.id}-${tomorrowKey}`]
+    return getStatus(todayCode)==='leave' && getStatus(tomorrowCode)!=='leave'
+  })
+
+  if (!onLeave.length && !onOff.length && !onTraining.length) return null
+
+  return (
+    <div style={{ marginTop:24 }}>
+      <div style={{ fontSize:13, fontWeight:600, color:B.textPrimary, marginBottom:12 }}>Today's Staff Status Summary</div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+        {[
+          { title:'On Leave', items:onLeave, color:'#9B59B6', bg:'#F5EEF8', icon:'🏖️' },
+          { title:'Day Off',  items:onOff,   color:'#E8734A', bg:'#FEF0E9', icon:'😴' },
+          { title:'Training', items:onTraining, color:'#0369A1', bg:'#EFF6FF', icon:'📚' },
+        ].map(s => (
+          <div key={s.title} style={{ background:s.bg, borderRadius:10, padding:14, border:`0.5px solid ${s.color}20` }}>
+            <div style={{ fontSize:12, fontWeight:600, color:s.color, marginBottom:8 }}>{s.icon} {s.title} ({s.items.length})</div>
+            {s.items.length === 0
+              ? <div style={{ fontSize:11, color:B.textMuted }}>None today</div>
+              : s.items.map(m => (
+                <div key={m.id} style={{ fontSize:12, color:B.textPrimary, marginBottom:4, display:'flex', justifyContent:'space-between' }}>
+                  <span>{m.name}</span>
+                  {s.title==='On Leave' && backTomorrow.find(x=>x.id===m.id) && (
+                    <span style={{ fontSize:10, color:'#059669', fontWeight:600 }}>back tomorrow</span>
+                  )}
+                </div>
+              ))
+            }
           </div>
         ))}
       </div>
@@ -1957,6 +2021,62 @@ const EMPTY_VESSEL = {
   activities:[], status:'active', notes:''
 }
 
+// Claude Vision certificate extractor
+function ClauseVisionCertExtractor({ url, onExtract }) {
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState(null)
+
+  const extract = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: [
+              { type:'image', source:{ type:'url', url } },
+              { type:'text', text:'This is a vessel seaworthiness or registration certificate. Extract: 1) Expiry/valid until date (format YYYY-MM-DD), 2) Registry/certificate number, 3) Vessel name, 4) Issuing authority, 5) Any other key dates. Respond only in JSON format like: {"expiry":"YYYY-MM-DD","registry_number":"X","vessel_name":"X","authority":"X","issue_date":"YYYY-MM-DD","notes":"any other info"}' }
+            ]
+          }]
+        })
+      })
+      const data = await res.json()
+      const text = data.content?.[0]?.text || '{}'
+      const clean = text.replace(/```json|```/g,'').trim()
+      const parsed = JSON.parse(clean)
+      setResult(parsed)
+      onExtract({ ...parsed, cert_extracted: parsed })
+    } catch(e) {
+      setResult({ error: 'Could not extract. Please enter details manually.' })
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div>
+      <button onClick={extract} disabled={loading} style={{ padding:'6px 14px', borderRadius:6, border:`0.5px solid #7C3AED`, background:loading?B.pearl:'#7C3AED15', color:'#7C3AED', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+        {loading ? '🔍 Scanning certificate...' : '🤖 Extract with AI'}
+      </button>
+      {result && !result.error && (
+        <div style={{ marginTop:10, padding:12, background:'#F5F3FF', borderRadius:8, fontSize:12 }}>
+          <div style={{ fontWeight:600, color:'#7C3AED', marginBottom:6 }}>✓ Extracted successfully</div>
+          {Object.entries(result).filter(([k,v])=>v&&k!=='cert_extracted').map(([k,v]) => (
+            <div key={k} style={{ display:'flex', gap:8, marginBottom:2 }}>
+              <span style={{ color:'#6B7280', minWidth:100, textTransform:'capitalize' }}>{k.replace(/_/g,' ')}:</span>
+              <span style={{ fontWeight:500 }}>{v}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {result?.error && <div style={{ marginTop:8, fontSize:11, color:'#DC2626' }}>{result.error}</div>}
+    </div>
+  )
+}
+
 // Vessel form helper components (outside to prevent re-render issues)
 function VField({ label, error, children }) {
   return (
@@ -2068,6 +2188,18 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
       <div style={{ padding:20 }}>
         {tab==='general' && (
           <div>
+            {/* Vessel Image */}
+            <div style={{ marginBottom:16, display:'flex', gap:16, alignItems:'center' }}>
+              {f.image_url
+                ? <img src={f.image_url} alt="vessel" style={{ width:80, height:80, borderRadius:10, objectFit:'cover', border:`0.5px solid ${B.border}` }} />
+                : <div style={{ width:80, height:80, borderRadius:10, background:B.pearl, border:`1px dashed ${B.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:28 }}>⛵</div>
+              }
+              <div>
+                <div style={{ fontSize:12, fontWeight:500, color:B.textPrimary, marginBottom:4 }}>Vessel Photo</div>
+                <input type="text" value={f.image_url||''} onChange={upd('image_url')} placeholder="Paste image URL..." style={{ ...si, width:280, fontSize:12 }} />
+                <div style={{ fontSize:10, color:B.textMuted, marginTop:3 }}>Paste a direct image URL</div>
+              </div>
+            </div>
             {row(3, [
               fld('Vessel Name *', inp('name','text','e.g. Ixora')),
               fld('Vessel Type', sel('vessel_type', ['Speedboat','Dhoni','Yacht','Ferry','Catamaran','Tender','RIB','Supply Boat','Other'])),
@@ -2153,6 +2285,29 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
 
         {tab==='fuel' && (
           <div>
+            {/* Seaworthiness Certificate */}
+            <div style={{ marginBottom:20, padding:16, background:B.pearl, borderRadius:10, border:`0.5px solid ${B.border}` }}>
+              <div style={{ fontWeight:600, fontSize:13, marginBottom:12 }}>📋 Seaworthiness Certificate</div>
+              <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr':'1fr 1fr', gap:12, marginBottom:12 }}>
+                <div>{lbl('Certificate URL')}<input value={f.seaworthiness_cert_url||''} onChange={upd('seaworthiness_cert_url')} placeholder="Paste certificate image URL..." style={si} /></div>
+                <div>{lbl('Expiry Date')}<input type="date" value={f.seaworthiness_expiry||''} onChange={upd('seaworthiness_expiry')} style={si} /></div>
+                <div>{lbl('Registry Number')}<input value={f.registry_number||''} onChange={upd('registry_number')} style={si} /></div>
+              </div>
+              {f.seaworthiness_cert_url && (
+                <div>
+                  <ClauseVisionCertExtractor url={f.seaworthiness_cert_url} onExtract={(data) => {
+                    if (data.expiry) setF2(prev => ({...prev, seaworthiness_expiry: data.expiry}))
+                    if (data.registry_number) setF2(prev => ({...prev, registry_number: data.registry_number}))
+                    if (data.cert_extracted) setF2(prev => ({...prev, cert_extracted: data.cert_extracted}))
+                  }} />
+                </div>
+              )}
+              {f.seaworthiness_expiry && (
+                <div style={{ marginTop:8, padding:'8px 12px', borderRadius:6, background: new Date(f.seaworthiness_expiry) < new Date() ? '#FEF2F2' : new Date(f.seaworthiness_expiry) < new Date(Date.now()+30*24*60*60*1000) ? '#FFF7ED' : '#ECFDF5', color: new Date(f.seaworthiness_expiry) < new Date() ? '#DC2626' : new Date(f.seaworthiness_expiry) < new Date(Date.now()+30*24*60*60*1000) ? '#D97706' : '#059669', fontSize:12, fontWeight:500 }}>
+                  {new Date(f.seaworthiness_expiry) < new Date() ? '⚠️ Certificate EXPIRED' : new Date(f.seaworthiness_expiry) < new Date(Date.now()+30*24*60*60*1000) ? '⚠️ Expiring within 30 days' : '✓ Certificate valid until ' + f.seaworthiness_expiry}
+                </div>
+              )}
+            </div>
             <div style={{ fontWeight:600, fontSize:13, marginBottom:12, paddingBottom:8, borderBottom:`0.5px solid ${B.border}` }}>⛽ Fuel</div>
             {row(3,[
               fld('Fuel Type', sel('fuel_type',['Diesel','Petrol','Hybrid','Electric','Other'])),
@@ -2392,79 +2547,227 @@ function VesselsView({ isMobile }) {
 
 
 // ─── Team View ────────────────────────────────────────────────────────────────
-function TeamView({ isMobile }) {
-  const [team, setTeam] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name:'', role:'', contact:'', status:'active', notes:'' })
 
-  useEffect(() => {
-    sb.from('captains').select('*').eq('resort_id', BAROS_RESORT_ID).then(({ data }) => {
-      if (data) setTeam(data)
-      setLoading(false)
-    })
-  }, [])
+const TEAM_TITLES = [
+  'Manager', 'Asst Manager', 'Supervisor', 'Senior Captain', 'Captain',
+  'Water Sports Supervisor', 'Water Sports Attendant',
+  'Boat Crew', 'Engineer', 'Deckhand', 'Other'
+]
+const TEAM_DEPTS = [
+  'Transport', 'Marine Operations', 'Water Sports', 'Diving',
+  'Activities', 'Engineering', 'Management', 'Other'
+]
+
+function TeamView({ isMobile }) {
+  const [team,     setTeam]     = useState([])
+  const [vessels,  setVessels]  = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [editing,  setEditing]  = useState(null)
+  const [filter,   setFilter]   = useState('all')
+  const [form, setForm] = useState({
+    name:'', employee_number:'', title:'', department:'', role:'',
+    mobile:'', email:'', contact:'', joining_date:'', birth_date:'',
+    status:'active', photo_url:'', vessels:[], notes:''
+  })
+
+  const load = async () => {
+    setLoading(true)
+    const { data: tData } = await sb.from('captains').select('*').eq('resort_id', BAROS_RESORT_ID).order('name')
+    const { data: vData } = await sb.from('fleet').select('id,name').eq('resort_id', BAROS_RESORT_ID)
+    if (tData) setTeam(tData)
+    if (vData) setVessels(vData)
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  const openAdd = () => {
+    setEditing(null)
+    setForm({ name:'', employee_number:'', title:'', department:'', role:'', mobile:'', email:'', contact:'', joining_date:'', birth_date:'', status:'active', photo_url:'', vessels:[], notes:'' })
+    setShowForm(true)
+  }
+
+  const openEdit = (m) => {
+    setEditing(m)
+    setForm({ ...m, vessels: m.vessels || [] })
+    setShowForm(true)
+  }
 
   const save = async () => {
-    const { data } = await sb.from('captains').insert({ ...form, resort_id: BAROS_RESORT_ID }).select().single()
-    if (data) { setTeam(t => [...t, data]); setShowForm(false); setForm({ name:'', role:'', contact:'', status:'active', notes:'' }) }
+    if (!form.name?.trim()) { alert('Name is required'); return }
+    const payload = { ...form, resort_id: BAROS_RESORT_ID }
+    if (editing?.id) {
+      await sb.from('captains').update(payload).eq('id', editing.id)
+    } else {
+      await sb.from('captains').insert(payload)
+    }
+    setShowForm(false)
+    load()
   }
 
   const del = async (id) => {
+    if (!confirm('Remove this team member?')) return
     await sb.from('captains').delete().eq('id', id)
     setTeam(t => t.filter(x => x.id !== id))
   }
 
-  const roles = ['Senior Captain','Captain','Boat Crew','Engineer','Deckhand']
+  const upd = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+  const toggleVessel = (vid) => setForm(f => ({
+    ...f,
+    vessels: (f.vessels||[]).includes(vid) ? f.vessels.filter(x=>x!==vid) : [...(f.vessels||[]), vid]
+  }))
+
+  const si = { width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff', outline:'none' }
+  const lbl = (t) => <div style={{ fontSize:10, fontWeight:600, color:B.textMuted, textTransform:'uppercase', letterSpacing:'.8px', marginBottom:4 }}>{t}</div>
+  const row = (cols, children) => <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr':`repeat(${cols},1fr)`, gap:12, marginBottom:12 }}>{children}</div>
+
+  const filtered = filter==='all' ? team : team.filter(m => m.status===filter || m.department===filter)
 
   return (
     <div>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
-        <div><div style={{ fontSize:18, fontWeight:600 }}>👥 Team</div><div style={{ fontSize:12, color:B.textSecond }}>Boat operations crew</div></div>
-        <button onClick={() => setShowForm(s => !s)} style={BTN_PRIMARY}>+ Add Member</button>
-      </div>
-      {showForm && (
-        <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:10, padding:20, marginBottom:16 }}>
-          <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr':'1fr 1fr', gap:12 }}>
-            <div><div style={{ fontSize:11, color:B.textMuted, marginBottom:4 }}>Name</div><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={INP} /></div>
-            <div><div style={{ fontSize:11, color:B.textMuted, marginBottom:4 }}>Role</div>
-              <select value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} style={INP}>
-                <option value="">Select role</option>
-                {roles.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-            <div><div style={{ fontSize:11, color:B.textMuted, marginBottom:4 }}>Contact</div><input value={form.contact} onChange={e=>setForm(f=>({...f,contact:e.target.value}))} style={INP} /></div>
-            <div><div style={{ fontSize:11, color:B.textMuted, marginBottom:4 }}>Notes</div><input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={INP} /></div>
+      {/* Header */}
+      <div style={{ background:B.freshPalm, borderRadius:10, padding:isMobile?'14px':'18px 24px', marginBottom:16 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
+          <div>
+            <div style={{ fontSize:10, letterSpacing:'2px', color:'rgba(255,255,255,0.4)', textTransform:'uppercase', marginBottom:4 }}>Baros Maldives</div>
+            <div style={{ fontSize:isMobile?16:22, fontWeight:600, color:'#fff' }}>Team Management</div>
+            <div style={{ fontSize:11, color:'rgba(255,255,255,0.5)', marginTop:2 }}>{team.length} crew members</div>
           </div>
-          <div style={{ marginTop:12, display:'flex', gap:8 }}>
-            <button onClick={save} style={BTN_PRIMARY}>Save</button>
-            <button onClick={() => setShowForm(false)} style={{ ...BTN_PRIMARY, background:'transparent', color:B.textSecond, border:`0.5px solid ${B.border}` }}>Cancel</button>
+          <button onClick={openAdd} style={{ padding:'8px 20px', borderRadius:7, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.1)', color:'#fff', fontSize:13, cursor:'pointer' }}>+ Add Member</button>
+        </div>
+        <div style={{ display:'flex', gap:8, marginTop:14, flexWrap:'wrap' }}>
+          {['all', ...TEAM_DEPTS.slice(0,5)].map(f => (
+            <button key={f} onClick={()=>setFilter(f)} style={{ padding:'5px 14px', borderRadius:99, border:`1px solid ${filter===f?'#fff':'rgba(255,255,255,0.2)'}`, background:filter===f?'rgba(255,255,255,0.15)':'transparent', color:filter===f?'#fff':'rgba(255,255,255,0.5)', fontSize:11, cursor:'pointer' }}>
+              {f==='all'?`All (${team.length})`:f}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Form */}
+      {showForm && (
+        <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:12, overflow:'hidden', marginBottom:16 }}>
+          <div style={{ background:B.freshPalm, padding:'14px 20px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ fontSize:15, fontWeight:600, color:'#fff' }}>{editing ? 'Edit Member' : 'Add Team Member'}</div>
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={()=>setShowForm(false)} style={{ padding:'6px 14px', borderRadius:6, border:'1px solid rgba(255,255,255,0.3)', background:'transparent', color:'#fff', fontSize:12, cursor:'pointer' }}>Cancel</button>
+              <button onClick={save} style={{ padding:'6px 14px', borderRadius:6, border:'none', background:B.gold, color:B.midnight, fontSize:12, fontWeight:600, cursor:'pointer' }}>✓ Save</button>
+            </div>
+          </div>
+          <div style={{ padding:20 }}>
+            {row(3,[
+              <div key="name">{lbl('Full Name *')}<input value={form.name} onChange={upd('name')} style={si} /></div>,
+              <div key="emp">{lbl('Employee Number')}<input value={form.employee_number||''} onChange={upd('employee_number')} style={si} /></div>,
+              <div key="status">{lbl('Status')}
+                <select value={form.status} onChange={upd('status')} style={si}>
+                  {['active','on_leave','inactive'].map(s=><option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>,
+            ])}
+            {row(2,[
+              <div key="title">{lbl('Title / Position')}
+                <select value={form.title||''} onChange={upd('title')} style={si}>
+                  <option value="">Select...</option>
+                  {TEAM_TITLES.map(t=><option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>,
+              <div key="dept">{lbl('Department')}
+                <select value={form.department||''} onChange={upd('department')} style={si}>
+                  <option value="">Select...</option>
+                  {TEAM_DEPTS.map(d=><option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>,
+            ])}
+            {row(2,[
+              <div key="mob">{lbl('Mobile')}<input value={form.mobile||''} onChange={upd('mobile')} style={si} /></div>,
+              <div key="email">{lbl('Email')}<input type="email" value={form.email||''} onChange={upd('email')} style={si} /></div>,
+            ])}
+            {row(2,[
+              <div key="join">{lbl('Joining Date')}<input type="date" value={form.joining_date||''} onChange={upd('joining_date')} style={si} /></div>,
+              <div key="bday">{lbl('Birth Date')}<input type="date" value={form.birth_date||''} onChange={upd('birth_date')} style={si} /></div>,
+            ])}
+            <div style={{ marginBottom:12 }}>
+              {lbl(`Assigned Vessels (${(form.vessels||[]).length} selected)`)}
+              <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:4 }}>
+                {vessels.map(v => {
+                  const sel = (form.vessels||[]).includes(v.id)
+                  return (
+                    <button key={v.id} onClick={()=>toggleVessel(v.id)} style={{ padding:'5px 12px', borderRadius:99, border:`1.5px solid ${sel?B.freshPalm:B.border}`, background:sel?B.freshPalm:'transparent', color:sel?'#fff':B.textSecond, fontSize:12, cursor:'pointer', fontWeight:sel?500:400 }}>
+                      {sel?'✓ ':''}{v.name}
+                    </button>
+                  )
+                })}
+                {vessels.length===0 && <div style={{ fontSize:12, color:B.textMuted }}>Add vessels first in the Vessels section</div>}
+              </div>
+            </div>
+            <div>{lbl('Notes')}<textarea value={form.notes||''} onChange={upd('notes')} rows={2} style={{ ...si, resize:'vertical' }} /></div>
           </div>
         </div>
       )}
-      {loading ? <div style={{ padding:40, textAlign:'center', color:B.textMuted }}>Loading...</div> : (
-        <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr':'1fr 1fr 1fr', gap:12 }}>
-          {team.map(m => (
-            <div key={m.id} style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:10, padding:16 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-                  <div style={{ width:36, height:36, borderRadius:'50%', background:B.freshPalm, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:13 }}>{(m.name||'').slice(0,2).toUpperCase()}</div>
-                  <div>
-                    <div style={{ fontWeight:600 }}>{m.name}</div>
-                    <div style={{ fontSize:11, color:B.textSecond }}>{m.role}</div>
-                    {m.contact && <div style={{ fontSize:11, color:B.textMuted }}>{m.contact}</div>}
+
+      {/* Team grid */}
+      {loading ? (
+        <div style={{ padding:40, textAlign:'center', color:B.textMuted }}>Loading...</div>
+      ) : (
+        <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr':'repeat(3,1fr)', gap:12 }}>
+          {filtered.map(m => {
+            const initials = (m.name||'').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()
+            const deptColor = { Transport:'#1A4530', 'Marine Operations':'#0369A1', 'Water Sports':'#7C3AED', Diving:'#0891B2', Activities:'#059669', Engineering:'#D97706' }[m.department] || B.freshPalm
+            const assignedVessels = vessels.filter(v => (m.vessels||[]).includes(v.id))
+            return (
+              <div key={m.id} style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:10, overflow:'hidden', boxShadow:'0 1px 3px rgba(0,0,0,0.05)' }}>
+                <div style={{ height:4, background:deptColor }} />
+                <div style={{ padding:14 }}>
+                  <div style={{ display:'flex', gap:12, alignItems:'flex-start', marginBottom:10 }}>
+                    {m.photo_url
+                      ? <img src={m.photo_url} alt={m.name} style={{ width:44, height:44, borderRadius:'50%', objectFit:'cover', flexShrink:0 }} />
+                      : <div style={{ width:44, height:44, borderRadius:'50%', background:deptColor, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:14, flexShrink:0 }}>{initials}</div>
+                    }
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontWeight:700, fontSize:14, color:B.textPrimary }}>{m.name}</div>
+                      <div style={{ fontSize:11, color:deptColor, fontWeight:500 }}>{m.title || m.role}</div>
+                      <div style={{ fontSize:11, color:B.textMuted }}>{m.department}</div>
+                    </div>
+                    <span style={{ fontSize:9, padding:'2px 7px', borderRadius:99, background: m.status==='active'?'#ECFDF5':m.status==='on_leave'?'#FFF7ED':'#FEF2F2', color: m.status==='active'?'#059669':m.status==='on_leave'?'#D97706':'#DC2626', fontWeight:600 }}>
+                      {m.status}
+                    </span>
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:3, fontSize:11, color:B.textSecond, marginBottom:10 }}>
+                    {m.employee_number && <div>🔖 {m.employee_number}</div>}
+                    {m.mobile && <div>📱 {m.mobile}</div>}
+                    {m.email && <div>✉️ {m.email}</div>}
+                    {m.joining_date && <div>📅 Joined {m.joining_date}</div>}
+                  </div>
+                  {assignedVessels.length > 0 && (
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginBottom:8 }}>
+                      {assignedVessels.map(v => (
+                        <span key={v.id} style={{ fontSize:10, padding:'2px 7px', borderRadius:99, background:B.pearl, color:B.textSecond, fontWeight:500 }}>⛵ {v.name}</span>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display:'flex', gap:8, marginTop:8, paddingTop:8, borderTop:`0.5px solid ${B.border}` }}>
+                    <button onClick={()=>openEdit(m)} style={{ flex:1, padding:'5px', borderRadius:5, border:`0.5px solid ${B.freshPalm}`, background:'transparent', color:B.freshPalm, fontSize:11, cursor:'pointer' }}>Edit</button>
+                    <button onClick={()=>del(m.id)} style={{ padding:'5px 10px', borderRadius:5, border:'0.5px solid #DC2626', background:'transparent', color:'#DC2626', fontSize:11, cursor:'pointer' }}>×</button>
                   </div>
                 </div>
-                <button onClick={() => del(m.id)} style={{ background:'transparent', border:'none', color:'#DC2626', cursor:'pointer', fontSize:14 }}>×</button>
               </div>
+            )
+          })}
+          {filtered.length === 0 && (
+            <div style={{ padding:48, textAlign:'center', color:B.textMuted, gridColumn:'1/-1', background:B.white, borderRadius:10, border:`0.5px solid ${B.border}` }}>
+              <div style={{ fontSize:32, marginBottom:10 }}>👥</div>
+              <div style={{ fontWeight:500, marginBottom:6 }}>No team members</div>
+              <div style={{ fontSize:12 }}>Click "+ Add Member" to add crew</div>
             </div>
-          ))}
-          {team.length === 0 && <div style={{ padding:40, textAlign:'center', color:B.textMuted, gridColumn:'1/-1' }}>No team members added yet</div>}
+          )}
         </div>
       )}
     </div>
   )
 }
+
+
 
 // ─── Fuel Log View ────────────────────────────────────────────────────────────
 function FuelLogView({ isMobile }) {
