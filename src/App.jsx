@@ -2041,7 +2041,7 @@ function ClauseVisionCertExtractor({ url, onExtract }) {
       })
       const data = await res.json()
       const text = data.content?.[0]?.text || '{}'
-      const clean = text.replace(/```json|```/g,'').trim()
+      const clean = text.replace(/\`\`\`json|\`\`\`/g,'').trim()
       const parsed = JSON.parse(clean)
       setResult(parsed)
       onExtract({ ...parsed, cert_extracted: parsed })
