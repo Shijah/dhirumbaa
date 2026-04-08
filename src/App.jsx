@@ -1360,20 +1360,15 @@ function RosterView({ user, isMobile }) {
                   return (
                     <td key={d.key} style={{ padding:0, textAlign:'center', borderBottom:`0.5px solid ${B.border}`, outline: isToday?`2px solid ${B.freshPalm}`:'none', outlineOffset:'-2px', borderLeft: d.day===1?`2px solid ${B.borderMid}`:'none' }}>
                       {isActive && canEdit && !locked ? (
-                        <input
+                        <select
                           autoFocus
                           value={code}
-                          onChange={e => {
-                            const v = e.target.value.toUpperCase().slice(0,3)
-                            setShift(m.id, d.key, v)
-                          }}
+                          onChange={e => setShift(m.id, d.key, e.target.value)}
                           onBlur={() => setActiveCell(null)}
-                          list={`shift-codes-${m.id}`}
-                          style={{ width:'100%', fontSize:10, border:'none', background:shift.bg, color:shift.text, fontWeight:700, padding:'6px 2px', cursor:'pointer', outline:'none', minWidth:34, textAlign:'center' }}
-                        />
-                        <datalist id={`shift-codes-${m.id}`}>
-                          {SHIFT_CODES.map(s => <option key={s.code} value={s.code}>{s.code} - {s.label}</option>)}
-                        </datalist>
+                          style={{ width:'100%', fontSize:10, border:'none', background:shift.bg, color:shift.text, fontWeight:700, padding:'6px 2px', cursor:'pointer', outline:'none', minWidth:34 }}
+                        >
+                          {SHIFT_CODES.map(s => <option key={s.code} value={s.code}>{s.code}</option>)}
+                        </select>
                       ) : (
                         <div
                           onClick={() => canEdit && !locked && setActiveCell(rKey)}
