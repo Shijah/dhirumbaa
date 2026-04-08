@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
 // Supabase setup with safe fallback so app never crashes on missing key
@@ -52,6 +52,105 @@ if (!document.getElementById('dhirumbaa-mobile-css')) {
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 const RESORT = { id: 'baros', name: 'Baros Maldives', code: 'BAR' }
+
+// ─── Notification Bell ────────────────────────────────────────────────────────
+function NotificationBell({ user }) {
+  const [notifs,  setNotifs]  = useState([])
+  const [open,    setOpen]    = useState(false)
+  const unread = notifs.filter(n => !n.read_by?.includes(user?.username)).length
+
+  useEffect(() => {
+    if (!user) return
+    const load = async () => {
+      try {
+        const { data } = await sb.from('notifications')
+          .select('*')
+          .contains('target_depts', [user.department])
+          .order('created_at', { ascending: false })
+          .limit(20)
+        if (data) setNotifs(data)
+      } catch(e) {}
+    }
+    load()
+    const interval = setInterval(load, 60000)
+    return () => clearInterval(interval)
+  }, [user])
+
+  const markRead = async (id) => {
+    try {
+      const n = notifs.find(x => x.id === id)
+      if (!n) return
+      const readBy = [...(n.read_by||[]), user.username]
+      await sb.from('notifications').update({ read_by: readBy }).eq('id', id)
+      setNotifs(prev => prev.map(x => x.id===id ? {...x, read_by:readBy} : x))
+    } catch(e) {}
+  }
+
+  const markAll = async () => {
+    try {
+      const ids = notifs.filter(n => !n.read_by?.includes(user?.username)).map(n=>n.id)
+      for (const id of ids) await markRead(id)
+    } catch(e) {}
+  }
+
+  // Show bell for all users - they can see their relevant notifications
+  // Transport, Front Office, Super Admin get ETA alerts
+  // All others see schedule approvals and manual announcements
+
+  return (
+    <div style={{ position:'relative' }}>
+      <button onClick={()=>setOpen(o=>!o)} style={{ background:'transparent', border:'none', cursor:'pointer', position:'relative', padding:'4px 8px', color: unread>0 ? B.gold : 'rgba(255,255,255,0.6)', fontSize:18 }}>
+        🔔
+        {unread > 0 && (
+          <span style={{ position:'absolute', top:0, right:0, background:'#EF4444', color:'#fff', borderRadius:'50%', width:16, height:16, fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div style={{ position:'absolute', right:0, top:36, width:320, background:'#fff', borderRadius:10, border:`0.5px solid ${B.border}`, boxShadow:'0 8px 32px rgba(0,0,0,0.15)', zIndex:999, overflow:'hidden' }}>
+          <div style={{ padding:'12px 16px', borderBottom:`0.5px solid ${B.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ fontWeight:600, fontSize:13, color:B.textPrimary }}>Notifications {unread>0 && <span style={{ color:'#EF4444' }}>({unread})</span>}</div>
+            {unread > 0 && <button onClick={markAll} style={{ fontSize:11, color:B.freshPalm, background:'transparent', border:'none', cursor:'pointer' }}>Mark all read</button>}
+          </div>
+          <div style={{ maxHeight:360, overflowY:'auto' }}>
+            {notifs.length === 0 ? (
+              <div style={{ padding:'24px 16px', textAlign:'center', color:B.textMuted, fontSize:12 }}>
+                <div style={{ fontSize:24, marginBottom:8 }}>🔔</div>
+                <div>No notifications yet</div>
+                <div style={{ fontSize:10, marginTop:4, color:B.textMuted }}>ETA changes of 30+ mins will appear here</div>
+              </div>
+            ) : notifs.map(n => {
+              const isUnread = !n.read_by?.includes(user?.username)
+              return (
+                <div key={n.id} onClick={()=>markRead(n.id)} style={{ padding:'12px 16px', borderBottom:`0.5px solid ${B.border}`, background:isUnread?'#F0FDF4':B.white, cursor:'pointer' }}>
+                  <div style={{ display:'flex', gap:8, alignItems:'flex-start' }}>
+                    <span style={{ fontSize:16 }}>{n.type==='eta_change'?'✈️':n.type==='flight_landed'?'🛬':'📢'}</span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontWeight:isUnread?600:400, fontSize:12, color:B.textPrimary }}>{n.title}</div>
+                      <div style={{ fontSize:11, color:B.textSecond, marginTop:2 }}>{n.message}</div>
+                      <div style={{ fontSize:10, color:B.textMuted, marginTop:3 }}>{new Date(n.created_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Indian/Maldives'})}</div>
+                    </div>
+                    {isUnread && <div style={{ width:8, height:8, borderRadius:'50%', background:B.freshPalm, flexShrink:0, marginTop:4 }} />}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {/* Notification preferences */}
+          <div style={{ padding:'10px 16px', borderTop:`0.5px solid ${B.border}`, background:B.pearl }}>
+            <div style={{ fontSize:10, color:B.textMuted, textTransform:'uppercase', letterSpacing:'1px', marginBottom:6 }}>You receive alerts for:</div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+              {user?.notify_eta && <span style={{ fontSize:10, background:'#ECFDF5', color:'#059669', borderRadius:99, padding:'2px 8px', fontWeight:500 }}>✓ Flight ETA changes</span>}
+              {['transport','super_admin','resort_admin'].includes(user?.department) && <span style={{ fontSize:10, background:'#EFF6FF', color:'#2563EB', borderRadius:99, padding:'2px 8px', fontWeight:500 }}>✓ Boat dispatch alerts</span>}
+              {['transport','front_office','super_admin','resort_admin'].includes(user?.department) && <span style={{ fontSize:10, background:'#FFF7ED', color:'#B45309', borderRadius:99, padding:'2px 8px', fontWeight:500 }}>✓ Schedule approvals</span>}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 const NAV = [
   { id: 'dashboard', icon: '🌊', label: 'Dashboard'       },
@@ -264,25 +363,62 @@ const vipStyle = v => {
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────
+
+const DEPT_LABELS = {
+  transport:    'Transport',
+  front_office: 'Front Office',
+  activities:   'Activities',
+  diving:       'Diving',
+  fnb:          'F&B',
+  marina:       'Marina',
+  housekeeping: 'Housekeeping',
+  all_staff:    'Staff',
+  super_admin:  'System Admin',
+  resort_admin: 'Resort Admin',
+}
+
+const DEPT_COLORS = {
+  transport:    '#1A4530',
+  front_office: '#0369A1',
+  activities:   '#7C3AED',
+  diving:       '#0891B2',
+  fnb:          '#B45309',
+  marina:       '#059669',
+  housekeeping: '#6B7280',
+  all_staff:    '#9CA3AF',
+  super_admin:  '#1A4530',
+  resort_admin: '#1A4530',
+}
+
 function LoginPage({ onLogin }) {
   const [creds, setCreds] = useState({ username:'', password:'' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const emailMap = {}
 
   const handle = async e => {
     e.preventDefault(); setLoading(true); setError('')
-    const email = emailMap[creds.username.toLowerCase()]
-    if (!email) { setError('Unknown username'); setLoading(false); return }
-    const { data, error: err } = await supabase.auth.signInWithPassword({ email, password: creds.password })
-    if (err) {
-      const ok = (creds.username==='dhirumbaa' && creds.password==='Dhirumbaa@2026') ||
-                 (creds.username==='baros.admin' && creds.password==='Baros@2026')
-      if (ok) onLogin({ username:creds.username, role:creds.username==='dhirumbaa'?'super_admin':'resort_admin' })
-      else setError('Invalid credentials')
-    } else {
-      onLogin({ username:creds.username, role:creds.username==='dhirumbaa'?'super_admin':'resort_admin', session:data.session })
-    }
+    const u = creds.username.toLowerCase().trim()
+    const p = creds.password
+
+    // System admins
+    if (u==='dhirumbaa'  && p==='Dhirumbaa@2026') { onLogin({ username:'dhirumbaa',  full_name:'System Admin',    department:'super_admin',  role:'super_admin',  can_upload:true, can_edit:true, can_approve:true, notify_eta:true, can_delete:true, can_manage_users:true  }); setLoading(false); return }
+    if (u==='baros.admin'&& p==='Baros@2026')     { onLogin({ username:'baros.admin', full_name:'Resort Admin',   department:'resort_admin', role:'resort_admin', can_upload:true, can_edit:true, can_approve:true, notify_eta:true, can_delete:true, can_manage_users:true  }); setLoading(false); return }
+
+    // Check Supabase staff_users table
+    try {
+      const { data, error:err } = await sb.from('staff_users')
+        .select('*')
+        .eq('username', u)
+        .eq('password_hash', p)
+        .eq('active', true)
+        .single()
+      if (data && !err) {
+        onLogin({ ...data, username: u })
+        setLoading(false); return
+      }
+    } catch(e) {}
+
+    setError('Invalid username or password')
     setLoading(false)
   }
 
@@ -321,8 +457,23 @@ function LoginPage({ onLogin }) {
             </button>
           </form>
           <div style={{ marginTop:32, padding:'14px 16px', background:'rgba(255,255,255,0.03)', borderRadius:6, border:'0.5px solid rgba(255,255,255,0.06)', fontSize:11, color:'rgba(255,255,255,0.25)' }}>
-            <div>Super Admin: <span style={{ color:'rgba(255,255,255,0.4)' }}>dhirumbaa / Dhirumbaa@2026</span></div>
-            <div style={{ marginTop:4 }}>Resort Admin: <span style={{ color:'rgba(255,255,255,0.4)' }}>baros.admin / Baros@2026</span></div>
+            <div style={{ marginBottom:6, color:'rgba(255,255,255,0.35)' }}>Department logins:</div>
+            {[
+              ['transport.manager','Transport@2026','Transport Mgr'],
+              ['frontoffice','FrontOffice@2026','Front Office'],
+              ['activities','Activities@2026','Activities'],
+              ['diving','Diving@2026','Diving'],
+              ['marina','Marina@2026','Marina'],
+            ].map(([u,p,l]) => (
+              <div key={u} style={{ marginTop:3, display:'flex', gap:8 }}>
+                <span style={{ color:'rgba(255,255,255,0.3)', minWidth:70 }}>{l}:</span>
+                <span style={{ color:'rgba(255,255,255,0.4)', fontFamily:'monospace', fontSize:10 }}>{u} / {p}</span>
+              </div>
+            ))}
+            <div style={{ marginTop:8, paddingTop:8, borderTop:'0.5px solid rgba(255,255,255,0.06)' }}>
+              <span style={{ color:'rgba(255,255,255,0.3)' }}>Admin: </span>
+              <span style={{ color:'rgba(255,255,255,0.4)', fontFamily:'monospace', fontSize:10 }}>dhirumbaa / Dhirumbaa@2026</span>
+            </div>
           </div>
         </div>
       </div>
@@ -744,7 +895,16 @@ const parseFile = async (file, catId, date) => {
 }
 
 // ─── Single upload card ───────────────────────────────────────────────────────
-function UploadCard({ cat, date, data, fr24Map, fr24Loading, onUpload, onRefreshFR24 }) {
+function UploadCard({ cat, date, data, fr24Map, fr24Loading, onUpload, onRefreshFR24, user }) {
+  const isSuperAdmin = ['super_admin','resort_admin'].includes(user?.role) || ['super_admin','resort_admin'].includes(user?.department)
+  const canUpload = isSuperAdmin || user?.can_upload ||
+    (['arrivals','departures'].includes(cat.id) && user?.department==='transport') ||
+    (cat.id==='excursions' && ['activities','transport'].includes(user?.department)) ||
+    (cat.id==='diving'     && ['diving','transport'].includes(user?.department)) ||
+    (cat.id==='snorkeling' && ['activities','diving','transport'].includes(user?.department)) ||
+    (cat.id==='fnb'        && ['fnb','transport'].includes(user?.department))
+  const canEdit   = isSuperAdmin || user?.can_edit || canUpload || user?.department==='marina'
+  const canDelete = isSuperAdmin || user?.can_delete
   const fileRef    = useRef()
   const [busy, setBusy]       = useState(false)
   const [msg,  setMsg]        = useState('')
@@ -805,11 +965,18 @@ function UploadCard({ cat, date, data, fr24Map, fr24Loading, onUpload, onRefresh
             </button>
           )}
           <input ref={fileRef} type="file" accept=".ods,.xlsx,.xls,.csv,.pdf,image/*" style={{ display:'none' }} onChange={e=>handleFile(e.target.files[0])} />
-          <button onClick={()=>fileRef.current.click()} disabled={busy}
-            style={{ padding:'6px 14px', borderRadius:6, border:`1.5px solid ${cat.color}`, background:hasData?'transparent':cat.color, color:hasData?cat.color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
-            {busy ? '⏳' : hasData ? '↻ Update' : '⬆ Upload'}
-          </button>
+          {canUpload && (
+            <button onClick={()=>fileRef.current.click()} disabled={busy}
+              style={{ padding:'6px 14px', borderRadius:6, border:`1.5px solid ${cat.color}`, background:hasData?'transparent':cat.color, color:hasData?cat.color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
+              {busy ? '⏳' : hasData ? '↻ Update' : '⬆ Upload'}
+            </button>
+          )}
         </div>
+        {user?.can_approve && hasData && cat.id==='arrivals' && (
+          <button onClick={async e=>{e.stopPropagation();try{await sb.from('boat_schedule').update({status:'confirmed',approved_by:user.username,approved_at:new Date().toISOString()}).eq('resort_id',BAROS_RESORT_ID).eq('schedule_date',date).eq('type',cat.id);setMsg('✓ Schedule approved')}catch(e){setMsg('Error approving')}}} style={{ padding:'5px 12px',borderRadius:6,border:'1.5px solid #059669',background:'transparent',color:'#059669',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap' }}>
+            ✓ Approve
+          </button>
+        )}
         {hasData && <span style={{ color:B.textMuted, fontSize:11 }}>{open?'▲':'▼'}</span>}
       </div>
 
@@ -948,7 +1115,7 @@ function SchedTable({ rows, catId, fr24Map, vessels, setVessels }) {
 }
 
 // ─── Main Scheduler View ───────────────────────────────────────────────────────
-function SchedulerView({ isMobile }) {
+function SchedulerView({ isMobile, user }) {
   const today    = new Date().toLocaleDateString('en-CA', { timeZone:'Indian/Maldives' })
   const tomorrow = new Date(Date.now()+86400000).toLocaleDateString('en-CA', { timeZone:'Indian/Maldives' })
 
@@ -1124,6 +1291,7 @@ function SchedulerView({ isMobile }) {
                 fr24Loading={fr24Loading}
                 onUpload={(_catId, rows) => handleUpload(cat.id, rows)}
                 onRefreshFR24={fetchFR24}
+                user={user}
               />
             ))}
           </div>
@@ -1889,11 +2057,12 @@ export default function DhirumbaaFMS() {
           </>
         )}
         <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:isMobile?8:12 }}>
+          <NotificationBell user={user} />
           <div style={{ display:'flex', alignItems:'center', gap:6, padding:isMobile?'4px 8px':'5px 12px', background:'rgba(255,255,255,0.06)', borderRadius:99, border:'0.5px solid rgba(255,255,255,0.1)' }}>
-            <div style={{ width:isMobile?20:22, height:isMobile?20:22, borderRadius:'50%', background:B.gold, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:600, color:B.midnight }}>
-              {user.username.slice(0,2).toUpperCase()}
+            <div style={{ width:isMobile?20:22, height:isMobile?20:22, borderRadius:'50%', background:(DEPT_COLORS&&DEPT_COLORS[user.department])||B.gold, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:600, color:'#fff' }}>
+              {(user.full_name||user.username).slice(0,2).toUpperCase()}
             </div>
-            {!isMobile && <span style={{ fontSize:12, color:'rgba(255,255,255,0.7)' }}>{user.username}</span>}
+            {!isMobile && <div><div style={{ fontSize:12, color:'rgba(255,255,255,0.8)', fontWeight:500 }}>{user.full_name||user.username}</div><div style={{ fontSize:9, color:'rgba(255,255,255,0.35)' }}>{(DEPT_LABELS&&DEPT_LABELS[user.department])||''}</div></div>}
           </div>
           <button onClick={logout} style={{ padding:isMobile?'4px 10px':'5px 14px', border:'0.5px solid rgba(255,255,255,0.15)', borderRadius:99, background:'transparent', color:'rgba(255,255,255,0.55)', cursor:'pointer', fontSize:11 }}>
             {isMobile ? '↩' : 'Sign out'}
@@ -1929,7 +2098,7 @@ export default function DhirumbaaFMS() {
           <div style={{ flex:1 }}>
             {nav==='dashboard' && <Dashboard user={user} isMobile={isMobile} />}
             {nav==='flights'   && <FlightTrackerView isMobile={isMobile} />}
-            {nav==='scheduler' && <SchedulerView isMobile={isMobile} />}
+            {nav==='scheduler' && <SchedulerView isMobile={isMobile} user={user} />}
             {nav==='roster'    && <RosterView user={user} isMobile={isMobile} />}
             {nav==='vessels'   && <VesselsView isMobile={isMobile} />}
             {nav==='team'      && <TeamView isMobile={isMobile} />}
@@ -1968,5 +2137,3 @@ export default function DhirumbaaFMS() {
     </div>
   )
 }
-
-
