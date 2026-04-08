@@ -1929,75 +1929,519 @@ function FlightTrackerView({ isMobile }) {
 }
 
 
-// ─── Vessels View ────────────────────────────────────────────────────────────
-function VesselsView({ isMobile }) {
-  const [vessels, setVessels] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name:'', type:'', capacity:'', status:'active', notes:'' })
+// ─── Vessels View ─────────────────────────────────────────────────────────────
+
+const VESSEL_TYPES = ['Speedboat','Dhoni','Yacht','Ferry','Catamaran','Tender','RIB','Supply Boat','Other']
+const FUEL_TYPES   = ['Diesel','Petrol','Hybrid','Electric','Other']
+const SEA_STATUS   = ['valid','expired','under_maintenance']
+const SEA_COLORS   = { valid:'#059669', expired:'#DC2626', under_maintenance:'#D97706' }
+const SEA_LABELS   = { valid:'Seaworthy', expired:'Expired', under_maintenance:'Under Maintenance' }
+
+const ALL_ACTIVITIES = [
+  { group:'Transfers', items:['Group Arrival Transfer','Group Departure Transfer','Private Arrival Transfer','Private Departure Transfer','Group Luxury Arrival','Group Luxury Departure','Luxury Yacht Arrival','Luxury Yacht Departure'] },
+  { group:'Water Activities', items:['Dolphin Watching','Sunset Cruise','Handline Trolling','Sunset Fishing','Local Island Discovery','Snorkeling Safari','Diving (Single)','Diving (Double)','Manta Snorkeling','Turtle Snorkeling','Sting Ray Snorkeling'] },
+  { group:'Dining & Cruises', items:['Nooma Cruise','Nooma Dinner','Nooma Breakfast','Nooma Moonlight Cruise','Piano Breakfast','Piano Lunch','Piano Dinner'] },
+  { group:'Fishing', items:['Big Game Fishing Morning','Big Game Fishing Afternoon'] },
+  { group:'Private Charters', items:['Serenity Half Day','Serenity Full Day','Serenity Dolphin Cruise','Boat Hire','Male Sightseeing','Diving by Design'] },
+  { group:'Operations', items:['Staff Ferry','Band Boat','Male Supply','Airport Supply','Gas & Chemical','Male Custom','Liquor Supply'] },
+]
+
+const EMPTY_ENGINE = { brand:'', model:'', serial_number:'', power_hp:'', running_hours:'', last_overhaul:'', fuel_consumption_hr:'', notes:'' }
+const EMPTY_GEN    = { brand:'', model:'', running_hours:'', last_service:'', capacity_kw:'', notes:'' }
+const EMPTY_VESSEL = {
+  name:'', vessel_type:'', length_m:'', beam_m:'', draft_m:'', year_built:'',
+  registry_port:'', registry_country:'', seaworthiness:'valid', max_pax:'',
+  fuel_type:'diesel', fuel_tank_capacity:'', avg_consumption_hr:'',
+  last_dry_dock:'', next_dry_dock:'', maintenance_notes:'',
+  avg_fuel_per_trip:'', avg_trip_duration:'', cost_per_hour:'', cost_per_trip:'',
+  activities:[], status:'active', notes:''
+}
+
+function VesselForm({ vessel, onSave, onCancel, isMobile }) {
+  const [tab,        setTab]        = useState('general')
+  const [form,       setForm]       = useState(vessel ? { ...EMPTY_VESSEL, ...vessel, activities: vessel.activities||[] } : { ...EMPTY_VESSEL })
+  const [engines,    setEngines]    = useState([{ ...EMPTY_ENGINE }])
+  const [generators, setGenerators] = useState([{ ...EMPTY_GEN }])
+  const [saving,     setSaving]     = useState(false)
+  const [errors,     setErrors]     = useState({})
 
   useEffect(() => {
-    sb.from('fleet').select('*').eq('resort_id', BAROS_RESORT_ID).then(({ data }) => {
-      if (data) setVessels(data)
-      setLoading(false)
-    })
-  }, [])
+    if (vessel?.id) {
+      sb.from('vessel_engines').select('*').eq('vessel_id', vessel.id).order('engine_number').then(({ data }) => {
+        if (data && data.length > 0) setEngines(data)
+      })
+      sb.from('vessel_generators').select('*').eq('vessel_id', vessel.id).order('gen_number').then(({ data }) => {
+        if (data && data.length > 0) setGenerators(data)
+      })
+    }
+  }, [vessel])
+
+  const setF = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const validate = () => {
+    const e = {}
+    if (!form.name?.trim()) e.name = 'Required'
+    if (!form.vessel_type)   e.vessel_type = 'Required'
+    if (!form.max_pax)       e.max_pax = 'Required'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
 
   const save = async () => {
-    const { data } = await sb.from('fleet').insert({ ...form, resort_id: BAROS_RESORT_ID }).select().single()
-    if (data) { setVessels(v => [...v, data]); setShowForm(false); setForm({ name:'', type:'', capacity:'', status:'active', notes:'' }) }
+    if (!validate()) { setTab('general'); return }
+    setSaving(true)
+    try {
+      const payload = { ...form, resort_id: BAROS_RESORT_ID }
+      delete payload.id; delete payload.created_at
+
+      let vesselId = vessel?.id
+      if (vesselId) {
+        await sb.from('fleet').update(payload).eq('id', vesselId)
+      } else {
+        const { data } = await sb.from('fleet').insert(payload).select().single()
+        vesselId = data.id
+      }
+
+      // Save engines
+      await sb.from('vessel_engines').delete().eq('vessel_id', vesselId)
+      const engData = engines.filter(e => e.brand || e.model).map((e, i) => ({ ...e, vessel_id: vesselId, resort_id: BAROS_RESORT_ID, engine_number: i+1 }))
+      if (engData.length > 0) await sb.from('vessel_engines').insert(engData)
+
+      // Save generators
+      await sb.from('vessel_generators').delete().eq('vessel_id', vesselId)
+      const genData = generators.filter(g => g.brand || g.model).map((g, i) => ({ ...g, vessel_id: vesselId, resort_id: BAROS_RESORT_ID, gen_number: i+1 }))
+      if (genData.length > 0) await sb.from('vessel_generators').insert(genData)
+
+      onSave()
+    } catch(e) { console.error(e) }
+    setSaving(false)
   }
 
-  const del = async (id) => {
-    await sb.from('fleet').delete().eq('id', id)
-    setVessels(v => v.filter(x => x.id !== id))
+  const toggleActivity = (act) => {
+    const acts = form.activities || []
+    setF('activities', acts.includes(act) ? acts.filter(a => a !== act) : [...acts, act])
   }
+
+  const TABS = [
+    { id:'general',     label:'General',     icon:'⛵' },
+    { id:'engines',     label:'Engines',     icon:'⚙️' },
+    { id:'generators',  label:'Generator',   icon:'🔋' },
+    { id:'fuel',        label:'Fuel & Maint',icon:'⛽' },
+    { id:'activities',  label:'Activities',  icon:'🤿' },
+    { id:'metrics',     label:'Metrics',     icon:'📊' },
+  ]
+
+  const Field = ({ label, error, children }) => (
+    <div>
+      <div style={{ fontSize:11, fontWeight:500, color: error ? '#DC2626' : B.textMuted, marginBottom:4, textTransform:'uppercase', letterSpacing:'.7px' }}>{label}{error ? ` — ${error}` : ''}</div>
+      {children}
+    </div>
+  )
+
+  const Input = ({ k, type='text', placeholder='', ...rest }) => (
+    <input type={type} value={form[k]||''} onChange={e=>setF(k, e.target.value)} placeholder={placeholder}
+      style={{ ...INP, borderColor: errors[k] ? '#DC2626' : undefined }} {...rest} />
+  )
+
+  const Select = ({ k, options, labels }) => (
+    <select value={form[k]||''} onChange={e=>setF(k, e.target.value)} style={INP}>
+      <option value="">Select...</option>
+      {options.map(o => <option key={o} value={o}>{labels?.[o]||o}</option>)}
+    </select>
+  )
+
+  const G = ({ children, cols=2 }) => (
+    <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${cols}, 1fr)`, gap:14 }}>
+      {children}
+    </div>
+  )
 
   return (
-    <div>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
-        <div><div style={{ fontSize:18, fontWeight:600 }}>⛵ Vessels</div><div style={{ fontSize:12, color:B.textSecond }}>Fleet management</div></div>
-        <button onClick={() => setShowForm(s => !s)} style={BTN_PRIMARY}>+ Add Vessel</button>
+    <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:12, overflow:'hidden' }}>
+      {/* Form header */}
+      <div style={{ background:B.freshPalm, padding:'16px 20px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div>
+          <div style={{ fontSize:16, fontWeight:600, color:'#fff' }}>{vessel?.id ? `Edit — ${vessel.name}` : 'Add New Vessel'}</div>
+          <div style={{ fontSize:11, color:'rgba(255,255,255,0.5)', marginTop:2 }}>Baros Maldives Fleet</div>
+        </div>
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={onCancel} style={{ padding:'6px 14px', borderRadius:6, border:'1px solid rgba(255,255,255,0.3)', background:'transparent', color:'rgba(255,255,255,0.7)', fontSize:12, cursor:'pointer' }}>Cancel</button>
+          <button onClick={save} disabled={saving} style={{ padding:'6px 14px', borderRadius:6, border:'none', background:B.gold, color:B.midnight, fontSize:12, fontWeight:600, cursor:'pointer' }}>
+            {saving ? 'Saving…' : '✓ Save Vessel'}
+          </button>
+        </div>
       </div>
-      {showForm && (
-        <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:10, padding:20, marginBottom:16 }}>
-          <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr':'1fr 1fr', gap:12 }}>
-            {[['name','Name'],['type','Type'],['capacity','Capacity'],['notes','Notes']].map(([k,l]) => (
-              <div key={k}>
-                <div style={{ fontSize:11, color:B.textMuted, marginBottom:4 }}>{l}</div>
-                <input value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} style={INP} />
+
+      {/* Tabs */}
+      <div style={{ display:'flex', overflowX:'auto', borderBottom:`0.5px solid ${B.border}`, background:B.pearl }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ padding:'10px 16px', border:'none', background:'transparent', cursor:'pointer', whiteSpace:'nowrap', fontSize:12, fontWeight: tab===t.id?600:400, color: tab===t.id?B.freshPalm:B.textSecond, borderBottom: tab===t.id?`2px solid ${B.freshPalm}`:'2px solid transparent', display:'flex', alignItems:'center', gap:5 }}>
+            <span>{t.icon}</span> {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ padding:20 }}>
+
+        {/* ── GENERAL ── */}
+        {tab === 'general' && (
+          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+            <G cols={3}>
+              <Field label="Vessel Name *" error={errors.name}><Input k="name" placeholder="e.g. Ixora" /></Field>
+              <Field label="Vessel Type *" error={errors.vessel_type}><Select k="vessel_type" options={VESSEL_TYPES} /></Field>
+              <Field label="Status">
+                <select value={form.status||'active'} onChange={e=>setF('status',e.target.value)} style={INP}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="maintenance">Maintenance</option>
+                </select>
+              </Field>
+            </G>
+            <G cols={4}>
+              <Field label="Length (m)"><Input k="length_m" type="number" placeholder="0.0" /></Field>
+              <Field label="Beam / Width (m)"><Input k="beam_m" type="number" placeholder="0.0" /></Field>
+              <Field label="Draft (m)"><Input k="draft_m" type="number" placeholder="0.0" /></Field>
+              <Field label="Year Built"><Input k="year_built" type="number" placeholder="2020" /></Field>
+            </G>
+            <G cols={3}>
+              <Field label="Max Passengers *" error={errors.max_pax}><Input k="max_pax" type="number" placeholder="12" /></Field>
+              <Field label="Registry Port"><Input k="registry_port" placeholder="e.g. Male" /></Field>
+              <Field label="Registry Country"><Input k="registry_country" placeholder="e.g. Maldives" /></Field>
+            </G>
+            <Field label="Seaworthiness Status">
+              <div style={{ display:'flex', gap:10 }}>
+                {SEA_STATUS.map(s => (
+                  <button key={s} onClick={() => setF('seaworthiness', s)} style={{ padding:'6px 14px', borderRadius:99, border:`1.5px solid ${form.seaworthiness===s ? SEA_COLORS[s] : B.border}`, background: form.seaworthiness===s ? SEA_COLORS[s]+'15' : 'transparent', color: form.seaworthiness===s ? SEA_COLORS[s] : B.textSecond, fontSize:12, fontWeight: form.seaworthiness===s?600:400, cursor:'pointer' }}>
+                    {SEA_LABELS[s]}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <Field label="Notes / Remarks">
+              <textarea value={form.notes||''} onChange={e=>setF('notes',e.target.value)} placeholder="Additional notes..." rows={3} style={{ ...INP, resize:'vertical' }} />
+            </Field>
+          </div>
+        )}
+
+        {/* ── ENGINES ── */}
+        {tab === 'engines' && (
+          <div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+              <div style={{ fontSize:13, color:B.textSecond }}>{engines.length} engine{engines.length!==1?'s':''} configured</div>
+              <button onClick={() => setEngines(e => [...e, { ...EMPTY_ENGINE }])} style={{ ...BTN_PRIMARY, fontSize:12, padding:'6px 14px' }}>+ Add Engine</button>
+            </div>
+            {engines.map((eng, i) => (
+              <div key={i} style={{ background:B.pearl, border:`0.5px solid ${B.border}`, borderRadius:10, padding:16, marginBottom:12 }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                  <div style={{ fontWeight:600, fontSize:13, color:B.textPrimary }}>Engine {i+1}</div>
+                  {engines.length > 1 && (
+                    <button onClick={() => setEngines(e => e.filter((_,j) => j!==i))} style={{ background:'transparent', border:`0.5px solid #DC2626`, borderRadius:5, color:'#DC2626', fontSize:11, cursor:'pointer', padding:'3px 10px' }}>Remove</button>
+                  )}
+                </div>
+                <G cols={3}>
+                  {[['brand','Brand','e.g. Yamaha'],['model','Model / Make','e.g. F350'],['serial_number','Serial Number','']].map(([k,l,p]) => (
+                    <Field key={k} label={l}>
+                      <input value={eng[k]||''} onChange={e=>setEngines(es=>es.map((x,j)=>j===i?{...x,[k]:e.target.value}:x))} placeholder={p} style={INP} />
+                    </Field>
+                  ))}
+                  {[['power_hp','Power (HP)'],['running_hours','Running Hours'],['fuel_consumption_hr','Fuel Use (L/hr)']].map(([k,l]) => (
+                    <Field key={k} label={l}>
+                      <input type="number" value={eng[k]||''} onChange={e=>setEngines(es=>es.map((x,j)=>j===i?{...x,[k]:e.target.value}:x))} style={INP} />
+                    </Field>
+                  ))}
+                  <Field label="Last Overhaul Date">
+                    <input type="date" value={eng.last_overhaul||''} onChange={e=>setEngines(es=>es.map((x,j)=>j===i?{...x,last_overhaul:e.target.value}:x))} style={INP} />
+                  </Field>
+                  <Field label="Notes">
+                    <input value={eng.notes||''} onChange={e=>setEngines(es=>es.map((x,j)=>j===i?{...x,notes:e.target.value}:x))} style={INP} />
+                  </Field>
+                </G>
               </div>
             ))}
           </div>
-          <div style={{ marginTop:12, display:'flex', gap:8 }}>
-            <button onClick={save} style={BTN_PRIMARY}>Save</button>
-            <button onClick={() => setShowForm(false)} style={{ ...BTN_PRIMARY, background:'transparent', color:B.textSecond, border:`0.5px solid ${B.border}` }}>Cancel</button>
-          </div>
-        </div>
-      )}
-      {loading ? <div style={{ padding:40, textAlign:'center', color:B.textMuted }}>Loading...</div> : (
-        <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr':'1fr 1fr', gap:12 }}>
-          {vessels.map(v => (
-            <div key={v.id} style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:10, padding:16 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                <div>
-                  <div style={{ fontWeight:600, fontSize:15 }}>{v.name}</div>
-                  <div style={{ fontSize:12, color:B.textSecond, marginTop:2 }}>{v.type} · Cap: {v.capacity}</div>
-                  {v.notes && <div style={{ fontSize:11, color:B.textMuted, marginTop:4 }}>{v.notes}</div>}
+        )}
+
+        {/* ── GENERATORS ── */}
+        {tab === 'generators' && (
+          <div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+              <div style={{ fontSize:13, color:B.textSecond }}>{generators.length} generator{generators.length!==1?'s':''} configured</div>
+              <button onClick={() => setGenerators(g => [...g, { ...EMPTY_GEN }])} style={{ ...BTN_PRIMARY, fontSize:12, padding:'6px 14px' }}>+ Add Generator</button>
+            </div>
+            {generators.map((gen, i) => (
+              <div key={i} style={{ background:B.pearl, border:`0.5px solid ${B.border}`, borderRadius:10, padding:16, marginBottom:12 }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                  <div style={{ fontWeight:600, fontSize:13, color:B.textPrimary }}>Generator {i+1}</div>
+                  {generators.length > 1 && (
+                    <button onClick={() => setGenerators(g => g.filter((_,j) => j!==i))} style={{ background:'transparent', border:`0.5px solid #DC2626`, borderRadius:5, color:'#DC2626', fontSize:11, cursor:'pointer', padding:'3px 10px' }}>Remove</button>
+                  )}
                 </div>
-                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                  <span style={{ fontSize:10, padding:'2px 8px', borderRadius:99, background: v.status==='active'?'#ECFDF5':'#FEF2F2', color: v.status==='active'?'#059669':'#DC2626', fontWeight:600 }}>{v.status}</span>
-                  <button onClick={() => del(v.id)} style={{ background:'transparent', border:'none', color:'#DC2626', cursor:'pointer', fontSize:14 }}>×</button>
+                <G cols={3}>
+                  {[['brand','Brand'],['model','Model / Make'],['capacity_kw','Capacity (KW)'],['running_hours','Running Hours']].map(([k,l]) => (
+                    <Field key={k} label={l}>
+                      <input value={gen[k]||''} onChange={e=>setGenerators(gs=>gs.map((x,j)=>j===i?{...x,[k]:e.target.value}:x))} style={INP} />
+                    </Field>
+                  ))}
+                  <Field label="Last Service Date">
+                    <input type="date" value={gen.last_service||''} onChange={e=>setGenerators(gs=>gs.map((x,j)=>j===i?{...x,last_service:e.target.value}:x))} style={INP} />
+                  </Field>
+                  <Field label="Notes">
+                    <input value={gen.notes||''} onChange={e=>setGenerators(gs=>gs.map((x,j)=>j===i?{...x,notes:e.target.value}:x))} style={INP} />
+                  </Field>
+                </G>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── FUEL & MAINTENANCE ── */}
+        {tab === 'fuel' && (
+          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:B.textPrimary, borderBottom:`0.5px solid ${B.border}`, paddingBottom:8 }}>⛽ Fuel</div>
+            <G cols={3}>
+              <Field label="Fuel Type"><Select k="fuel_type" options={FUEL_TYPES} /></Field>
+              <Field label="Tank Capacity (L)"><Input k="fuel_tank_capacity" type="number" /></Field>
+              <Field label="Avg Consumption (L/hr)"><Input k="avg_consumption_hr" type="number" /></Field>
+            </G>
+            <div style={{ fontSize:13, fontWeight:600, color:B.textPrimary, borderBottom:`0.5px solid ${B.border}`, paddingBottom:8, marginTop:8 }}>🔧 Maintenance</div>
+            <G cols={2}>
+              <Field label="Last Dry Dock"><Input k="last_dry_dock" type="date" /></Field>
+              <Field label="Next Dry Dock Due"><Input k="next_dry_dock" type="date" /></Field>
+            </G>
+            <Field label="Maintenance Notes">
+              <textarea value={form.maintenance_notes||''} onChange={e=>setF('maintenance_notes',e.target.value)} rows={4} placeholder="Maintenance history and upcoming tasks..." style={{ ...INP, resize:'vertical' }} />
+            </Field>
+          </div>
+        )}
+
+        {/* ── ACTIVITIES ── */}
+        {tab === 'activities' && (
+          <div>
+            <div style={{ fontSize:12, color:B.textSecond, marginBottom:14 }}>
+              Select all activities this vessel can perform. <strong>{(form.activities||[]).length}</strong> selected.
+            </div>
+            {ALL_ACTIVITIES.map(group => (
+              <div key={group.group} style={{ marginBottom:20 }}>
+                <div style={{ fontSize:11, fontWeight:600, color:B.textMuted, textTransform:'uppercase', letterSpacing:'1px', marginBottom:8 }}>{group.group}</div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                  {group.items.map(act => {
+                    const sel = (form.activities||[]).includes(act)
+                    return (
+                      <button key={act} onClick={() => toggleActivity(act)} style={{ padding:'5px 12px', borderRadius:99, border:`1.5px solid ${sel ? B.freshPalm : B.border}`, background: sel ? B.freshPalm : 'transparent', color: sel ? '#fff' : B.textSecond, fontSize:12, cursor:'pointer', fontWeight: sel?500:400, transition:'all .15s' }}>
+                        {sel ? '✓ ' : ''}{act}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── METRICS ── */}
+        {tab === 'metrics' && (
+          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+            <div style={{ fontSize:12, color:B.textSecond, marginBottom:4 }}>Operational cost and performance data</div>
+            <G cols={2}>
+              <Field label="Avg Fuel Per Trip (L)"><Input k="avg_fuel_per_trip" type="number" /></Field>
+              <Field label="Avg Trip Duration (hrs)"><Input k="avg_trip_duration" type="number" /></Field>
+              <Field label="Cost Per Hour (MVR)"><Input k="cost_per_hour" type="number" /></Field>
+              <Field label="Cost Per Trip (MVR)"><Input k="cost_per_trip" type="number" /></Field>
+            </G>
+          </div>
+        )}
+
+      </div>
+    </div>
+  )
+}
+
+function VesselCard({ vessel, engines, onEdit, onDelete }) {
+  const [open, setOpen] = useState(false)
+  const statusColor = vessel.status==='active'?'#059669':vessel.status==='maintenance'?'#D97706':'#DC2626'
+  const statusBg    = vessel.status==='active'?'#ECFDF5':vessel.status==='maintenance'?'#FFF7ED':'#FEF2F2'
+  const seaColor    = SEA_COLORS[vessel.seaworthiness] || '#6B7280'
+
+  return (
+    <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:12, overflow:'hidden', boxShadow:'0 1px 4px rgba(0,0,0,0.05)' }}>
+      <div style={{ padding:'14px 16px', display:'flex', alignItems:'center', gap:12 }}>
+        <div style={{ width:44, height:44, borderRadius:10, background:B.freshPalm+'15', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>⛵</div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontWeight:700, fontSize:15, color:B.textPrimary }}>{vessel.name}</div>
+          <div style={{ fontSize:12, color:B.textSecond, marginTop:2 }}>
+            {vessel.vessel_type} · {vessel.max_pax} pax · {engines?.length || 0} engine{engines?.length!==1?'s':''}
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+          <span style={{ fontSize:10, padding:'2px 9px', borderRadius:99, background:statusBg, color:statusColor, fontWeight:600 }}>{vessel.status}</span>
+          <span style={{ fontSize:10, padding:'2px 9px', borderRadius:99, background:seaColor+'15', color:seaColor, fontWeight:600 }}>{SEA_LABELS[vessel.seaworthiness]||vessel.seaworthiness}</span>
+        </div>
+        <div style={{ display:'flex', gap:6 }}>
+          <button onClick={onEdit} style={{ padding:'5px 12px', borderRadius:6, border:`0.5px solid ${B.freshPalm}`, background:'transparent', color:B.freshPalm, fontSize:11, fontWeight:600, cursor:'pointer' }}>Edit</button>
+          <button onClick={() => setOpen(o => !o)} style={{ padding:'5px 10px', borderRadius:6, border:`0.5px solid ${B.border}`, background:'transparent', color:B.textSecond, fontSize:11, cursor:'pointer' }}>{open?'▲':'▼'}</button>
+        </div>
+      </div>
+
+      {open && (
+        <div style={{ borderTop:`0.5px solid ${B.border}`, padding:'14px 16px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:14 }}>
+            {[
+              ['Length', vessel.length_m ? vessel.length_m+'m' : '—'],
+              ['Beam',   vessel.beam_m   ? vessel.beam_m+'m'   : '—'],
+              ['Draft',  vessel.draft_m  ? vessel.draft_m+'m'  : '—'],
+              ['Year Built', vessel.year_built || '—'],
+              ['Fuel Tank',  vessel.fuel_tank_capacity ? vessel.fuel_tank_capacity+'L' : '—'],
+              ['Consumption', vessel.avg_consumption_hr ? vessel.avg_consumption_hr+'L/hr' : '—'],
+              ['Last Dry Dock', vessel.last_dry_dock || '—'],
+              ['Next Dry Dock', vessel.next_dry_dock || '—'],
+              ['Registry', vessel.registry_port ? `${vessel.registry_port}, ${vessel.registry_country||''}` : '—'],
+            ].map(([l,v]) => (
+              <div key={l}>
+                <div style={{ fontSize:10, color:B.textMuted, textTransform:'uppercase', letterSpacing:'.7px' }}>{l}</div>
+                <div style={{ fontSize:13, fontWeight:500, color:B.textPrimary, marginTop:2 }}>{v}</div>
+              </div>
+            ))}
+          </div>
+
+          {engines && engines.length > 0 && (
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize:11, fontWeight:600, color:B.textMuted, textTransform:'uppercase', letterSpacing:'1px', marginBottom:8 }}>Engines</div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {engines.map((e,i) => (
+                  <div key={i} style={{ background:B.pearl, borderRadius:8, padding:'8px 12px', fontSize:12 }}>
+                    <div style={{ fontWeight:600 }}>Engine {i+1}: {e.brand} {e.model}</div>
+                    <div style={{ fontSize:11, color:B.textSecond }}>{e.power_hp}HP · {e.running_hours}hrs · Last overhaul: {e.last_overhaul||'—'}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
-          {vessels.length === 0 && <div style={{ padding:40, textAlign:'center', color:B.textMuted, gridColumn:'1/-1' }}>No vessels added yet</div>}
+          )}
+
+          {vessel.activities && vessel.activities.length > 0 && (
+            <div>
+              <div style={{ fontSize:11, fontWeight:600, color:B.textMuted, textTransform:'uppercase', letterSpacing:'1px', marginBottom:8 }}>Activities ({vessel.activities.length})</div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                {vessel.activities.map(a => (
+                  <span key={a} style={{ fontSize:11, padding:'2px 9px', borderRadius:99, background:B.freshPalm+'15', color:B.freshPalm, fontWeight:500 }}>{a}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {vessel.notes && <div style={{ marginTop:12, fontSize:12, color:B.textSecond, fontStyle:'italic' }}>{vessel.notes}</div>}
+
+          <div style={{ marginTop:12, paddingTop:10, borderTop:`0.5px solid ${B.border}`, display:'flex', justifyContent:'flex-end' }}>
+            <button onClick={onDelete} style={{ padding:'5px 14px', borderRadius:6, border:'0.5px solid #DC2626', background:'transparent', color:'#DC2626', fontSize:11, cursor:'pointer' }}>Delete Vessel</button>
+          </div>
         </div>
       )}
     </div>
   )
 }
+
+function VesselsView({ isMobile }) {
+  const [vessels,  setVessels]  = useState([])
+  const [engines,  setEngines]  = useState({})  // vesselId → engines[]
+  const [loading,  setLoading]  = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [editing,  setEditing]  = useState(null)
+  const [filter,   setFilter]   = useState('all')
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const { data: vData } = await sb.from('fleet').select('*').eq('resort_id', BAROS_RESORT_ID).order('name')
+      if (vData) {
+        setVessels(vData)
+        // Load engines for all vessels
+        const ids = vData.map(v => v.id)
+        if (ids.length > 0) {
+          const { data: eData } = await sb.from('vessel_engines').select('*').in('vessel_id', ids).order('engine_number')
+          if (eData) {
+            const map = {}
+            eData.forEach(e => { if (!map[e.vessel_id]) map[e.vessel_id] = []; map[e.vessel_id].push(e) })
+            setEngines(map)
+          }
+        }
+      }
+    } catch(e) {}
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  const handleSave = () => { setShowForm(false); setEditing(null); load() }
+
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this vessel?')) return
+    await sb.from('fleet').delete().eq('id', id)
+    setVessels(v => v.filter(x => x.id !== id))
+  }
+
+  const filtered = filter === 'all' ? vessels : vessels.filter(v => v.status === filter)
+  const activeCount = vessels.filter(v => v.status === 'active').length
+  const maintCount  = vessels.filter(v => v.status === 'maintenance').length
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ background:B.freshPalm, borderRadius:10, padding:isMobile?'14px':'18px 24px', marginBottom:16 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
+          <div>
+            <div style={{ fontSize:10, letterSpacing:'2px', color:'rgba(255,255,255,0.4)', textTransform:'uppercase', marginBottom:4 }}>Baros Maldives</div>
+            <div style={{ fontSize:isMobile?16:22, fontWeight:600, color:'#fff' }}>Vessel Management</div>
+            <div style={{ fontSize:11, color:'rgba(255,255,255,0.5)', marginTop:2 }}>Fleet overview · {vessels.length} vessels</div>
+          </div>
+          <button onClick={() => { setEditing(null); setShowForm(true) }} style={{ padding:'8px 20px', borderRadius:7, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.1)', color:'#fff', fontSize:13, fontWeight:500, cursor:'pointer' }}>
+            + Add Vessel
+          </button>
+        </div>
+        <div style={{ display:'flex', gap:10, marginTop:14, flexWrap:'wrap' }}>
+          {[
+            { id:'all',         label:'All',         val:vessels.length,  color:'rgba(255,255,255,0.7)' },
+            { id:'active',      label:'Active',       val:activeCount,     color:'#34D399' },
+            { id:'maintenance', label:'Maintenance',  val:maintCount,      color:'#FBBF24' },
+            { id:'inactive',    label:'Inactive',     val:vessels.length-activeCount-maintCount, color:'rgba(255,255,255,0.4)' },
+          ].map(s => (
+            <button key={s.id} onClick={() => setFilter(s.id)} style={{ padding:'6px 14px', borderRadius:7, border:`1.5px solid ${filter===s.id?s.color:'rgba(255,255,255,0.2)'}`, background:filter===s.id?'rgba(255,255,255,0.15)':'transparent', color:filter===s.id?s.color:'rgba(255,255,255,0.5)', fontSize:12, fontWeight:filter===s.id?600:400, cursor:'pointer' }}>
+              {s.label} {s.val > 0 ? `(${s.val})` : ''}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {showForm && (
+        <div style={{ marginBottom:16 }}>
+          <VesselForm vessel={editing} onSave={handleSave} onCancel={() => { setShowForm(false); setEditing(null) }} isMobile={isMobile} />
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ padding:48, textAlign:'center', color:B.textMuted }}>Loading fleet...</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ padding:48, textAlign:'center', color:B.textMuted, background:B.white, borderRadius:10, border:`0.5px solid ${B.border}` }}>
+          <div style={{ fontSize:36, marginBottom:12 }}>⛵</div>
+          <div style={{ fontWeight:500, marginBottom:6 }}>No vessels found</div>
+          <div style={{ fontSize:12 }}>Click "Add Vessel" to add your first vessel</div>
+        </div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          {filtered.map(v => (
+            <VesselCard
+              key={v.id}
+              vessel={v}
+              engines={engines[v.id]}
+              onEdit={() => { setEditing(v); setShowForm(true) }}
+              onDelete={() => handleDelete(v.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 
 // ─── Team View ────────────────────────────────────────────────────────────────
 function TeamView({ isMobile }) {
