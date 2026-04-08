@@ -773,14 +773,13 @@ const parseFile = async (file, catId, date) => {
         })
         Object.keys(lines).sort((a,b) => b-a).forEach(y => {
           const sorted = lines[y].sort((a,b) => a.x - b.x)
-          allText += sorted.map(i => i.text).join('	') + '
-'
+          allText += sorted.map(i => i.text).join('	') + '\n'
+
         })
       }
 
       // Parse text as TSV/table
-      const lines  = allText.split('
-').filter(l => l.trim())
+      const lines  = allText.split('\n').filter(l => l.trim())
       if (lines.length < 2) return { rows: [], note: 'Could not extract table data from PDF. Try saving as Excel.' }
 
       // Find header row (contains keywords like GUEST, ROOM, FLIGHT, PAX)
