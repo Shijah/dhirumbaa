@@ -1976,253 +1976,210 @@ function VGrid({ children, cols=2, isMobile }) {
 
 function VesselForm({ vessel, onSave, onCancel, isMobile }) {
   const [tab,        setTab]        = useState('general')
-  const [form,       setForm]       = useState(vessel ? { ...EMPTY_VESSEL, ...vessel, activities: vessel.activities||[] } : { ...EMPTY_VESSEL })
-  const [engines,    setEngines]    = useState([{ ...EMPTY_ENGINE }])
-  const [generators, setGenerators] = useState([{ ...EMPTY_GEN }])
   const [saving,     setSaving]     = useState(false)
-  const [errors,     setErrors]     = useState({})
+  const [engines,    setEngines]    = useState([{ brand:'', model:'', serial_number:'', power_hp:'', running_hours:'', last_overhaul:'', fuel_consumption_hr:'', notes:'' }])
+  const [generators, setGenerators] = useState([{ brand:'', model:'', running_hours:'', last_service:'', capacity_kw:'', notes:'' }])
+  const [activities, setActivities] = useState([])
+  const [f, setF2] = useState({
+    name:'', vessel_type:'', length_m:'', beam_m:'', draft_m:'', year_built:'',
+    registry_port:'', registry_country:'', seaworthiness:'valid', max_pax:'',
+    fuel_type:'diesel', fuel_tank_capacity:'', avg_consumption_hr:'',
+    last_dry_dock:'', next_dry_dock:'', maintenance_notes:'',
+    avg_fuel_per_trip:'', avg_trip_duration:'', cost_per_hour:'', cost_per_trip:'',
+    status:'active', notes:''
+  })
 
   useEffect(() => {
-    if (vessel?.id) {
-      sb.from('vessel_engines').select('*').eq('vessel_id', vessel.id).order('engine_number').then(({ data }) => {
-        if (data && data.length > 0) setEngines(data)
-      })
-      sb.from('vessel_generators').select('*').eq('vessel_id', vessel.id).order('gen_number').then(({ data }) => {
-        if (data && data.length > 0) setGenerators(data)
-      })
+    if (vessel) {
+      setF2(prev => ({ ...prev, ...vessel }))
+      setActivities(vessel.activities || [])
+      sb.from('vessel_engines').select('*').eq('vessel_id', vessel.id).then(({ data }) => { if (data?.length) setEngines(data) })
+      sb.from('vessel_generators').select('*').eq('vessel_id', vessel.id).then(({ data }) => { if (data?.length) setGenerators(data) })
     }
-  }, [vessel])
+  }, [])
 
-  const setF = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const upd = (k) => (e) => setF2(prev => ({ ...prev, [k]: e.target.value }))
+  const updEng = (i, k) => (e) => setEngines(prev => prev.map((x,j) => j===i ? {...x,[k]:e.target.value} : x))
+  const updGen = (i, k) => (e) => setGenerators(prev => prev.map((x,j) => j===i ? {...x,[k]:e.target.value} : x))
+  const toggleAct = (a) => setActivities(prev => prev.includes(a) ? prev.filter(x=>x!==a) : [...prev, a])
 
-  const validate = () => {
-    const e = {}
-    if (!form.name?.trim()) e.name = 'Required'
-    if (!form.vessel_type)   e.vessel_type = 'Required'
-    if (!form.max_pax)       e.max_pax = 'Required'
-    setErrors(e)
-    return Object.keys(e).length === 0
-  }
+  const inp = (k, type='text', ph='') => (
+    <input type={type} value={f[k]||''} onChange={upd(k)} placeholder={ph}
+      style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, outline:'none', boxSizing:'border-box', background:'#fff', color:B.textPrimary }} />
+  )
+  const sel = (k, opts) => (
+    <select value={f[k]||''} onChange={upd(k)}
+      style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, outline:'none', boxSizing:'border-box', background:'#fff', color:B.textPrimary }}>
+      <option value="">Select...</option>
+      {opts.map(o => <option key={o} value={o}>{o}</option>)}
+    </select>
+  )
+  const lbl = (text) => <div style={{ fontSize:10, fontWeight:600, color:B.textMuted, textTransform:'uppercase', letterSpacing:'.8px', marginBottom:4 }}>{text}</div>
+  const row = (cols, children) => <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr':`repeat(${cols},1fr)`, gap:12, marginBottom:12 }}>{children}</div>
+  const fld = (label, input) => <div>{lbl(label)}{input}</div>
 
   const save = async () => {
-    if (!validate()) { setTab('general'); return }
+    if (!f.name?.trim()) { alert('Vessel name is required'); setTab('general'); return }
     setSaving(true)
     try {
-      const payload = { ...form, resort_id: BAROS_RESORT_ID }
+      const payload = { ...f, activities, resort_id: BAROS_RESORT_ID }
       delete payload.id; delete payload.created_at
-
-      let vesselId = vessel?.id
-      if (vesselId) {
-        await sb.from('fleet').update(payload).eq('id', vesselId)
+      let vid = vessel?.id
+      if (vid) {
+        await sb.from('fleet').update(payload).eq('id', vid)
       } else {
         const { data } = await sb.from('fleet').insert(payload).select().single()
-        vesselId = data.id
+        vid = data.id
       }
-
-      // Save engines
-      await sb.from('vessel_engines').delete().eq('vessel_id', vesselId)
-      const engData = engines.filter(e => e.brand || e.model).map((e, i) => ({ ...e, vessel_id: vesselId, resort_id: BAROS_RESORT_ID, engine_number: i+1 }))
-      if (engData.length > 0) await sb.from('vessel_engines').insert(engData)
-
-      // Save generators
-      await sb.from('vessel_generators').delete().eq('vessel_id', vesselId)
-      const genData = generators.filter(g => g.brand || g.model).map((g, i) => ({ ...g, vessel_id: vesselId, resort_id: BAROS_RESORT_ID, gen_number: i+1 }))
-      if (genData.length > 0) await sb.from('vessel_generators').insert(genData)
-
+      await sb.from('vessel_engines').delete().eq('vessel_id', vid)
+      const ed = engines.filter(e=>e.brand||e.model).map((e,i)=>({...e,vessel_id:vid,resort_id:BAROS_RESORT_ID,engine_number:i+1}))
+      if (ed.length) await sb.from('vessel_engines').insert(ed)
+      await sb.from('vessel_generators').delete().eq('vessel_id', vid)
+      const gd = generators.filter(g=>g.brand||g.model).map((g,i)=>({...g,vessel_id:vid,resort_id:BAROS_RESORT_ID,gen_number:i+1}))
+      if (gd.length) await sb.from('vessel_generators').insert(gd)
       onSave()
-    } catch(e) { console.error(e) }
+    } catch(e) { alert('Error: ' + e.message) }
     setSaving(false)
   }
 
-  const toggleActivity = (act) => {
-    const acts = form.activities || []
-    setF('activities', acts.includes(act) ? acts.filter(a => a !== act) : [...acts, act])
-  }
-
-  const TABS = [
-    { id:'general',     label:'General',     icon:'⛵' },
-    { id:'engines',     label:'Engines',     icon:'⚙️' },
-    { id:'generators',  label:'Generator',   icon:'🔋' },
-    { id:'fuel',        label:'Fuel & Maint',icon:'⛽' },
-    { id:'activities',  label:'Activities',  icon:'🤿' },
-    { id:'metrics',     label:'Metrics',     icon:'📊' },
-  ]
-
-  // Field, Input, Select, G defined outside VesselForm to avoid re-render issues
+  const TABS = [['general','⛵ General'],['engines','⚙️ Engines'],['generators','🔋 Generator'],['fuel','⛽ Fuel & Maint'],['activities','🤿 Activities'],['metrics','📊 Metrics']]
+  const SEA = ['valid','expired','under_maintenance']
+  const SEA_L = { valid:'Seaworthy', expired:'Expired', under_maintenance:'Under Maintenance' }
+  const SEA_C = { valid:'#059669', expired:'#DC2626', under_maintenance:'#D97706' }
 
   return (
-    <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:12, overflow:'hidden' }}>
-      {/* Form header */}
-      <div style={{ background:B.freshPalm, padding:'16px 20px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div>
-          <div style={{ fontSize:16, fontWeight:600, color:'#fff' }}>{vessel?.id ? `Edit — ${vessel.name}` : 'Add New Vessel'}</div>
-          <div style={{ fontSize:11, color:'rgba(255,255,255,0.5)', marginTop:2 }}>Baros Maldives Fleet</div>
-        </div>
+    <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:12, overflow:'hidden', marginBottom:16 }}>
+      <div style={{ background:B.freshPalm, padding:'14px 20px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div style={{ fontSize:15, fontWeight:600, color:'#fff' }}>{vessel?.id ? 'Edit Vessel' : 'Add New Vessel'}</div>
         <div style={{ display:'flex', gap:8 }}>
-          <button onClick={onCancel} style={{ padding:'6px 14px', borderRadius:6, border:'1px solid rgba(255,255,255,0.3)', background:'transparent', color:'rgba(255,255,255,0.7)', fontSize:12, cursor:'pointer' }}>Cancel</button>
-          <button onClick={save} disabled={saving} style={{ padding:'6px 14px', borderRadius:6, border:'none', background:B.gold, color:B.midnight, fontSize:12, fontWeight:600, cursor:'pointer' }}>
-            {saving ? 'Saving…' : '✓ Save Vessel'}
-          </button>
+          <button onClick={onCancel} style={{ padding:'6px 14px', borderRadius:6, border:'1px solid rgba(255,255,255,0.3)', background:'transparent', color:'#fff', fontSize:12, cursor:'pointer' }}>Cancel</button>
+          <button onClick={save} disabled={saving} style={{ padding:'6px 14px', borderRadius:6, border:'none', background:B.gold, color:B.midnight, fontSize:12, fontWeight:600, cursor:'pointer' }}>{saving?'Saving…':'✓ Save'}</button>
         </div>
       </div>
 
-      {/* Tabs */}
       <div style={{ display:'flex', overflowX:'auto', borderBottom:`0.5px solid ${B.border}`, background:B.pearl }}>
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ padding:'10px 16px', border:'none', background:'transparent', cursor:'pointer', whiteSpace:'nowrap', fontSize:12, fontWeight: tab===t.id?600:400, color: tab===t.id?B.freshPalm:B.textSecond, borderBottom: tab===t.id?`2px solid ${B.freshPalm}`:'2px solid transparent', display:'flex', alignItems:'center', gap:5 }}>
-            <span>{t.icon}</span> {t.label}
+        {TABS.map(([id,lbl2]) => (
+          <button key={id} onClick={()=>setTab(id)} style={{ padding:'10px 16px', border:'none', background:'transparent', cursor:'pointer', whiteSpace:'nowrap', fontSize:12, fontWeight:tab===id?600:400, color:tab===id?B.freshPalm:B.textSecond, borderBottom:tab===id?`2px solid ${B.freshPalm}`:'2px solid transparent' }}>
+            {lbl2}
           </button>
         ))}
       </div>
 
       <div style={{ padding:20 }}>
-
-        {/* ── GENERAL ── */}
-        {tab === 'general' && (
-          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-            <VGrid cols={3} isMobile={isMobile}>
-              <VField label="Vessel Name *" error={errors.name}><input type="text" value={form["name"]||''} onChange={e=>setF("name", e.target.value)} placeholder="e.g. Ixora" style={{...INP, borderColor: errors["name"] ? '#DC2626' : undefined}} /></VField>
-              <VField label="Vessel Type *" error={errors.vessel_type}><select value={form["vessel_type"]||''} onChange={e=>setF("vessel_type", e.target.value)} style={INP}><option value="">Select...</option>{VESSEL_TYPES.map(o => <option key={o} value={o}>{o}</option>)}</select></VField>
-              <VField label="Status">
-                <select value={form.status||'active'} onChange={e=>setF('status',e.target.value)} style={INP}>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="maintenance">Maintenance</option>
-                </select>
-              </VField>
-            </VGrid>
-            <VGrid cols={4} isMobile={isMobile}>
-              <VField label="Length (m)"><input type="number" value={form["length_m"]||''} onChange={e=>setF("length_m", e.target.value)} placeholder="0.0" style={{...INP, borderColor: errors["length_m"] ? '#DC2626' : undefined}} /></VField>
-              <VField label="Beam / Width (m)"><input type="number" value={form["beam_m"]||''} onChange={e=>setF("beam_m", e.target.value)} placeholder="0.0" style={{...INP, borderColor: errors["beam_m"] ? '#DC2626' : undefined}} /></VField>
-              <VField label="Draft (m)"><input type="number" value={form["draft_m"]||''} onChange={e=>setF("draft_m", e.target.value)} placeholder="0.0" style={{...INP, borderColor: errors["draft_m"] ? '#DC2626' : undefined}} /></VField>
-              <VField label="Year Built"><input type="number" value={form["year_built"]||''} onChange={e=>setF("year_built", e.target.value)} placeholder="2020" style={{...INP, borderColor: errors["year_built"] ? '#DC2626' : undefined}} /></VField>
-            </VGrid>
-            <VGrid cols={3} isMobile={isMobile}>
-              <VField label="Max Passengers *" error={errors.max_pax}><input type="number" value={form["max_pax"]||''} onChange={e=>setF("max_pax", e.target.value)} placeholder="12" style={{...INP, borderColor: errors["max_pax"] ? '#DC2626' : undefined}} /></VField>
-              <VField label="Registry Port"><input type="text" value={form["registry_port"]||''} onChange={e=>setF("registry_port", e.target.value)} placeholder="e.g. Male" style={{...INP, borderColor: errors["registry_port"] ? '#DC2626' : undefined}} /></VField>
-              <VField label="Registry Country"><input type="text" value={form["registry_country"]||''} onChange={e=>setF("registry_country", e.target.value)} placeholder="e.g. Maldives" style={{...INP, borderColor: errors["registry_country"] ? '#DC2626' : undefined}} /></VField>
-            </VGrid>
-            <VField label="Seaworthiness Status">
-              <div style={{ display:'flex', gap:10 }}>
-                {SEA_STATUS.map(s => (
-                  <button key={s} onClick={() => setF('seaworthiness', s)} style={{ padding:'6px 14px', borderRadius:99, border:`1.5px solid ${form.seaworthiness===s ? SEA_COLORS[s] : B.border}`, background: form.seaworthiness===s ? SEA_COLORS[s]+'15' : 'transparent', color: form.seaworthiness===s ? SEA_COLORS[s] : B.textSecond, fontSize:12, fontWeight: form.seaworthiness===s?600:400, cursor:'pointer' }}>
-                    {SEA_LABELS[s]}
+        {tab==='general' && (
+          <div>
+            {row(3, [
+              fld('Vessel Name *', inp('name','text','e.g. Ixora')),
+              fld('Vessel Type', sel('vessel_type', ['Speedboat','Dhoni','Yacht','Ferry','Catamaran','Tender','RIB','Supply Boat','Other'])),
+              fld('Status', sel('status', ['active','inactive','maintenance'])),
+            ])}
+            {row(4, [
+              fld('Length (m)', inp('length_m','number','0.0')),
+              fld('Beam (m)',   inp('beam_m','number','0.0')),
+              fld('Draft (m)', inp('draft_m','number','0.0')),
+              fld('Year Built',inp('year_built','number','2020')),
+            ])}
+            {row(3, [
+              fld('Max Passengers *', inp('max_pax','number','12')),
+              fld('Registry Port',    inp('registry_port','text','e.g. Malé')),
+              fld('Registry Country', inp('registry_country','text','e.g. Maldives')),
+            ])}
+            <div style={{ marginBottom:12 }}>
+              {lbl('Seaworthiness Status')}
+              <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+                {SEA.map(s => (
+                  <button key={s} onClick={()=>setF2(p=>({...p,seaworthiness:s}))}
+                    style={{ padding:'6px 16px', borderRadius:99, border:`1.5px solid ${f.seaworthiness===s?SEA_C[s]:B.border}`, background:f.seaworthiness===s?SEA_C[s]+'15':'transparent', color:f.seaworthiness===s?SEA_C[s]:B.textSecond, fontSize:12, fontWeight:f.seaworthiness===s?600:400, cursor:'pointer' }}>
+                    {SEA_L[s]}
                   </button>
                 ))}
               </div>
-            </VField>
-            <VField label="Notes / Remarks">
-              <textarea value={form.notes||''} onChange={e=>setF('notes',e.target.value)} placeholder="Additional notes..." rows={3} style={{ ...INP, resize:'vertical' }} />
-            </VField>
+            </div>
+            <div>{lbl('Notes')}<textarea value={f.notes||''} onChange={upd('notes')} rows={3} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, resize:'vertical', boxSizing:'border-box', background:'#fff' }} /></div>
           </div>
         )}
 
-        {/* ── ENGINES ── */}
-        {tab === 'engines' && (
+        {tab==='engines' && (
           <div>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
-              <div style={{ fontSize:13, color:B.textSecond }}>{engines.length} engine{engines.length!==1?'s':''} configured</div>
-              <button onClick={() => setEngines(e => [...e, { ...EMPTY_ENGINE }])} style={{ ...BTN_PRIMARY, fontSize:12, padding:'6px 14px' }}>+ Add Engine</button>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+              <div style={{ fontSize:13, color:B.textSecond }}>{engines.length} engine{engines.length!==1?'s':''}</div>
+              <button onClick={()=>setEngines(e=>[...e,{brand:'',model:'',serial_number:'',power_hp:'',running_hours:'',last_overhaul:'',fuel_consumption_hr:'',notes:''}])} style={{ padding:'6px 14px', borderRadius:6, border:`0.5px solid ${B.freshPalm}`, background:B.freshPalm, color:'#fff', fontSize:12, cursor:'pointer' }}>+ Add Engine</button>
             </div>
-            {engines.map((eng, i) => (
+            {engines.map((eng,i) => (
               <div key={i} style={{ background:B.pearl, border:`0.5px solid ${B.border}`, borderRadius:10, padding:16, marginBottom:12 }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-                  <div style={{ fontWeight:600, fontSize:13, color:B.textPrimary }}>Engine {i+1}</div>
-                  {engines.length > 1 && (
-                    <button onClick={() => setEngines(e => e.filter((_,j) => j!==i))} style={{ background:'transparent', border:`0.5px solid #DC2626`, borderRadius:5, color:'#DC2626', fontSize:11, cursor:'pointer', padding:'3px 10px' }}>Remove</button>
-                  )}
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:12 }}>
+                  <div style={{ fontWeight:600 }}>Engine {i+1}</div>
+                  {engines.length>1 && <button onClick={()=>setEngines(e=>e.filter((_,j)=>j!==i))} style={{ padding:'3px 10px', border:`0.5px solid #DC2626`, borderRadius:5, color:'#DC2626', background:'transparent', fontSize:11, cursor:'pointer' }}>Remove</button>}
                 </div>
-                <VGrid cols={3} isMobile={isMobile}>
-                  {[['brand','Brand','e.g. Yamaha'],['model','Model / Make','e.g. F350'],['serial_number','Serial Number','']].map(([k,l,p]) => (
-                    <Field key={k} label={l}>
-                      <input value={eng[k]||''} onChange={e=>setEngines(es=>es.map((x,j)=>j===i?{...x,[k]:e.target.value}:x))} placeholder={p} style={INP} />
-                    </VField>
-                  ))}
-                  {[['power_hp','Power (HP)'],['running_hours','Running Hours'],['fuel_consumption_hr','Fuel Use (L/hr)']].map(([k,l]) => (
-                    <Field key={k} label={l}>
-                      <input type="number" value={eng[k]||''} onChange={e=>setEngines(es=>es.map((x,j)=>j===i?{...x,[k]:e.target.value}:x))} style={INP} />
-                    </VField>
-                  ))}
-                  <VField label="Last Overhaul Date">
-                    <input type="date" value={eng.last_overhaul||''} onChange={e=>setEngines(es=>es.map((x,j)=>j===i?{...x,last_overhaul:e.target.value}:x))} style={INP} />
-                  </VField>
-                  <VField label="Notes">
-                    <input value={eng.notes||''} onChange={e=>setEngines(es=>es.map((x,j)=>j===i?{...x,notes:e.target.value}:x))} style={INP} />
-                  </VField>
-                </VGrid>
+                {row(3,[
+                  fld('Brand',   <input value={eng.brand||''} onChange={updEng(i,'brand')} placeholder="e.g. Yamaha" style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
+                  fld('Model',   <input value={eng.model||''} onChange={updEng(i,'model')} placeholder="e.g. F350" style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
+                  fld('Serial',  <input value={eng.serial_number||''} onChange={updEng(i,'serial_number')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
+                  fld('HP',      <input type="number" value={eng.power_hp||''} onChange={updEng(i,'power_hp')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
+                  fld('Hours',   <input type="number" value={eng.running_hours||''} onChange={updEng(i,'running_hours')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
+                  fld('L/hr',    <input type="number" value={eng.fuel_consumption_hr||''} onChange={updEng(i,'fuel_consumption_hr')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
+                  fld('Last Overhaul', <input type="date" value={eng.last_overhaul||''} onChange={updEng(i,'last_overhaul')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
+                  fld('Notes',   <input value={eng.notes||''} onChange={updEng(i,'notes')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
+                ])}
               </div>
             ))}
           </div>
         )}
 
-        {/* ── GENERATORS ── */}
-        {tab === 'generators' && (
+        {tab==='generators' && (
           <div>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
-              <div style={{ fontSize:13, color:B.textSecond }}>{generators.length} generator{generators.length!==1?'s':''} configured</div>
-              <button onClick={() => setGenerators(g => [...g, { ...EMPTY_GEN }])} style={{ ...BTN_PRIMARY, fontSize:12, padding:'6px 14px' }}>+ Add Generator</button>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+              <div style={{ fontSize:13, color:B.textSecond }}>{generators.length} generator{generators.length!==1?'s':''}</div>
+              <button onClick={()=>setGenerators(g=>[...g,{brand:'',model:'',running_hours:'',last_service:'',capacity_kw:'',notes:''}])} style={{ padding:'6px 14px', borderRadius:6, border:`0.5px solid ${B.freshPalm}`, background:B.freshPalm, color:'#fff', fontSize:12, cursor:'pointer' }}>+ Add Generator</button>
             </div>
-            {generators.map((gen, i) => (
+            {generators.map((gen,i) => (
               <div key={i} style={{ background:B.pearl, border:`0.5px solid ${B.border}`, borderRadius:10, padding:16, marginBottom:12 }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-                  <div style={{ fontWeight:600, fontSize:13, color:B.textPrimary }}>Generator {i+1}</div>
-                  {generators.length > 1 && (
-                    <button onClick={() => setGenerators(g => g.filter((_,j) => j!==i))} style={{ background:'transparent', border:`0.5px solid #DC2626`, borderRadius:5, color:'#DC2626', fontSize:11, cursor:'pointer', padding:'3px 10px' }}>Remove</button>
-                  )}
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:12 }}>
+                  <div style={{ fontWeight:600 }}>Generator {i+1}</div>
+                  {generators.length>1 && <button onClick={()=>setGenerators(g=>g.filter((_,j)=>j!==i))} style={{ padding:'3px 10px', border:`0.5px solid #DC2626`, borderRadius:5, color:'#DC2626', background:'transparent', fontSize:11, cursor:'pointer' }}>Remove</button>}
                 </div>
-                <VGrid cols={3} isMobile={isMobile}>
-                  {[['brand','Brand'],['model','Model / Make'],['capacity_kw','Capacity (KW)'],['running_hours','Running Hours']].map(([k,l]) => (
-                    <Field key={k} label={l}>
-                      <input value={gen[k]||''} onChange={e=>setGenerators(gs=>gs.map((x,j)=>j===i?{...x,[k]:e.target.value}:x))} style={INP} />
-                    </VField>
-                  ))}
-                  <VField label="Last Service Date">
-                    <input type="date" value={gen.last_service||''} onChange={e=>setGenerators(gs=>gs.map((x,j)=>j===i?{...x,last_service:e.target.value}:x))} style={INP} />
-                  </VField>
-                  <VField label="Notes">
-                    <input value={gen.notes||''} onChange={e=>setGenerators(gs=>gs.map((x,j)=>j===i?{...x,notes:e.target.value}:x))} style={INP} />
-                  </VField>
-                </VGrid>
+                {row(3,[
+                  fld('Brand',    <input value={gen.brand||''} onChange={updGen(i,'brand')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
+                  fld('Model',    <input value={gen.model||''} onChange={updGen(i,'model')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
+                  fld('KW',       <input type="number" value={gen.capacity_kw||''} onChange={updGen(i,'capacity_kw')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
+                  fld('Hours',    <input type="number" value={gen.running_hours||''} onChange={updGen(i,'running_hours')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
+                  fld('Last Service', <input type="date" value={gen.last_service||''} onChange={updGen(i,'last_service')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
+                  fld('Notes',    <input value={gen.notes||''} onChange={updGen(i,'notes')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
+                ])}
               </div>
             ))}
           </div>
         )}
 
-        {/* ── FUEL & MAINTENANCE ── */}
-        {tab === 'fuel' && (
-          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-            <div style={{ fontSize:13, fontWeight:600, color:B.textPrimary, borderBottom:`0.5px solid ${B.border}`, paddingBottom:8 }}>⛽ Fuel</div>
-            <VGrid cols={3} isMobile={isMobile}>
-              <VField label="Fuel Type"><select value={form["fuel_type"]||''} onChange={e=>setF("fuel_type", e.target.value)} style={INP}><option value="">Select...</option>{FUEL_TYPES.map(o => <option key={o} value={o}>{o}</option>)}</select></VField>
-              <VField label="Tank Capacity (L)"><input type="number" value={form["fuel_tank_capacity"]||''} onChange={e=>setF("fuel_tank_capacity", e.target.value)} placeholder="" style={{...INP, borderColor: errors["fuel_tank_capacity"] ? '#DC2626' : undefined}} /></VField>
-              <VField label="Avg Consumption (L/hr)"><input type="number" value={form["avg_consumption_hr"]||''} onChange={e=>setF("avg_consumption_hr", e.target.value)} placeholder="" style={{...INP, borderColor: errors["avg_consumption_hr"] ? '#DC2626' : undefined}} /></VField>
-            </VGrid>
-            <div style={{ fontSize:13, fontWeight:600, color:B.textPrimary, borderBottom:`0.5px solid ${B.border}`, paddingBottom:8, marginTop:8 }}>🔧 Maintenance</div>
-            <VGrid cols={2} isMobile={isMobile}>
-              <VField label="Last Dry Dock"><input type="date" value={form["last_dry_dock"]||''} onChange={e=>setF("last_dry_dock", e.target.value)} placeholder="" style={{...INP, borderColor: errors["last_dry_dock"] ? '#DC2626' : undefined}} /></VField>
-              <VField label="Next Dry Dock Due"><input type="date" value={form["next_dry_dock"]||''} onChange={e=>setF("next_dry_dock", e.target.value)} placeholder="" style={{...INP, borderColor: errors["next_dry_dock"] ? '#DC2626' : undefined}} /></VField>
-            </VGrid>
-            <VField label="Maintenance Notes">
-              <textarea value={form.maintenance_notes||''} onChange={e=>setF('maintenance_notes',e.target.value)} rows={4} placeholder="Maintenance history and upcoming tasks..." style={{ ...INP, resize:'vertical' }} />
-            </VField>
+        {tab==='fuel' && (
+          <div>
+            <div style={{ fontWeight:600, fontSize:13, marginBottom:12, paddingBottom:8, borderBottom:`0.5px solid ${B.border}` }}>⛽ Fuel</div>
+            {row(3,[
+              fld('Fuel Type', sel('fuel_type',['Diesel','Petrol','Hybrid','Electric','Other'])),
+              fld('Tank Capacity (L)', inp('fuel_tank_capacity','number')),
+              fld('Avg Consumption (L/hr)', inp('avg_consumption_hr','number')),
+            ])}
+            <div style={{ fontWeight:600, fontSize:13, marginBottom:12, marginTop:16, paddingBottom:8, borderBottom:`0.5px solid ${B.border}` }}>🔧 Maintenance</div>
+            {row(2,[
+              fld('Last Dry Dock', inp('last_dry_dock','date')),
+              fld('Next Dry Dock Due', inp('next_dry_dock','date')),
+            ])}
+            <div>{lbl('Maintenance Notes')}<textarea value={f.maintenance_notes||''} onChange={upd('maintenance_notes')} rows={4} placeholder="Maintenance history..." style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, resize:'vertical', boxSizing:'border-box', background:'#fff' }} /></div>
           </div>
         )}
 
-        {/* ── ACTIVITIES ── */}
-        {tab === 'activities' && (
+        {tab==='activities' && (
           <div>
-            <div style={{ fontSize:12, color:B.textSecond, marginBottom:14 }}>
-              Select all activities this vessel can perform. <strong>{(form.activities||[]).length}</strong> selected.
-            </div>
+            <div style={{ fontSize:12, color:B.textSecond, marginBottom:14 }}><strong>{activities.length}</strong> activities selected</div>
             {ALL_ACTIVITIES.map(group => (
-              <div key={group.group} style={{ marginBottom:20 }}>
-                <div style={{ fontSize:11, fontWeight:600, color:B.textMuted, textTransform:'uppercase', letterSpacing:'1px', marginBottom:8 }}>{group.group}</div>
+              <div key={group.group} style={{ marginBottom:18 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:B.textMuted, textTransform:'uppercase', letterSpacing:'1.2px', marginBottom:8 }}>{group.group}</div>
                 <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
                   {group.items.map(act => {
-                    const sel = (form.activities||[]).includes(act)
+                    const sel2 = activities.includes(act)
                     return (
-                      <button key={act} onClick={() => toggleActivity(act)} style={{ padding:'5px 12px', borderRadius:99, border:`1.5px solid ${sel ? B.freshPalm : B.border}`, background: sel ? B.freshPalm : 'transparent', color: sel ? '#fff' : B.textSecond, fontSize:12, cursor:'pointer', fontWeight: sel?500:400, transition:'all .15s' }}>
-                        {sel ? '✓ ' : ''}{act}
+                      <button key={act} onClick={()=>toggleAct(act)} style={{ padding:'5px 12px', borderRadius:99, border:`1.5px solid ${sel2?B.freshPalm:B.border}`, background:sel2?B.freshPalm:'transparent', color:sel2?'#fff':B.textSecond, fontSize:12, cursor:'pointer', fontWeight:sel2?500:400 }}>
+                        {sel2?'✓ ':''}{act}
                       </button>
                     )
                   })}
@@ -2232,19 +2189,16 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
           </div>
         )}
 
-        {/* ── METRICS ── */}
-        {tab === 'metrics' && (
-          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-            <div style={{ fontSize:12, color:B.textSecond, marginBottom:4 }}>Operational cost and performance data</div>
-            <VGrid cols={2} isMobile={isMobile}>
-              <VField label="Avg Fuel Per Trip (L)"><input type="number" value={form["avg_fuel_per_trip"]||''} onChange={e=>setF("avg_fuel_per_trip", e.target.value)} placeholder="" style={{...INP, borderColor: errors["avg_fuel_per_trip"] ? '#DC2626' : undefined}} /></VField>
-              <VField label="Avg Trip Duration (hrs)"><input type="number" value={form["avg_trip_duration"]||''} onChange={e=>setF("avg_trip_duration", e.target.value)} placeholder="" style={{...INP, borderColor: errors["avg_trip_duration"] ? '#DC2626' : undefined}} /></VField>
-              <VField label="Cost Per Hour (MVR)"><input type="number" value={form["cost_per_hour"]||''} onChange={e=>setF("cost_per_hour", e.target.value)} placeholder="" style={{...INP, borderColor: errors["cost_per_hour"] ? '#DC2626' : undefined}} /></VField>
-              <VField label="Cost Per Trip (MVR)"><input type="number" value={form["cost_per_trip"]||''} onChange={e=>setF("cost_per_trip", e.target.value)} placeholder="" style={{...INP, borderColor: errors["cost_per_trip"] ? '#DC2626' : undefined}} /></VField>
-            </VGrid>
+        {tab==='metrics' && (
+          <div>
+            {row(2,[
+              fld('Avg Fuel Per Trip (L)', inp('avg_fuel_per_trip','number')),
+              fld('Avg Trip Duration (hrs)', inp('avg_trip_duration','number')),
+              fld('Cost Per Hour (MVR)', inp('cost_per_hour','number')),
+              fld('Cost Per Trip (MVR)', inp('cost_per_trip','number')),
+            ])}
           </div>
         )}
-
       </div>
     </div>
   )
