@@ -537,560 +537,428 @@ function GroupCard({ group, allGroups, groupIdx }) {
 
 // ─── Scheduler: Main View ──────────────────────────────────────────────────────
 function SchedulerView({ isMobile }) {
-  const today = new Date().toISOString().split('T')[0]
-  const [date, setDate]         = useState(today)
-  const [showAlgo, setShowAlgo] = useState(false)
-  const transfers  = useMemo(()=>SAMPLE_DATA[date]||[], [date])
-  const groups     = useMemo(()=>groupByTrf(transfers), [transfers])
-  const totalPax   = transfers.reduce((s,t)=>s+t.pax,0)
-  const srnRuns    = groups.filter(g=>g.transfers.some(t=>t.tt==='serenity')).length
-  const pvtRuns    = groups.filter(g=>g.transfers.some(t=>t.tt==='private'||t.tt==='luxury')).length
-  const vipGuests  = transfers.filter(t=>t.vip).length
-  const buffers    = groups.map(g=>calcBuf(g.trf,g.transfers.map(t=>toM(t.fltT)).filter(f=>!isNaN(f)))).filter(b=>b!==null)
-  const avgBuf     = buffers.length ? Math.round(buffers.reduce((s,b)=>s+b,0)/buffers.length) : null
-  const sampleDates = Object.keys(SAMPLE_DATA)
-  const [schedTab, setSchedTab] = useState('departures')
+  const today    = new Date().toLocaleDateString('en-CA', { timeZone:'Indian/Maldives' })
+  const tomorrow = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone:'Indian/Maldives' })
+
+  const [viewDate,    setViewDate]    = useState(today)
+  const [tab,         setTab]         = useState('arrivals')
+  const [arrivals,    setArrivals]    = useState({})   // keyed by date
+  const [departures,  setDepartures]  = useState({})   // keyed by date
+  const [fr24Map,     setFr24Map]     = useState({})   // flight# → FR24 data
+  const [uploading,   setUploading]   = useState(false)
+  const [fr24Loading, setFr24Loading] = useState(false)
+  const [lastSync,    setLastSync]    = useState(null)
+  const [uploadMsg,   setUploadMsg]   = useState('')
+  const fileRef = useRef()
+
+  // ─── Load from Supabase on mount ────────────────────────────────────────────
+  useEffect(() => {
+    loadFromSupabase(today)
+    loadFromSupabase(tomorrow)
+  }, [])
+
+  const loadFromSupabase = async (date) => {
+    try {
+      const { data } = await sb
+        .from('boat_schedule')
+        .select('*')
+        .eq('resort_id', BAROS_RESORT_ID)
+        .eq('schedule_date', date)
+        .order('flight_time', { ascending: true })
+      if (data && data.length > 0) {
+        const arr = data.filter(r => r.type === 'arrival')
+        const dep = data.filter(r => r.type === 'departure')
+        if (arr.length) setArrivals(prev => ({ ...prev, [date]: arr }))
+        if (dep.length) setDepartures(prev => ({ ...prev, [date]: dep }))
+      }
+    } catch(e) { console.log('Supabase load error:', e) }
+  }
+
+  // ─── Parse ODS file ──────────────────────────────────────────────────────────
+  const handleFile = async (file) => {
+    if (!file) return
+    setUploading(true)
+    setUploadMsg('Reading file...')
+    try {
+      const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs')
+      const buf  = await file.arrayBuffer()
+      const wb   = XLSX.read(buf, { type:'array', cellDates:true })
+
+      const parseSheet = (sheetName, type) => {
+        const ws   = wb.Sheets[sheetName]
+        if (!ws) return []
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' })
+        return rows.map(r => {
+          const fmt = (v) => {
+            if (!v) return ''
+            if (v instanceof Date) return v.toTimeString().slice(0,5)
+            return String(v).trim()
+          }
+          if (type === 'arrival') return {
+            resort_id:      BAROS_RESORT_ID,
+            schedule_date:  viewDate,
+            type:           'arrival',
+            flight_time:    fmt(r['FLIGHT TIME']),
+            flight_number:  fmt(r['FLIGHT NUMBER']).toUpperCase(),
+            room:           fmt(r['ROOM']),
+            guest_name:     fmt(r['GUEST NAME']),
+            pax:            parseInt(r['PAX']) || 1,
+            meal_plan:      fmt(r['MP']),
+            operator:       fmt(r['OPERATOR']),
+            spc:            String(r['SPC']).toLowerCase() === 'yes' || String(r['SPC']) === '1',
+            vip:            fmt(r['VIP']),
+            room_type:      fmt(r['ROOM TTPE']),
+            nights:         parseInt(r['NIGHTS']) || null,
+            departure_date: fmt(r['DEPARTURE']),
+            member:         String(r['MEM']).toLowerCase() === 'yes' || String(r['MEM']) === '1',
+            butler:         fmt(r['BUTLER']),
+            confirmation:   fmt(r['CONFIRMATION']),
+            comments:       fmt(r['COMMENTS']),
+            fr24_eta:       fmt(r['FLIGHT ETA LIVE']),
+            fr24_departed:  fmt(r['FLIGHT ACTUAL DEPARTURE TIME']),
+          }
+          return {
+            resort_id:      BAROS_RESORT_ID,
+            schedule_date:  viewDate,
+            type:           'departure',
+            transfer_time:  fmt(r['TRANSFER TIME']),
+            checkout_time:  fmt(r['CHECKOUT TIME']),
+            flight_number:  fmt(r['FLIGHT']).toUpperCase(),
+            flight_time:    fmt(r['FLIGHT TIME']),
+            room:           fmt(r['ROOM']),
+            room_type:      fmt(r['ROOM TYPE']),
+            guest_name:     fmt(r['GUEST NAME']),
+            pax:            parseInt(r['PAX']) || 1,
+            operator:       fmt(r['OPERTOR'] || r['OPERATOR']),
+            meal_plan:      fmt(r['MEAL PLAN']),
+            spc:            String(r['SPC']).toLowerCase() === 'yes',
+            vip:            fmt(r['VIP']),
+            member:         String(r['MEMBER']).toLowerCase() === 'yes',
+            nights:         parseInt(r['NGHTS']) || null,
+            butler:         fmt(r['BUTLER']),
+            comments:       fmt(r['DEPARTURE COMMENTS']),
+            confirmation:   fmt(r['CONFIRMATION']),
+          }
+        }).filter(r => r.flight_number || r.guest_name || r.room)
+      }
+
+      const arrData = parseSheet('Arrival',   'arrival')
+      const depData = parseSheet('Departure', 'departure')
+
+      setUploadMsg(`Parsed ${arrData.length} arrivals, ${depData.length} departures. Saving...`)
+
+      // Save to Supabase — delete existing then insert fresh
+      await sb.from('boat_schedule').delete()
+        .eq('resort_id', BAROS_RESORT_ID)
+        .eq('schedule_date', viewDate)
+
+      if (arrData.length > 0) await sb.from('boat_schedule').insert(arrData)
+      if (depData.length > 0) await sb.from('boat_schedule').insert(depData)
+
+      setArrivals(prev => ({ ...prev, [viewDate]: arrData }))
+      setDepartures(prev => ({ ...prev, [viewDate]: depData }))
+      setUploadMsg(`✓ ${arrData.length} arrivals and ${depData.length} departures loaded for ${viewDate}`)
+
+      // Immediately fetch FR24 ETAs for all arrival flights
+      const flightNos = [...new Set(arrData.map(r => r.flight_number).filter(Boolean))]
+      if (flightNos.length > 0) fetchFR24ETAs(flightNos)
+
+    } catch(e) {
+      setUploadMsg('Error: ' + e.message)
+      console.error(e)
+    }
+    setUploading(false)
+  }
+
+  // ─── Fetch FR24 live ETAs ────────────────────────────────────────────────────
+  const fetchFR24ETAs = async (flightNos) => {
+    setFr24Loading(true)
+    try {
+      const callsigns = flightNos.map(toCallsign).join(',')
+      const res  = await fetch(`/.netlify/functions/fr24?flights=${callsigns}&mode=live`)
+      const json = await res.json()
+      if (json.data && json.data.length > 0) {
+        const map = {}
+        json.data.forEach(d => {
+          flightNos.forEach(f => {
+            if (toCallsign(f) === d.callsign) {
+              const now = Date.now()/1000
+              const kmLeft = d.lat ? distToMLE(d.lat, d.lon) : null
+              const speedKmh = d.gspeed > 0 ? d.gspeed * 1.852 : null
+              const etaSecs = kmLeft && speedKmh ? (kmLeft / speedKmh * 3600) * 1.05 : null
+              const etaTs   = etaSecs ? now + etaSecs : null
+              const boatTs  = etaTs ? etaTs - 57*60 : null
+              const status  = !d.alt || d.alt < 100 ? 'Landed' : 'Airborne'
+              map[f] = {
+                status,
+                eta:          etaTs   ? fmtTime(etaTs)  : null,
+                boat_dispatch: boatTs  ? fmtTime(boatTs) : null,
+                departed:     null,
+                alt:          d.alt,
+                gspeed:       d.gspeed,
+                lat:          d.lat,
+                lon:          d.lon,
+                track:        d.track,
+              }
+            }
+          })
+        })
+        setFr24Map(prev => ({ ...prev, ...map }))
+        setLastSync(new Date())
+      }
+    } catch(e) { console.log('FR24 error:', e) }
+    setFr24Loading(false)
+  }
+
+  // Auto-refresh FR24 every 5 mins
+  useEffect(() => {
+    const allFlights = [
+      ...(arrivals[today]||[]), ...(arrivals[tomorrow]||[])
+    ].map(r=>r.flight_number).filter(Boolean)
+    const unique = [...new Set(allFlights)]
+    if (!unique.length) return
+    fetchFR24ETAs(unique)
+    const t = setInterval(() => fetchFR24ETAs(unique), 5 * 60 * 1000)
+    return () => clearInterval(t)
+  }, [arrivals])
+
+  const todayArr   = arrivals[today]    || []
+  const tomorArr   = arrivals[tomorrow] || []
+  const todayDep   = departures[today]  || []
+  const tomorDep   = departures[tomorrow] || []
+  const curArr = viewDate === today ? todayArr : tomorArr
+  const curDep = viewDate === today ? todayDep : tomorDep
+
+  // ─── Row component for arrivals ──────────────────────────────────────────────
+  const ArrivalRow = ({ r, i }) => {
+    const fr   = fr24Map[r.flight_number] || {}
+    const eta  = fr.eta  || r.fr24_eta   || r.flight_time || '—'
+    const boat = fr.boat_dispatch || (r.flight_time ? calcBoatDispatch(r.flight_time) : '—')
+    const status = fr.status || (r.flight_number ? 'Scheduled' : '—')
+    const statusColor = status==='Landed'?'#059669':status==='Airborne'?'#2563EB':'#6B7280'
+    const statusBg    = status==='Landed'?'#ECFDF5':status==='Airborne'?'#EFF6FF':'#F9FAFB'
+    const isVip = r.vip && r.vip.toLowerCase() !== 'no' && r.vip !== ''
+    const isSpc = r.spc
+    const rowBg = isVip ? '#FFFBEB' : isSpc ? '#F0F9FF' : i%2===0?B.white:B.pearl
+    const code  = getCode ? getCode(r.flight_number) : r.flight_number?.replace(/[0-9]/g,'')
+    const info  = AIRLINE_INFO[code] || {}
+
+    return (
+      <tr style={{ borderBottom:`0.5px solid ${B.border}`, background:rowBg }}>
+        <td style={{ padding:'8px 10px', minWidth:44 }}>
+          {info.logo
+            ? <img src={info.logo} alt={code} style={{ width:28,height:28,objectFit:'contain' }} onError={e=>e.target.style.display='none'} />
+            : <div style={{ width:28,height:28,background:info.color||B.freshPalm,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:9,fontWeight:700 }}>{code}</div>
+          }
+        </td>
+        <td style={{ padding:'8px 10px', fontFamily:'monospace', fontWeight:700, fontSize:13, whiteSpace:'nowrap' }}>{r.flight_number||'—'}</td>
+        <td style={{ padding:'8px 10px', fontFamily:'monospace', color:'#6B7280', fontSize:12 }}>{r.flight_time||'—'}</td>
+        <td style={{ padding:'8px 10px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <span style={{ background:statusBg,color:statusColor,borderRadius:99,padding:'2px 8px',fontSize:10,fontWeight:600,whiteSpace:'nowrap' }}>{status}</span>
+          </div>
+        </td>
+        <td style={{ padding:'8px 10px', fontFamily:'monospace', fontWeight:700, color:'#2563EB', fontSize:14 }}>{eta}</td>
+        <td style={{ padding:'8px 10px', fontFamily:'monospace', fontWeight:700, color:B.gold, fontSize:14 }}>{boat}</td>
+        <td style={{ padding:'8px 10px', fontWeight:600 }}>{r.room||'—'}</td>
+        <td style={{ padding:'8px 10px', maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+          <div style={{ fontWeight:500 }}>{r.guest_name||'—'}</div>
+          {isVip && <div style={{ fontSize:10, color:B.gold, fontWeight:600 }}>⭐ {r.vip}</div>}
+          {isSpc && <div style={{ fontSize:10, color:'#2563EB', fontWeight:600 }}>★ Special</div>}
+        </td>
+        <td style={{ padding:'8px 10px', textAlign:'center', fontWeight:600 }}>{r.pax||'—'}</td>
+        <td style={{ padding:'8px 10px', fontSize:12, color:B.textSecond }}>{r.operator||'—'}</td>
+        <td style={{ padding:'8px 10px', fontSize:12 }}>{r.meal_plan||'—'}</td>
+        <td style={{ padding:'8px 10px', fontSize:12 }}>{r.room_type||'—'}</td>
+        <td style={{ padding:'8px 10px', fontSize:12 }}>{r.nights||'—'}</td>
+        <td style={{ padding:'8px 10px', fontSize:12 }}>{r.butler||'—'}</td>
+        <td style={{ padding:'8px 10px', fontSize:11, color:B.textMuted, maxWidth:120, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.comments||'—'}</td>
+        <td style={{ padding:'8px 10px', fontSize:11, color:B.textMuted }}>{r.confirmation||'—'}</td>
+      </tr>
+    )
+  }
+
+  // ─── Row component for departures ────────────────────────────────────────────
+  const DepartureRow = ({ r, i }) => {
+    const isVip = r.vip && r.vip.toLowerCase() !== 'no' && r.vip !== ''
+    const isSpc = r.spc
+    const rowBg = isVip ? '#FFFBEB' : isSpc ? '#F0F9FF' : i%2===0?B.white:B.pearl
+    const code  = getCode ? getCode(r.flight_number) : r.flight_number?.replace(/[0-9]/g,'')
+    const info  = AIRLINE_INFO[code] || {}
+
+    return (
+      <tr style={{ borderBottom:`0.5px solid ${B.border}`, background:rowBg }}>
+        <td style={{ padding:'8px 10px', fontFamily:'monospace', fontWeight:700, color:B.gold, fontSize:14 }}>{r.transfer_time||'—'}</td>
+        <td style={{ padding:'8px 10px', fontFamily:'monospace', fontSize:12, color:'#6B7280' }}>{r.checkout_time||'—'}</td>
+        <td style={{ padding:'8px 10px', minWidth:44 }}>
+          {info.logo
+            ? <img src={info.logo} alt={code} style={{ width:28,height:28,objectFit:'contain' }} onError={e=>e.target.style.display='none'} />
+            : <div style={{ width:28,height:28,background:info.color||B.freshPalm,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:9,fontWeight:700 }}>{code}</div>
+          }
+        </td>
+        <td style={{ padding:'8px 10px', fontFamily:'monospace', fontWeight:700, fontSize:13 }}>{r.flight_number||'—'}</td>
+        <td style={{ padding:'8px 10px', fontFamily:'monospace', fontSize:12, color:'#6B7280' }}>{r.flight_time||'—'}</td>
+        <td style={{ padding:'8px 10px', fontWeight:600 }}>{r.room||'—'}</td>
+        <td style={{ padding:'8px 10px', fontSize:12 }}>{r.room_type||'—'}</td>
+        <td style={{ padding:'8px 10px', maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+          <div style={{ fontWeight:500 }}>{r.guest_name||'—'}</div>
+          {isVip && <div style={{ fontSize:10, color:B.gold, fontWeight:600 }}>⭐ {r.vip}</div>}
+          {isSpc && <div style={{ fontSize:10, color:'#2563EB', fontWeight:600 }}>★ Special</div>}
+        </td>
+        <td style={{ padding:'8px 10px', textAlign:'center', fontWeight:600 }}>{r.pax||'—'}</td>
+        <td style={{ padding:'8px 10px', fontSize:12 }}>{r.operator||'—'}</td>
+        <td style={{ padding:'8px 10px', fontSize:12 }}>{r.meal_plan||'—'}</td>
+        <td style={{ padding:'8px 10px', fontSize:12 }}>{r.nights||'—'}</td>
+        <td style={{ padding:'8px 10px', fontSize:12 }}>{r.butler||'—'}</td>
+        <td style={{ padding:'8px 10px', fontSize:11, color:B.textMuted }}>{r.comments||'—'}</td>
+        <td style={{ padding:'8px 10px', fontSize:11, color:B.textMuted }}>{r.confirmation||'—'}</td>
+      </tr>
+    )
+  }
+
+  const calcBoatDispatch = (eta) => {
+    if (!eta || !eta.includes(':')) return '—'
+    const [h,m] = eta.split(':').map(Number)
+    const total = h*60 + m - 57
+    if (total < 0) return '—'
+    return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`
+  }
+
+  const arrHdr = ['','Flight','Sched','Status','FR24 ETA','⚓ Boat Out','Room','Guest','PAX','Operator','Meal','Room Type','Nights','Butler','Comments','Conf.']
+  const depHdr = ['Transfer','Checkout','','Flight','Flt Time','Room','Type','Guest','PAX','Operator','Meal','Nights','Butler','Comments','Conf.']
 
   return (
-    <div style={{ fontFamily:'var(--font-sans,system-ui)' }}>
-      <div style={{ marginBottom:isMobile?12:16, display:'flex', alignItems:isMobile?'flex-start':'center', gap:isMobile?8:12, flexWrap:'wrap', flexDirection:isMobile?'column':'row' }}>
-        <div>
-          <div style={{ fontSize:isMobile?14:16, fontWeight:500 }}>🗓️ Smart Scheduler</div>
-          <div style={{ fontSize:12, color:B.textSecond }}>Baros Maldives · Transfer planner</div>
+    <div>
+      {/* Header */}
+      <div style={{ background:B.freshPalm, borderRadius:10, padding:isMobile?'14px':'18px 24px', marginBottom:16 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
+          <div>
+            <div style={{ fontSize:10, letterSpacing:'2px', color:'rgba(255,255,255,0.45)', textTransform:'uppercase', marginBottom:4 }}>Baros Maldives · Operations</div>
+            <div style={{ fontSize:isMobile?16:20, fontWeight:600, color:'#fff' }}>Smart Scheduler</div>
+            <div style={{ fontSize:11, color:'rgba(255,255,255,0.5)', marginTop:2 }}>Boat Transfer Planning · FR24 Live ETAs</div>
+          </div>
+          <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+            {lastSync && <span style={{ fontSize:10, color:'rgba(255,255,255,0.4)' }}>FR24 sync: {lastSync.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</span>}
+            {fr24Loading && <span style={{ fontSize:10, color:'#34D399' }}>↻ Syncing FR24...</span>}
+          </div>
         </div>
-        <div style={{ marginLeft:'auto', display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-          <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{ padding:'6px 10px', borderRadius:6, border:`0.5px solid ${B.borderMid}`, background:B.white, fontSize:13, color:B.textPrimary, outline:'none' }} />
-          <button onClick={()=>setShowAlgo(a=>!a)} style={{ padding:'6px 12px', borderRadius:6, border:`0.5px solid ${B.borderMid}`, background:'transparent', fontSize:12, cursor:'pointer', color:B.textSecond }}>
-            {showAlgo?'▲ Hide':'▼ Show'} algo
-          </button>
-        </div>
-      </div>
 
-      <div style={{ display:'flex', gap:0, marginBottom:16, borderBottom:`0.5px solid ${B.border}` }}>
-        {[['departures','✈️ Departures'],['arrivals','🛬 Arrivals']].map(([id,lbl])=>(
-          <button key={id} onClick={()=>setSchedTab(id)} style={{ padding:'8px 20px', border:'none', background:'transparent', cursor:'pointer', fontSize:13, fontWeight:500, color:schedTab===id?'#0EA5E9':B.textSecond, borderBottom:schedTab===id?`2px solid ${B.freshPalm}`:'2px solid transparent', marginBottom:'-0.5px' }}>{lbl}</button>
-        ))}
-      </div>
-
-      {schedTab==='arrivals' && (
-        <div style={{ padding:'40px 20px', textAlign:'center', color:B.textSecond, fontSize:13, background:B.white, borderRadius:8, border:`0.5px solid ${B.border}` }}>
-          <div style={{ fontSize:28, marginBottom:8 }}>🛬</div>
-          <div style={{ fontWeight:500, marginBottom:6 }}>Arrivals Scheduler</div>
-          <div style={{ fontSize:12 }}>Upload an arrivals report PDF to load inbound transfers. Coming in next update.</div>
-        </div>
-      )}
-
-      {schedTab==='departures' && <>
-      <div style={{ display:'flex', gap:6, marginBottom:12, flexWrap:'wrap' }}>
-        {sampleDates.map(d=>(
-          <button key={d} onClick={()=>setDate(d)} style={{ padding:'3px 10px', borderRadius:4, border:`0.5px solid ${B.border}`, background:date===d?B.freshPalm:'transparent', color:date===d?B.white:B.textSecond, fontSize:11, cursor:'pointer' }}>
-            {new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'})}
-          </button>
-        ))}
-        <span style={{ fontSize:10, color:B.textMuted, alignSelf:'center', marginLeft:4 }}>← 7-day training data</span>
-      </div>
-
-      {showAlgo && (
-        <div style={S.algoPanel}>
-          <div style={{ color:'#38BDF8', fontWeight:500, marginBottom:10 }}>⚙️ Algorithm Constants · Baros ↔ VIA</div>
-          {[['Journey Baros ↔ VIA',ALGO.JOURNEY],['Immigration buffer',ALGO.IMM],['Lounge to jetty',ALGO.LJ],['Depart before flight',ALGO.DEP]].map(([k,v])=>(
-            <div key={k} style={{ display:'flex', justifyContent:'space-between', padding:'3px 0', borderBottom:'0.5px solid #1E293B', color:'#94A3B8', fontSize:11 }}><span>{k}</span><span style={{ color:'#F1F5F9', fontFamily:'monospace' }}>{v} min</span></div>
+        {/* Date + Upload row */}
+        <div style={{ display:'flex', gap:10, marginTop:14, alignItems:'center', flexWrap:'wrap' }}>
+          {[
+            { label:'Today', val:today },
+            { label:'Tomorrow', val:tomorrow },
+          ].map(d => (
+            <button key={d.val} onClick={()=>setViewDate(d.val)} style={{ padding:'6px 18px', borderRadius:6, border:`1.5px solid ${viewDate===d.val?'#fff':'rgba(255,255,255,0.2)'}`, background:viewDate===d.val?'rgba(255,255,255,0.15)':'transparent', color:'#fff', fontSize:13, fontWeight:viewDate===d.val?600:400, cursor:'pointer' }}>
+              {d.label}
+              <span style={{ fontSize:10, marginLeft:6, opacity:.6 }}>
+                {new Date(d.val+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'})}
+              </span>
+            </button>
           ))}
-          <div style={{ display:'flex', justifyContent:'space-between', padding:'3px 0', color:'#F1F5F9', fontWeight:500, fontSize:11 }}><span>Total lead time</span><span style={{ color:'#38BDF8', fontFamily:'monospace' }}>{LEAD} min</span></div>
-          <div style={{ marginTop:8, display:'flex', gap:16, flexWrap:'wrap', fontSize:11, color:'#64748B' }}>
-            <span>Combine window: <strong style={{ color:'#94A3B8' }}>{ALGO.CW} min</strong></span>
-            <span>Return load max: <strong style={{ color:'#94A3B8' }}>{ALGO.RL} min</strong></span>
+          <div style={{ marginLeft:'auto', display:'flex', gap:8 }}>
+            <input ref={fileRef} type="file" accept=".ods,.xlsx,.xls" style={{ display:'none' }} onChange={e=>handleFile(e.target.files[0])} />
+            <button onClick={()=>fileRef.current.click()} disabled={uploading} style={{ padding:'6px 16px', borderRadius:6, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.1)', color:'#fff', fontSize:12, fontWeight:500, cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
+              {uploading ? '⏳ Loading...' : '⬆ Upload Schedule'}
+            </button>
+            <button onClick={()=>{ const all=[...(curArr),(curDep)].map(r=>r.flight_number).filter(Boolean); const u=[...new Set(all)]; if(u.length)fetchFR24ETAs(u) }} style={{ padding:'6px 12px', borderRadius:6, border:'1.5px solid rgba(255,255,255,0.25)', background:'transparent', color:'rgba(255,255,255,0.7)', fontSize:12, cursor:'pointer' }}>
+              ↻ FR24
+            </button>
           </div>
         </div>
-      )}
+        {uploadMsg && (
+          <div style={{ marginTop:10, fontSize:11, color: uploadMsg.startsWith('✓')?'#34D399':'rgba(255,255,255,0.7)', background:'rgba(0,0,0,0.15)', borderRadius:6, padding:'6px 12px' }}>
+            {uploadMsg}
+          </div>
+        )}
+      </div>
 
-      <div style={S.statRow}>
+      {/* Summary stats */}
+      <div style={{ display:'flex', gap:10, marginBottom:14, flexWrap:'wrap' }}>
         {[
-          { val:totalPax,   lbl:'👥 Pax today',      a:B.freshPalm },
-          { val:groups.length, lbl:'⚓ Boat runs',    a:B.freshPalmMid },
-          { val:srnRuns,    lbl:'👑 Serenity',        a:'#7B5EA7' },
-          { val:pvtRuns,    lbl:'⭐ Pvt / Lux',       a:B.gold },
-          { val:vipGuests,  lbl:'🌟 VIP guests',      a:'#B05880' },
-          { val:avgBuf!==null?fmtB(avgBuf):'—', lbl:'⏱ Avg buffer', a:B.textSecond },
-        ].map(s=>(
-          <div key={s.lbl} style={S.stat(s.a)}>
-            <div style={{ fontSize:20, fontWeight:500, color:s.a }}>{s.val}</div>
-            <div style={{ fontSize:11, color:B.textSecond, marginTop:2 }}>{s.lbl}</div>
+          { label:'Arrivals',     val: curArr.length,                             color:B.freshPalm },
+          { label:'Departures',   val: curDep.length,                             color:'#6B7280' },
+          { label:'VIP Guests',   val: [...curArr,...curDep].filter(r=>r.vip&&r.vip.toLowerCase()!=='no'&&r.vip!=='').length, color:B.gold },
+          { label:'Airborne Now', val: Object.values(fr24Map).filter(f=>f.status==='Airborne').length, color:'#2563EB' },
+          { label:'Landed',       val: Object.values(fr24Map).filter(f=>f.status==='Landed').length,   color:'#059669' },
+        ].map(s => (
+          <div key={s.label} style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:8, padding:'8px 16px', display:'flex', gap:10, alignItems:'center' }}>
+            <div style={{ fontSize:20, fontWeight:700, color:s.color, fontFamily:'monospace' }}>{s.val}</div>
+            <div style={{ fontSize:10, color:B.textMuted, textTransform:'uppercase', letterSpacing:'.8px' }}>{s.label}</div>
           </div>
         ))}
       </div>
 
-      {groups.length===0 ? (
-        <div style={S.groupCard}>
-          <div style={{ padding:'40px 20px', textAlign:'center', color:B.textSecond, fontSize:13 }}>
-            <div style={{ fontSize:28, marginBottom:8 }}>📋</div>
-            <div>No departures for {date}</div>
-            <div style={{ marginTop:6, fontSize:12 }}>Select a date above to view training data.</div>
-          </div>
+      {/* Tabs */}
+      <div style={{ display:'flex', borderBottom:`0.5px solid ${B.border}`, marginBottom:0 }}>
+        {[['arrivals','🛬 Arrivals'],['departures','✈️ Departures']].map(([id,lbl])=>(
+          <button key={id} onClick={()=>setTab(id)} style={{ padding:'9px 22px', border:'none', background:'transparent', cursor:'pointer', fontSize:13, fontWeight:tab===id?600:400, color:tab===id?B.freshPalm:B.textSecond, borderBottom:tab===id?`2px solid ${B.freshPalm}`:'2px solid transparent', marginBottom:'-0.5px' }}>{lbl}</button>
+        ))}
+        <div style={{ marginLeft:'auto', padding:'8px 0', display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{ fontSize:10, color:B.textMuted }}>
+            <span style={{ display:'inline-block', width:10, height:10, borderRadius:2, background:'#FFFBEB', border:'0.5px solid #D97706', marginRight:4 }}/>VIP
+          </span>
+          <span style={{ fontSize:10, color:B.textMuted }}>
+            <span style={{ display:'inline-block', width:10, height:10, borderRadius:2, background:'#F0F9FF', border:'0.5px solid #2563EB', marginRight:4 }}/>Special
+          </span>
         </div>
-      ) : (
-        <>
-          <div style={{ fontSize:11, color:B.textSecond, marginBottom:8 }}>{groups.length} transfer group{groups.length!==1?'s':''} · click any row to expand/collapse</div>
-          {groups.map((g,i)=><GroupCard key={g.trf} group={g} allGroups={groups} groupIdx={i} />)}
-          <div style={{ marginTop:12, padding:'10px 14px', background:B.pearl, borderRadius:8, border:`0.5px solid ${B.border}`, fontSize:11, color:B.textSecond }}>
-            <strong style={{ color:B.textPrimary }}>Return load strategy:</strong> When ↩ badge shows, the boat waits at VIA up to {ALGO.RL} min for incoming arrivals before returning — maximising vessel utilisation.
-          </div>
-        </>
-      )}
-      </>}
+      </div>
+
+      {/* Table */}
+      <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderTop:'none', borderRadius:'0 0 10px 10px', overflow:'hidden' }}>
+        {tab === 'arrivals' && (
+          curArr.length === 0 ? (
+            <div style={{ padding:'48px 20px', textAlign:'center', color:B.textMuted }}>
+              <div style={{ fontSize:32, marginBottom:10 }}>🛬</div>
+              <div style={{ fontWeight:500, marginBottom:6, color:B.textPrimary }}>No arrivals loaded</div>
+              <div style={{ fontSize:12 }}>Upload an ODS schedule file to populate the arrivals table</div>
+            </div>
+          ) : (
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, minWidth:1000 }}>
+                <thead>
+                  <tr style={{ background:B.freshPalm }}>
+                    {arrHdr.map((h,i) => (
+                      <th key={i} style={{ padding:'9px 10px', textAlign:'left', fontSize:10, color:'rgba(255,255,255,0.85)', fontWeight:600, letterSpacing:'1px', textTransform:'uppercase', whiteSpace:'nowrap', borderRight:i<arrHdr.length-1?'0.5px solid rgba(255,255,255,0.1)':'none' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {curArr.map((r,i) => <ArrivalRow key={i} r={r} i={i} />)}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+        {tab === 'departures' && (
+          curDep.length === 0 ? (
+            <div style={{ padding:'48px 20px', textAlign:'center', color:B.textMuted }}>
+              <div style={{ fontSize:32, marginBottom:10 }}>✈️</div>
+              <div style={{ fontWeight:500, marginBottom:6, color:B.textPrimary }}>No departures loaded</div>
+              <div style={{ fontSize:12 }}>Upload an ODS schedule file to populate the departures table</div>
+            </div>
+          ) : (
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, minWidth:900 }}>
+                <thead>
+                  <tr style={{ background:B.freshPalm }}>
+                    {depHdr.map((h,i) => (
+                      <th key={i} style={{ padding:'9px 10px', textAlign:'left', fontSize:10, color:'rgba(255,255,255,0.85)', fontWeight:600, letterSpacing:'1px', textTransform:'uppercase', whiteSpace:'nowrap', borderRight:i<depHdr.length-1?'0.5px solid rgba(255,255,255,0.1)':'none' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {curDep.map((r,i) => <DepartureRow key={i} r={r} i={i} />)}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+      </div>
     </div>
   )
 }
 
-
-// ─── Vessels ──────────────────────────────────────────────────────────────────
-const TRIP_TYPES = ['Guest transfer','VIP / Private transfer','CIP / Serenity transfer','Staff ferry','Fuel run','Maintenance run','Inter-resort transfer','Airport transfer']
-
-function VesselsView({ isMobile }) {
-  const emptyV = { name:'', length:'', capacity:'', trip_types:[], engine_make:'', engine_brand:'', last_overhaul:'', generator_brand:'', generator_capacity:'', generator_make:'', last_dry_dock:'', running_hours:'', mileage:'', fuel_capacity:'', min_fuel:'', max_trips_no_fuel:'', status:'active', notes:'' }
-  const [vessels, setVessels] = useState([])
-  const [form, setForm] = useState(emptyV)
-  const [editing, setEditing] = useState(null)
-  const [showForm, setShowForm] = useState(false)
-  const [expandedId, setExpandedId] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [errMsg, setErrMsg] = useState('')
-
-  const statusOpts = ['active','standby','maintenance']
-  const statusColor = s => s==='active'?[B.successLight,B.success]:s==='standby'?[B.warningLight,B.warning]:[B.dangerLight,B.danger]
-
-  // ── Load from Supabase on mount ──
-  useEffect(() => {
-    supabase.from('fleet')
-      .select('*')
-      .eq('resort_id', BAROS_RESORT_ID)
-      .order('name')
-      .then(({ data, error }) => {
-        if (error) { setErrMsg('Failed to load vessels: ' + error.message) }
-        else { setVessels(data || []) }
-        setLoading(false)
-      })
-  }, [])
-
-  const toggleTrip = t => setForm(p => ({ ...p, trip_types: p.trip_types.includes(t) ? p.trip_types.filter(x=>x!==t) : [...p.trip_types, t] }))
-
-  // ── Save (Insert or Update) ──
-  const save = async () => {
-    if (!form.name) return
-    setSaving(true); setErrMsg('')
-    const payload = {
-      ...form,
-      capacity: Number(form.capacity),
-      resort_id: BAROS_RESORT_ID,
-    }
-    if (editing !== null) {
-      const { error } = await supabase.from('fleet').update(payload).eq('id', editing)
-      if (error) { setErrMsg('Save failed: ' + error.message) }
-      else { setVessels(v => v.map(x => x.id===editing ? { ...payload, id:editing } : x)); setEditing(null) }
-    } else {
-      const { data, error } = await supabase.from('fleet').insert([payload]).select()
-      if (error) { setErrMsg('Save failed: ' + error.message) }
-      else if (data) { setVessels(v => [...v, data[0]]) }
-    }
-    setSaving(false); setForm(emptyV); setShowForm(false)
-  }
-
-  // ── Edit ──
-  const edit = v => {
-    setForm({ ...v, trip_types: v.trip_types || [] })
-    setEditing(v.id); setShowForm(true); setExpandedId(null)
-  }
-
-  // ── Delete ──
-  const del = async id => {
-    const { error } = await supabase.from('fleet').delete().eq('id', id)
-    if (error) { setErrMsg('Delete failed: ' + error.message) }
-    else { setVessels(v => v.filter(x => x.id !== id)) }
-  }
-
-  return (
-    <>
-      <div style={{ marginBottom:isMobile?12:16, display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
-        <div style={{ fontSize:isMobile?14:16, fontWeight:500 }}>⛵ Vessels</div>
-        <button onClick={()=>{ setForm(emptyV); setEditing(null); setShowForm(s=>!s); setExpandedId(null) }} style={BTN_ADD}>
-          {showForm ? '✕ Cancel' : '+ Add Vessel'}
-        </button>
-        {loading && <span style={{ fontSize:12, color:B.textMuted }}>Loading…</span>}
-      </div>
-
-      {errMsg && <div style={{ padding:'10px 14px', background:B.dangerLight, color:B.danger, borderRadius:6, fontSize:13, marginBottom:12 }}>{errMsg}</div>}
-
-      {showForm && (
-        <div style={{ ...S.card, marginBottom:16 }}>
-          <div style={S.cardHdr}>{editing ? 'Edit Vessel' : 'New Vessel'}</div>
-          <div style={{ padding:16 }}>
-            <div style={{ fontSize:12, fontWeight:500, color:B.textSecond, marginBottom:10, textTransform:'uppercase', letterSpacing:'.5px' }}>Basic Info</div>
-            <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr 1fr':'1fr 1fr 1fr', gap:12, marginBottom:16 }}>
-              <div>
-                <label style={LBL}>Vessel Name</label>
-                <input style={INP} type="text" value={form.name||''} onChange={e=>setForm(p=>({...p,name:e.target.value}))} placeholder="Vessel Name" />
-              </div>
-              <div>
-                <label style={LBL}>Length</label>
-                <input style={INP} type="text" value={form.length||''} onChange={e=>setForm(p=>({...p,length:e.target.value}))} placeholder="e.g. 12m" />
-              </div>
-              <div>
-                <label style={LBL}>Max Capacity (pax)</label>
-                <input style={INP} type="number" value={form.capacity||''} onChange={e=>setForm(p=>({...p,capacity:e.target.value}))} placeholder="Max Capacity" />
-              </div>
-              <div>
-                <label style={LBL}>Status</label>
-                <select style={INP} value={form.status} onChange={e=>setForm(p=>({...p,status:e.target.value}))}>
-                  {statusOpts.map(o=><option key={o}>{o}</option>)}
-                </select>
-              </div>
-              <div style={{ gridColumn:'span 2' }}>
-                <label style={LBL}>Notes</label>
-                <input style={INP} value={form.notes||''} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="Optional notes" />
-              </div>
-            </div>
-
-            <div style={{ fontSize:12, fontWeight:500, color:B.textSecond, marginBottom:10, textTransform:'uppercase', letterSpacing:'.5px' }}>Trip Types</div>
-            <div style={{ display:'flex', flexWrap:'wrap', gap:isMobile?6:8, marginBottom:16 }}>
-              {TRIP_TYPES.map(t => (
-                <label key={t} style={{ display:'flex', alignItems:'center', gap:6, padding:isMobile?'4px 8px':'5px 12px', borderRadius:6, border:`0.5px solid ${form.trip_types.includes(t)?B.freshPalm:B.border}`, background:form.trip_types.includes(t)?B.palmLight:'transparent', cursor:'pointer', fontSize:12 }}>
-                  <input type="checkbox" checked={form.trip_types.includes(t)} onChange={()=>toggleTrip(t)} style={{ width:14, height:14 }} />
-                  {t}
-                </label>
-              ))}
-            </div>
-
-            <div style={{ fontSize:12, fontWeight:500, color:B.textSecond, marginBottom:10, textTransform:'uppercase', letterSpacing:'.5px' }}>Engine</div>
-            <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr 1fr':'1fr 1fr 1fr', gap:12, marginBottom:16 }}>
-              <div><label style={LBL}>Engine Make</label><input style={INP} type="text" value={form.engine_make||''} onChange={e=>setForm(p=>({...p,engine_make:e.target.value}))} placeholder="Engine Make" /></div>
-              <div><label style={LBL}>Engine Brand</label><input style={INP} type="text" value={form.engine_brand||''} onChange={e=>setForm(p=>({...p,engine_brand:e.target.value}))} placeholder="Engine Brand" /></div>
-              <div><label style={LBL}>Last Overhaul</label><input style={INP} type="month" value={form.last_overhaul||''} onChange={e=>setForm(p=>({...p,last_overhaul:e.target.value}))} /></div>
-            </div>
-
-            <div style={{ fontSize:12, fontWeight:500, color:B.textSecond, marginBottom:10, textTransform:'uppercase', letterSpacing:'.5px' }}>Generator</div>
-            <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr 1fr':'1fr 1fr 1fr', gap:12, marginBottom:16 }}>
-              <div><label style={LBL}>Generator Make</label><input style={INP} type="text" value={form.generator_make||''} onChange={e=>setForm(p=>({...p,generator_make:e.target.value}))} placeholder="Generator Make" /></div>
-              <div><label style={LBL}>Generator Brand</label><input style={INP} type="text" value={form.generator_brand||''} onChange={e=>setForm(p=>({...p,generator_brand:e.target.value}))} placeholder="Generator Brand" /></div>
-              <div><label style={LBL}>Generator Capacity</label><input style={INP} type="text" value={form.generator_capacity||''} onChange={e=>setForm(p=>({...p,generator_capacity:e.target.value}))} placeholder="e.g. 10kW" /></div>
-            </div>
-
-            <div style={{ fontSize:12, fontWeight:500, color:B.textSecond, marginBottom:10, textTransform:'uppercase', letterSpacing:'.5px' }}>Operations</div>
-            <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr 1fr':'1fr 1fr 1fr', gap:12, marginBottom:16 }}>
-              <div><label style={LBL}>Last Dry Dock</label><input style={INP} type="month" value={form.last_dry_dock||''} onChange={e=>setForm(p=>({...p,last_dry_dock:e.target.value}))} /></div>
-              <div><label style={LBL}>Running Hours</label><input style={INP} type="number" value={form.running_hours||''} onChange={e=>setForm(p=>({...p,running_hours:e.target.value}))} placeholder="Running Hours" /></div>
-              <div><label style={LBL}>Mileage (nm)</label><input style={INP} type="number" value={form.mileage||''} onChange={e=>setForm(p=>({...p,mileage:e.target.value}))} placeholder="Mileage" /></div>
-              <div><label style={LBL}>Fuel Capacity (L)</label><input style={INP} type="number" value={form.fuel_capacity||''} onChange={e=>setForm(p=>({...p,fuel_capacity:e.target.value}))} placeholder="Fuel Capacity" /></div>
-              <div><label style={LBL}>Min Fuel Needed (L)</label><input style={INP} type="number" value={form.min_fuel||''} onChange={e=>setForm(p=>({...p,min_fuel:e.target.value}))} placeholder="Min Fuel" /></div>
-              <div><label style={LBL}>Max Trips Without Fuel</label><input style={INP} type="number" value={form.max_trips_no_fuel||''} onChange={e=>setForm(p=>({...p,max_trips_no_fuel:e.target.value}))} placeholder="Max Trips" /></div>
-            </div>
-
-            <button onClick={save} style={BTN_PRIMARY} disabled={saving}>
-              {saving ? 'Saving…' : editing ? '✓ Update Vessel' : '+ Save Vessel'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-        {vessels.map(v => {
-          const [bg,col] = statusColor(v.status)
-          const expanded = expandedId === v.id
-          return (
-            <div key={v.id} style={S.card}>
-              <div style={{ ...S.cardHdr, cursor:'pointer' }} onClick={()=>setExpandedId(expanded?null:v.id)}>
-                <strong style={{ fontSize:15 }}>{v.name}</strong>
-                <span style={{ fontSize:12, color:B.textSecond, marginLeft:8 }}>{v.length} · {v.capacity} pax</span>
-                <div style={{ display:'flex', gap:6, marginLeft:'auto', alignItems:'center' }}>
-                  <span style={S.badge(bg,col)}>● {v.status}</span>
-                  <button onClick={e=>{e.stopPropagation();edit(v)}} style={{ padding:'3px 10px', borderRadius:4, border:`0.5px solid ${B.borderMid}`, background:'transparent', fontSize:11, cursor:'pointer' }}>Edit</button>
-                  <button onClick={e=>{e.stopPropagation();del(v.id)}} style={BTN_DEL}>Delete</button>
-                  <span style={{ fontSize:11, color:B.textMuted }}>{expanded?'▲':'▼'}</span>
-                </div>
-              </div>
-              <div style={{ padding:'6px 16px', display:'flex', gap:6, flexWrap:'wrap', borderBottom: expanded?`0.5px solid ${B.border}`:'none' }}>
-                {(v.trip_types||[]).map(t=><span key={t} style={{ ...S.badge('rgba(14,165,233,0.08)','#0369A1'), fontSize:10 }}>{t}</span>)}
-              </div>
-              {expanded && (
-                <div style={{ padding:isMobile?10:16, display:'grid', gridTemplateColumns:isMobile?'1fr 1fr':'repeat(3,1fr)', gap:isMobile?8:12, fontSize:12 }}>
-                  {[['Engine Make',v.engine_make],['Engine Brand',v.engine_brand],['Last Overhaul',v.last_overhaul],['Generator Make',v.generator_make],['Generator Brand',v.generator_brand],['Generator Cap.',v.generator_capacity],['Last Dry Dock',v.last_dry_dock],['Running Hours',(v.running_hours||'')+'hrs'],['Mileage',(v.mileage||'')+' nm'],['Fuel Capacity',(v.fuel_capacity||'')+' L'],['Min Fuel',(v.min_fuel||'')+' L'],['Max Trips/Fuel',v.max_trips_no_fuel]].map(([k,val])=>(
-                    <div key={k}>
-                      <div style={{ fontSize:10, color:B.textSecond, marginBottom:2 }}>{k}</div>
-                      <div style={{ fontWeight:500 }}>{val||'—'}</div>
-                    </div>
-                  ))}
-                  {v.notes && <div style={{ gridColumn:'span 3', fontSize:11, color:B.textSecond }}>Notes: {v.notes}</div>}
-                </div>
-              )}
-            </div>
-          )
-        })}
-        {!loading && vessels.length === 0 && (
-          <div style={{ padding:'30px 20px', textAlign:'center', color:B.textMuted, fontSize:13, background:B.white, borderRadius:8, border:`0.5px solid ${B.border}` }}>
-            No vessels yet. Click <strong>+ Add Vessel</strong> to get started.
-          </div>
-        )}
-      </div>
-    </>
-  )
-}
-
-// ─── Team ─────────────────────────────────────────────────────────────────────
-const TEAM_ROLES = ['Admin','Senior Captain','Captain','Boat Crew']
-const ALL_VESSELS = ['Ixora','Tara','Serenity','Xari']
-
-function TeamView({ isMobile }) {
-  const empty = { name:'', role:'Captain', vessels:[], contact:'', status:'on-duty', notes:'' }
-  const [team, setTeam] = useState([])
-  const [form, setForm] = useState(empty)
-  const [editing, setEditing] = useState(null)
-  const [showForm, setShowForm] = useState(false)
-  const [filterRole, setFilterRole] = useState('All')
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [errMsg, setErrMsg] = useState('')
-
-  const statusOpts = ['on-duty','off-duty','leave']
-  const statusColor = s => s==='on-duty'?[B.successLight,B.success]:s==='off-duty'?[B.palmLight,B.textSecond]:[B.warningLight,B.warning]
-  const roleColor = r => r==='Admin'?[B.goldLight,B.gold]:r==='Senior Captain'?[B.palmMid,B.freshPalm]:r==='Captain'?[B.palmLight,B.freshPalmMid]:[B.pearlDeep,B.textSecond]
-
-  // ── Load from Supabase on mount ──
-  useEffect(() => {
-    supabase.from('captains')
-      .select('*')
-      .eq('resort_id', BAROS_RESORT_ID)
-      .order('name')
-      .then(({ data, error }) => {
-        if (error) { setErrMsg('Failed to load team: ' + error.message) }
-        else { setTeam(data || []) }
-        setLoading(false)
-      })
-  }, [])
-
-  const toggleVessel = v => setForm(p => ({ ...p, vessels: p.vessels.includes(v) ? p.vessels.filter(x=>x!==v) : [...p.vessels, v] }))
-
-  // ── Save (Insert or Update) ──
-  const save = async () => {
-    if (!form.name) return
-    setSaving(true); setErrMsg('')
-    const payload = { ...form, resort_id: BAROS_RESORT_ID }
-    if (editing !== null) {
-      const { error } = await supabase.from('captains').update(payload).eq('id', editing)
-      if (error) { setErrMsg('Save failed: ' + error.message) }
-      else { setTeam(t => t.map(x => x.id===editing ? { ...payload, id:editing } : x)); setEditing(null) }
-    } else {
-      const { data, error } = await supabase.from('captains').insert([payload]).select()
-      if (error) { setErrMsg('Save failed: ' + error.message) }
-      else if (data) { setTeam(t => [...t, data[0]]) }
-    }
-    setSaving(false); setForm(empty); setShowForm(false)
-  }
-
-  // ── Edit ──
-  const edit = m => { setForm({ ...m, vessels: m.vessels || [] }); setEditing(m.id); setShowForm(true) }
-
-  // ── Delete ──
-  const del = async id => {
-    const { error } = await supabase.from('captains').delete().eq('id', id)
-    if (error) { setErrMsg('Delete failed: ' + error.message) }
-    else { setTeam(t => t.filter(x => x.id !== id)) }
-  }
-
-  const filtered = filterRole==='All' ? team : team.filter(m=>m.role===filterRole)
-  const roleLabel = r => r==='Admin' ? 'can manage all boats' : r==='Senior Captain' ? 'can captain any boat' : r==='Captain' ? 'assigned boats only' : 'can crew on assigned boats'
-
-  return (
-    <>
-      <div style={{ marginBottom:isMobile?12:16, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-        <div style={{ fontSize:isMobile?14:16, fontWeight:500 }}>👥 Team</div>
-        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-          {['All',...TEAM_ROLES].map(r=>(
-            <button key={r} onClick={()=>setFilterRole(r)} style={{ padding:'4px 12px', borderRadius:99, border:`0.5px solid ${B.borderMid}`, background:filterRole===r?B.freshPalm:'transparent', color:filterRole===r?B.white:B.textSecond, fontSize:11, cursor:'pointer' }}>{r}</button>
-          ))}
-        </div>
-        <button onClick={()=>{ setForm(empty); setEditing(null); setShowForm(s=>!s) }} style={BTN_ADD}>
-          {showForm ? '✕ Cancel' : '+ Add Member'}
-        </button>
-        {loading && <span style={{ fontSize:12, color:B.textMuted }}>Loading…</span>}
-      </div>
-
-      {errMsg && <div style={{ padding:'10px 14px', background:B.dangerLight, color:B.danger, borderRadius:6, fontSize:13, marginBottom:12 }}>{errMsg}</div>}
-
-      {showForm && (
-        <div style={{ ...S.card, marginBottom:16 }}>
-          <div style={S.cardHdr}>{editing ? 'Edit Team Member' : 'New Team Member'}</div>
-          <div style={{ padding:16 }}>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:isMobile?8:12, marginBottom:isMobile?12:16 }}>
-              <div>
-                <div style={{ fontSize:11, color:B.textSecond, marginBottom:4 }}>Full Name</div>
-                <input style={INP} value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} placeholder="Full name" />
-              </div>
-              <div>
-                <div style={{ fontSize:11, color:B.textSecond, marginBottom:4 }}>Contact Number</div>
-                <input style={INP} value={form.contact} onChange={e=>setForm(p=>({...p,contact:e.target.value}))} placeholder="+960 777 0000" />
-              </div>
-              <div>
-                <div style={{ fontSize:11, color:B.textSecond, marginBottom:4 }}>Role</div>
-                <select style={INP} value={form.role} onChange={e=>setForm(p=>({...p,role:e.target.value}))}>
-                  {TEAM_ROLES.map(r=><option key={r}>{r}</option>)}
-                </select>
-              </div>
-              <div>
-                <div style={{ fontSize:11, color:B.textSecond, marginBottom:4 }}>Status</div>
-                <select style={INP} value={form.status} onChange={e=>setForm(p=>({...p,status:e.target.value}))}>
-                  {statusOpts.map(o=><option key={o}>{o}</option>)}
-                </select>
-              </div>
-              <div>
-                <div style={{ fontSize:11, color:B.textSecond, marginBottom:4 }}>Notes</div>
-                <input style={INP} value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="Optional" />
-              </div>
-            </div>
-
-            <div style={{ fontSize:11, color:B.textSecond, marginBottom:8 }}>
-              {form.role==='Boat Crew' ? 'Boats this crew member can work on:' : 'Boats this person can captain / operate:'}
-            </div>
-            <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
-              {ALL_VESSELS.map(v => (
-                <label key={v} style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 14px', borderRadius:6, border:`0.5px solid ${form.vessels.includes(v)?B.freshPalm:B.border}`, background:form.vessels.includes(v)?B.palmLight:'transparent', cursor:'pointer', fontSize:13, fontWeight:500 }}>
-                  <input type="checkbox" checked={form.vessels.includes(v)} onChange={()=>toggleVessel(v)} style={{ width:14, height:14 }} />
-                  {v}
-                </label>
-              ))}
-            </div>
-
-            <button onClick={save} style={BTN_PRIMARY} disabled={saving}>
-              {saving ? 'Saving…' : editing ? '✓ Update Member' : '+ Save Member'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-        {filtered.map(m => {
-          const [sbg,scol] = statusColor(m.status)
-          const [rbg,rcol] = roleColor(m.role)
-          return (
-            <div key={m.id} style={{ ...S.card, marginBottom:0 }}>
-              <div style={{ padding:'10px 14px', display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-                <div style={{ width:36, height:36, borderRadius:'50%', background:B.palmLight, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:600, fontSize:14, color:B.freshPalm, flexShrink:0 }}>
-                  {m.name.split(' ').map(n=>n[0]).join('').slice(0,2)}
-                </div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontWeight:500, fontSize:14 }}>{m.name}</div>
-                  <div style={{ fontSize:11, color:B.textSecond, marginTop:1 }}>{m.contact} · {roleLabel(m.role)}</div>
-                </div>
-                <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
-                  <span style={S.badge(rbg,rcol)}>{m.role}</span>
-                  <span style={S.badge(sbg,scol)}>● {m.status}</span>
-                  {(m.vessels||[]).map(v=><span key={v} style={{ ...S.badge('rgba(107,114,128,0.08)','#374151'), fontSize:10 }}>{v}</span>)}
-                  <button onClick={()=>edit(m)} style={{ padding:'3px 10px', borderRadius:4, border:`0.5px solid ${B.borderMid}`, background:'transparent', fontSize:11, cursor:'pointer' }}>Edit</button>
-                  <button onClick={()=>del(m.id)} style={BTN_DEL}>Delete</button>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-        {!loading && filtered.length === 0 && (
-          <div style={{ padding:'30px 20px', textAlign:'center', color:B.textMuted, fontSize:13, background:B.white, borderRadius:8, border:`0.5px solid ${B.border}` }}>
-            No team members yet. Click <strong>+ Add Member</strong> to get started.
-          </div>
-        )}
-      </div>
-    </>
-  )
-}
-
-// ─── Fuel Log ─────────────────────────────────────────────────────────────────
-function FuelLogView({ isMobile }) {
-  const today = new Date().toISOString().split('T')[0]
-  const empty = { date:today, vessel:'Ixora', litres:'', cost:'', filledBy:'', notes:'' }
-  const [logs, setLogs] = useState([
-    { id:1, date:'2026-03-28', vessel:'Ixora',    litres:120, cost:180, filledBy:'Ahmed Rasheed',  notes:'' },
-    { id:2, date:'2026-03-27', vessel:'Tara',     litres:95,  cost:142, filledBy:'Mohamed Saeed',  notes:'' },
-    { id:3, date:'2026-03-26', vessel:'Serenity', litres:60,  cost:90,  filledBy:'Ibrahim Hassan', notes:'VIP trip' },
-  ])
-  const [form, setForm] = useState(empty)
-  const [showForm, setShowForm] = useState(false)
-  const vesselOpts = ['Ixora','Tara','Serenity','Xari']
-
-  const save = () => {
-    if (!form.vessel || !form.litres) return
-    setLogs(l => [{ ...form, id:Date.now(), litres:Number(form.litres), cost:Number(form.cost) }, ...l])
-    setForm(empty); setShowForm(false)
-  }
-
-  const totalLitres = logs.reduce((s,l)=>s+l.litres,0)
-  const totalCost   = logs.reduce((s,l)=>s+l.cost,0)
-
-  return (
-    <>
-      <div style={{ marginBottom:isMobile?12:16, display:'flex', alignItems:'center', gap:12 }}>
-        <div style={{ fontSize:isMobile?14:16, fontWeight:500 }}>⛽ Fuel Log</div>
-        <button onClick={()=>setShowForm(s=>!s)} style={BTN_ADD}>
-          {showForm ? '✕ Cancel' : '+ Add Entry'}
-        </button>
-      </div>
-
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:isMobile?8:12, marginBottom:isMobile?12:16 }}>
-        {[['⛽ Total Litres',totalLitres.toLocaleString()+' L',B.freshPalm],['💰 Total Cost','$ '+totalCost.toLocaleString(),B.gold]].map(([lbl,val,col])=>(
-          <div key={lbl} style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:8, padding:'12px 16px', borderTop:`2px solid ${col}` }}>
-            <div style={{ fontSize:20, fontWeight:500, color:col }}>{val}</div>
-            <div style={{ fontSize:11, color:B.textSecond, marginTop:2 }}>{lbl}</div>
-          </div>
-        ))}
-      </div>
-
-      {showForm && (
-        <div style={{ ...S.card, marginBottom:16 }}>
-          <div style={S.cardHdr}>New Fuel Entry</div>
-          <div style={{ ...S.cardBody, display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-            <div>
-              <div style={{ fontSize:11, color:B.textSecond, marginBottom:4 }}>Date</div>
-              <input style={INP} type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} />
-            </div>
-            <div>
-              <div style={{ fontSize:11, color:B.textSecond, marginBottom:4 }}>Vessel</div>
-              <select style={INP} value={form.vessel} onChange={e=>setForm(p=>({...p,vessel:e.target.value}))}>
-                {vesselOpts.map(o=><option key={o}>{o}</option>)}
-              </select>
-            </div>
-            {[['Litres','litres','number'],['Cost ($)','cost','number'],['Filled By','filledBy','text'],['Notes','notes','text']].map(([lbl,key,type])=>(
-              <div key={key}>
-                <div style={{ fontSize:11, color:B.textSecond, marginBottom:4 }}>{lbl}</div>
-                <input style={INP} type={type} value={form[key]} onChange={e=>setForm(p=>({...p,[key]:e.target.value}))} placeholder={lbl} />
-              </div>
-            ))}
-            <div style={{ display:'flex', alignItems:'flex-end' }}>
-              <button onClick={save} style={BTN_PRIMARY}>Save Entry</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div style={S.card}>
-        <div style={{ overflowX:'auto' }}>
-        <table style={S.table}>
-          <thead><tr>{['Date','Vessel','Litres','Cost','Filled By','Notes',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
-          <tbody>
-            {logs.map(l=>(
-              <tr key={l.id}>
-                <td style={{...S.td, fontFamily:'monospace', fontSize:12}}>{l.date}</td>
-                <td style={S.td}>{l.vessel}</td>
-                <td style={S.td}>{l.litres} L</td>
-                <td style={S.td}>$ {l.cost}</td>
-                <td style={S.td}>{l.filledBy||'—'}</td>
-                <td style={{...S.td, color:B.textSecond, fontSize:12}}>{l.notes||'—'}</td>
-                <td style={S.td}><button onClick={()=>setLogs(lg=>lg.filter(x=>x.id!==l.id))} style={BTN_DEL}>Delete</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-      </div>
-    </>
-  )
-}
 
 // ─── Duty Roster ──────────────────────────────────────────────────────────────
 const SHIFT_CODES = [
