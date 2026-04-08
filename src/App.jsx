@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+﻿import { useState, useEffect, useMemo, useRef } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
 // Supabase setup with safe fallback so app never crashes on missing key
@@ -268,7 +268,7 @@ function LoginPage({ onLogin }) {
   const [creds, setCreds] = useState({ username:'', password:'' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const emailMap = { 'dhirumbaa':'dhirumbaa@dhirumbaa.com', 'baros.admin':'baros.admin@dhirumbaa.com' }
+  const emailMap = {}
 
   const handle = async e => {
     e.preventDefault(); setLoading(true); setError('')
@@ -1968,3 +1968,5 @@ export default function DhirumbaaFMS() {
     </div>
   )
 }
+
+
