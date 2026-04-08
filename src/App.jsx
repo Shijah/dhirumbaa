@@ -1957,6 +1957,23 @@ const EMPTY_VESSEL = {
   activities:[], status:'active', notes:''
 }
 
+// Vessel form helper components (outside to prevent re-render issues)
+function VField({ label, error, children }) {
+  return (
+    <div>
+      <div style={{ fontSize:11, fontWeight:500, color: error ? '#DC2626' : B.textMuted, marginBottom:4, textTransform:'uppercase', letterSpacing:'.7px' }}>{label}{error ? ' — ' + error : ''}</div>
+      {children}
+    </div>
+  )
+}
+function VGrid({ children, cols=2, isMobile }) {
+  return (
+    <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat('+cols+', 1fr)', gap:14 }}>
+      {children}
+    </div>
+  )
+}
+
 function VesselForm({ vessel, onSave, onCancel, isMobile }) {
   const [tab,        setTab]        = useState('general')
   const [form,       setForm]       = useState(vessel ? { ...EMPTY_VESSEL, ...vessel, activities: vessel.activities||[] } : { ...EMPTY_VESSEL })
@@ -2031,30 +2048,7 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
     { id:'metrics',     label:'Metrics',     icon:'📊' },
   ]
 
-  const Field = ({ label, error, children }) => (
-    <div>
-      <div style={{ fontSize:11, fontWeight:500, color: error ? '#DC2626' : B.textMuted, marginBottom:4, textTransform:'uppercase', letterSpacing:'.7px' }}>{label}{error ? ` — ${error}` : ''}</div>
-      {children}
-    </div>
-  )
-
-  const Input = ({ k, type='text', placeholder='', ...rest }) => (
-    <input type={type} value={form[k]||''} onChange={e=>setF(k, e.target.value)} placeholder={placeholder}
-      style={{ ...INP, borderColor: errors[k] ? '#DC2626' : undefined }} {...rest} />
-  )
-
-  const Select = ({ k, options, labels }) => (
-    <select value={form[k]||''} onChange={e=>setF(k, e.target.value)} style={INP}>
-      <option value="">Select...</option>
-      {options.map(o => <option key={o} value={o}>{labels?.[o]||o}</option>)}
-    </select>
-  )
-
-  const G = ({ children, cols=2 }) => (
-    <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${cols}, 1fr)`, gap:14 }}>
-      {children}
-    </div>
-  )
+  // Field, Input, Select, G defined outside VesselForm to avoid re-render issues
 
   return (
     <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:12, overflow:'hidden' }}>
@@ -2086,29 +2080,29 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
         {/* ── GENERAL ── */}
         {tab === 'general' && (
           <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-            <G cols={3}>
-              <Field label="Vessel Name *" error={errors.name}><Input k="name" placeholder="e.g. Ixora" /></Field>
-              <Field label="Vessel Type *" error={errors.vessel_type}><Select k="vessel_type" options={VESSEL_TYPES} /></Field>
-              <Field label="Status">
+            <VGrid cols={3} isMobile={isMobile}>
+              <VField label="Vessel Name *" error={errors.name}><input type="text" value={form["name"]||''} onChange={e=>setF("name", e.target.value)} placeholder="e.g. Ixora" style={{...INP, borderColor: errors["name"] ? '#DC2626' : undefined}} /></VField>
+              <VField label="Vessel Type *" error={errors.vessel_type}><select value={form["vessel_type"]||''} onChange={e=>setF("vessel_type", e.target.value)} style={INP}><option value="">Select...</option>{VESSEL_TYPES.map(o => <option key={o} value={o}>{o}</option>)}</select></VField>
+              <VField label="Status">
                 <select value={form.status||'active'} onChange={e=>setF('status',e.target.value)} style={INP}>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                   <option value="maintenance">Maintenance</option>
                 </select>
-              </Field>
-            </G>
-            <G cols={4}>
-              <Field label="Length (m)"><Input k="length_m" type="number" placeholder="0.0" /></Field>
-              <Field label="Beam / Width (m)"><Input k="beam_m" type="number" placeholder="0.0" /></Field>
-              <Field label="Draft (m)"><Input k="draft_m" type="number" placeholder="0.0" /></Field>
-              <Field label="Year Built"><Input k="year_built" type="number" placeholder="2020" /></Field>
-            </G>
-            <G cols={3}>
-              <Field label="Max Passengers *" error={errors.max_pax}><Input k="max_pax" type="number" placeholder="12" /></Field>
-              <Field label="Registry Port"><Input k="registry_port" placeholder="e.g. Male" /></Field>
-              <Field label="Registry Country"><Input k="registry_country" placeholder="e.g. Maldives" /></Field>
-            </G>
-            <Field label="Seaworthiness Status">
+              </VField>
+            </VGrid>
+            <VGrid cols={4} isMobile={isMobile}>
+              <VField label="Length (m)"><input type="number" value={form["length_m"]||''} onChange={e=>setF("length_m", e.target.value)} placeholder="0.0" style={{...INP, borderColor: errors["length_m"] ? '#DC2626' : undefined}} /></VField>
+              <VField label="Beam / Width (m)"><input type="number" value={form["beam_m"]||''} onChange={e=>setF("beam_m", e.target.value)} placeholder="0.0" style={{...INP, borderColor: errors["beam_m"] ? '#DC2626' : undefined}} /></VField>
+              <VField label="Draft (m)"><input type="number" value={form["draft_m"]||''} onChange={e=>setF("draft_m", e.target.value)} placeholder="0.0" style={{...INP, borderColor: errors["draft_m"] ? '#DC2626' : undefined}} /></VField>
+              <VField label="Year Built"><input type="number" value={form["year_built"]||''} onChange={e=>setF("year_built", e.target.value)} placeholder="2020" style={{...INP, borderColor: errors["year_built"] ? '#DC2626' : undefined}} /></VField>
+            </VGrid>
+            <VGrid cols={3} isMobile={isMobile}>
+              <VField label="Max Passengers *" error={errors.max_pax}><input type="number" value={form["max_pax"]||''} onChange={e=>setF("max_pax", e.target.value)} placeholder="12" style={{...INP, borderColor: errors["max_pax"] ? '#DC2626' : undefined}} /></VField>
+              <VField label="Registry Port"><input type="text" value={form["registry_port"]||''} onChange={e=>setF("registry_port", e.target.value)} placeholder="e.g. Male" style={{...INP, borderColor: errors["registry_port"] ? '#DC2626' : undefined}} /></VField>
+              <VField label="Registry Country"><input type="text" value={form["registry_country"]||''} onChange={e=>setF("registry_country", e.target.value)} placeholder="e.g. Maldives" style={{...INP, borderColor: errors["registry_country"] ? '#DC2626' : undefined}} /></VField>
+            </VGrid>
+            <VField label="Seaworthiness Status">
               <div style={{ display:'flex', gap:10 }}>
                 {SEA_STATUS.map(s => (
                   <button key={s} onClick={() => setF('seaworthiness', s)} style={{ padding:'6px 14px', borderRadius:99, border:`1.5px solid ${form.seaworthiness===s ? SEA_COLORS[s] : B.border}`, background: form.seaworthiness===s ? SEA_COLORS[s]+'15' : 'transparent', color: form.seaworthiness===s ? SEA_COLORS[s] : B.textSecond, fontSize:12, fontWeight: form.seaworthiness===s?600:400, cursor:'pointer' }}>
@@ -2116,10 +2110,10 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
                   </button>
                 ))}
               </div>
-            </Field>
-            <Field label="Notes / Remarks">
+            </VField>
+            <VField label="Notes / Remarks">
               <textarea value={form.notes||''} onChange={e=>setF('notes',e.target.value)} placeholder="Additional notes..." rows={3} style={{ ...INP, resize:'vertical' }} />
-            </Field>
+            </VField>
           </div>
         )}
 
@@ -2138,24 +2132,24 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
                     <button onClick={() => setEngines(e => e.filter((_,j) => j!==i))} style={{ background:'transparent', border:`0.5px solid #DC2626`, borderRadius:5, color:'#DC2626', fontSize:11, cursor:'pointer', padding:'3px 10px' }}>Remove</button>
                   )}
                 </div>
-                <G cols={3}>
+                <VGrid cols={3} isMobile={isMobile}>
                   {[['brand','Brand','e.g. Yamaha'],['model','Model / Make','e.g. F350'],['serial_number','Serial Number','']].map(([k,l,p]) => (
                     <Field key={k} label={l}>
                       <input value={eng[k]||''} onChange={e=>setEngines(es=>es.map((x,j)=>j===i?{...x,[k]:e.target.value}:x))} placeholder={p} style={INP} />
-                    </Field>
+                    </VField>
                   ))}
                   {[['power_hp','Power (HP)'],['running_hours','Running Hours'],['fuel_consumption_hr','Fuel Use (L/hr)']].map(([k,l]) => (
                     <Field key={k} label={l}>
                       <input type="number" value={eng[k]||''} onChange={e=>setEngines(es=>es.map((x,j)=>j===i?{...x,[k]:e.target.value}:x))} style={INP} />
-                    </Field>
+                    </VField>
                   ))}
-                  <Field label="Last Overhaul Date">
+                  <VField label="Last Overhaul Date">
                     <input type="date" value={eng.last_overhaul||''} onChange={e=>setEngines(es=>es.map((x,j)=>j===i?{...x,last_overhaul:e.target.value}:x))} style={INP} />
-                  </Field>
-                  <Field label="Notes">
+                  </VField>
+                  <VField label="Notes">
                     <input value={eng.notes||''} onChange={e=>setEngines(es=>es.map((x,j)=>j===i?{...x,notes:e.target.value}:x))} style={INP} />
-                  </Field>
-                </G>
+                  </VField>
+                </VGrid>
               </div>
             ))}
           </div>
@@ -2176,19 +2170,19 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
                     <button onClick={() => setGenerators(g => g.filter((_,j) => j!==i))} style={{ background:'transparent', border:`0.5px solid #DC2626`, borderRadius:5, color:'#DC2626', fontSize:11, cursor:'pointer', padding:'3px 10px' }}>Remove</button>
                   )}
                 </div>
-                <G cols={3}>
+                <VGrid cols={3} isMobile={isMobile}>
                   {[['brand','Brand'],['model','Model / Make'],['capacity_kw','Capacity (KW)'],['running_hours','Running Hours']].map(([k,l]) => (
                     <Field key={k} label={l}>
                       <input value={gen[k]||''} onChange={e=>setGenerators(gs=>gs.map((x,j)=>j===i?{...x,[k]:e.target.value}:x))} style={INP} />
-                    </Field>
+                    </VField>
                   ))}
-                  <Field label="Last Service Date">
+                  <VField label="Last Service Date">
                     <input type="date" value={gen.last_service||''} onChange={e=>setGenerators(gs=>gs.map((x,j)=>j===i?{...x,last_service:e.target.value}:x))} style={INP} />
-                  </Field>
-                  <Field label="Notes">
+                  </VField>
+                  <VField label="Notes">
                     <input value={gen.notes||''} onChange={e=>setGenerators(gs=>gs.map((x,j)=>j===i?{...x,notes:e.target.value}:x))} style={INP} />
-                  </Field>
-                </G>
+                  </VField>
+                </VGrid>
               </div>
             ))}
           </div>
@@ -2198,19 +2192,19 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
         {tab === 'fuel' && (
           <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
             <div style={{ fontSize:13, fontWeight:600, color:B.textPrimary, borderBottom:`0.5px solid ${B.border}`, paddingBottom:8 }}>⛽ Fuel</div>
-            <G cols={3}>
-              <Field label="Fuel Type"><Select k="fuel_type" options={FUEL_TYPES} /></Field>
-              <Field label="Tank Capacity (L)"><Input k="fuel_tank_capacity" type="number" /></Field>
-              <Field label="Avg Consumption (L/hr)"><Input k="avg_consumption_hr" type="number" /></Field>
-            </G>
+            <VGrid cols={3} isMobile={isMobile}>
+              <VField label="Fuel Type"><select value={form["fuel_type"]||''} onChange={e=>setF("fuel_type", e.target.value)} style={INP}><option value="">Select...</option>{FUEL_TYPES.map(o => <option key={o} value={o}>{o}</option>)}</select></VField>
+              <VField label="Tank Capacity (L)"><input type="number" value={form["fuel_tank_capacity"]||''} onChange={e=>setF("fuel_tank_capacity", e.target.value)} placeholder="" style={{...INP, borderColor: errors["fuel_tank_capacity"] ? '#DC2626' : undefined}} /></VField>
+              <VField label="Avg Consumption (L/hr)"><input type="number" value={form["avg_consumption_hr"]||''} onChange={e=>setF("avg_consumption_hr", e.target.value)} placeholder="" style={{...INP, borderColor: errors["avg_consumption_hr"] ? '#DC2626' : undefined}} /></VField>
+            </VGrid>
             <div style={{ fontSize:13, fontWeight:600, color:B.textPrimary, borderBottom:`0.5px solid ${B.border}`, paddingBottom:8, marginTop:8 }}>🔧 Maintenance</div>
-            <G cols={2}>
-              <Field label="Last Dry Dock"><Input k="last_dry_dock" type="date" /></Field>
-              <Field label="Next Dry Dock Due"><Input k="next_dry_dock" type="date" /></Field>
-            </G>
-            <Field label="Maintenance Notes">
+            <VGrid cols={2} isMobile={isMobile}>
+              <VField label="Last Dry Dock"><input type="date" value={form["last_dry_dock"]||''} onChange={e=>setF("last_dry_dock", e.target.value)} placeholder="" style={{...INP, borderColor: errors["last_dry_dock"] ? '#DC2626' : undefined}} /></VField>
+              <VField label="Next Dry Dock Due"><input type="date" value={form["next_dry_dock"]||''} onChange={e=>setF("next_dry_dock", e.target.value)} placeholder="" style={{...INP, borderColor: errors["next_dry_dock"] ? '#DC2626' : undefined}} /></VField>
+            </VGrid>
+            <VField label="Maintenance Notes">
               <textarea value={form.maintenance_notes||''} onChange={e=>setF('maintenance_notes',e.target.value)} rows={4} placeholder="Maintenance history and upcoming tasks..." style={{ ...INP, resize:'vertical' }} />
-            </Field>
+            </VField>
           </div>
         )}
 
@@ -2242,12 +2236,12 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
         {tab === 'metrics' && (
           <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
             <div style={{ fontSize:12, color:B.textSecond, marginBottom:4 }}>Operational cost and performance data</div>
-            <G cols={2}>
-              <Field label="Avg Fuel Per Trip (L)"><Input k="avg_fuel_per_trip" type="number" /></Field>
-              <Field label="Avg Trip Duration (hrs)"><Input k="avg_trip_duration" type="number" /></Field>
-              <Field label="Cost Per Hour (MVR)"><Input k="cost_per_hour" type="number" /></Field>
-              <Field label="Cost Per Trip (MVR)"><Input k="cost_per_trip" type="number" /></Field>
-            </G>
+            <VGrid cols={2} isMobile={isMobile}>
+              <VField label="Avg Fuel Per Trip (L)"><input type="number" value={form["avg_fuel_per_trip"]||''} onChange={e=>setF("avg_fuel_per_trip", e.target.value)} placeholder="" style={{...INP, borderColor: errors["avg_fuel_per_trip"] ? '#DC2626' : undefined}} /></VField>
+              <VField label="Avg Trip Duration (hrs)"><input type="number" value={form["avg_trip_duration"]||''} onChange={e=>setF("avg_trip_duration", e.target.value)} placeholder="" style={{...INP, borderColor: errors["avg_trip_duration"] ? '#DC2626' : undefined}} /></VField>
+              <VField label="Cost Per Hour (MVR)"><input type="number" value={form["cost_per_hour"]||''} onChange={e=>setF("cost_per_hour", e.target.value)} placeholder="" style={{...INP, borderColor: errors["cost_per_hour"] ? '#DC2626' : undefined}} /></VField>
+              <VField label="Cost Per Trip (MVR)"><input type="number" value={form["cost_per_trip"]||''} onChange={e=>setF("cost_per_trip", e.target.value)} placeholder="" style={{...INP, borderColor: errors["cost_per_trip"] ? '#DC2626' : undefined}} /></VField>
+            </VGrid>
           </div>
         )}
 
