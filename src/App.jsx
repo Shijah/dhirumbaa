@@ -13,6 +13,7 @@ try {
 }
 
 const BAROS_RESORT_ID = 'f1ada214-1cc3-4634-a4cd-0d94c7c10b79'
+const sb = supabase
 
 // ─── Mobile responsive hook ───────────────────────────────────────────────────
 function useIsMobile() {
