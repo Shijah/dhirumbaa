@@ -538,289 +538,266 @@ function GroupCard({ group, allGroups, groupIdx }) {
 // ─── Scheduler: Main View ──────────────────────────────────────────────────────
 // ─── Smart Scheduler ──────────────────────────────────────────────────────────
 
-const TRIP_CATEGORIES = [
-  { id:'arrivals',    icon:'🛬', label:'Arrivals',          color:'#1A4530', sub:'Guest check-ins'        },
-  { id:'departures',  icon:'✈️', label:'Departures',         color:'#374151', sub:'Guest check-outs'       },
-  { id:'excursions',  icon:'🤿', label:'Excursions',         color:'#0369A1', sub:'Day trips & tours'      },
-  { id:'diving',      icon:'🐠', label:'Diving',             color:'#0891B2', sub:'Dive trips'             },
-  { id:'watersports', icon:'🏄', label:'Water Sports',       color:'#7C3AED', sub:'Jet ski, kayak etc.'    },
-  { id:'snorkeling',  icon:'🐢', label:'Snorkeling',         color:'#059669', sub:'Snorkel trips'          },
-  { id:'fnb',         icon:'🍽️', label:'F&B / Dining',       color:'#B45309', sub:'Destination dinners'    },
-  { id:'ferry',       icon:'⛵', label:'Staff Ferry',        color:'#6B7280', sub:'Weekly & monthly'       },
-  { id:'supply',      icon:'📦', label:'Supply & Logistics', color:'#92400E', sub:'Provisions & cargo'     },
+const SCHED_GROUPS = [
+  {
+    id: 'transfers',
+    label: 'Transfers',
+    cats: [
+      { id:'arrivals',   icon:'🛬', label:'Arrivals',   color:'#1A4530' },
+      { id:'departures', icon:'✈️', label:'Departures', color:'#374151' },
+    ]
+  },
+  {
+    id: 'activities',
+    label: 'Activities',
+    cats: [
+      { id:'excursions', icon:'🤿', label:'Excursions / Water Sports', color:'#0369A1' },
+      { id:'diving',     icon:'🐠', label:'Diving',                    color:'#0891B2' },
+      { id:'snorkeling', icon:'🐢', label:'Snorkeling',                color:'#059669' },
+      { id:'fnb',        icon:'🍽️', label:'Destination Dining',        color:'#B45309' },
+    ]
+  },
 ]
 
-const VESSELS = ['Ixora', 'Tara', 'Serenity', 'Xari']
+const VESSELS_LIST = ['Ixora', 'Tara', 'Serenity', 'Xari']
+const VESSEL_COL   = { Ixora:'#1A4530', Tara:'#0369A1', Serenity:'#7C3AED', Xari:'#B45309' }
 
-const VESSEL_COLORS = {
-  Ixora:   '#1A4530',
-  Tara:    '#0369A1',
-  Serenity:'#7C3AED',
-  Xari:    '#B45309',
-}
-
-// Auto-assign vessel based on pax count and trip type
-const autoAssignVessel = (pax, tripType, vip) => {
+const autoVessel = (pax, vip) => {
   if (vip && vip.toLowerCase() !== 'no' && vip !== '') return 'Serenity'
-  if (tripType === 'departures' || tripType === 'arrivals') {
-    if (pax <= 6) return 'Tara'
-    return 'Ixora'
-  }
-  return 'Ixora'
+  return pax <= 6 ? 'Tara' : 'Ixora'
 }
 
-function UploadZone({ catId, catLabel, catIcon, catColor, date, data, onUpload, onRefreshFR24, fr24Map, fr24Loading }) {
-  const fileRef = useRef()
-  const [uploading, setUploading] = useState(false)
-  const [msg, setMsg] = useState('')
-  const [expanded, setExpanded] = useState(false)
+const calcBoatDispatch = (eta) => {
+  if (!eta || !eta.includes(':')) return '—'
+  const [h, m] = eta.split(':').map(Number)
+  const tot = h * 60 + m - 57
+  if (tot < 0) return '—'
+  return `${String(Math.floor(tot / 60)).padStart(2,'0')}:${String(tot % 60).padStart(2,'0')}`
+}
+
+// ─── Parse any file format ────────────────────────────────────────────────────
+const parseFile = async (file, catId, date) => {
+  const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs')
+
+  const fmt = (v) => {
+    if (!v && v !== 0) return ''
+    if (v instanceof Date) return v.toTimeString().slice(0, 5)
+    return String(v).trim()
+  }
+
+  let wb
+  if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+    // PDF: extract text and try to parse as table
+    return { rows: [], note: 'PDF parsing not yet supported. Please use Excel or CSV.' }
+  } else if (file.type.startsWith('image/')) {
+    return { rows: [], note: 'Image files not yet supported. Please use Excel or CSV.' }
+  } else {
+    const buf = await file.arrayBuffer()
+    wb = XLSX.read(buf, { type: 'array', cellDates: true })
+  }
+
+  // Find best matching sheet
+  const cats = ['arrival','departure','excursion','diving','snorkel','fnb','dining','activity']
+  const sheetName = wb.SheetNames.find(s =>
+    cats.some(c => s.toLowerCase().includes(c)) ||
+    s.toLowerCase().includes(catId.toLowerCase().slice(0,4))
+  ) || wb.SheetNames[0]
+
+  const ws  = wb.Sheets[sheetName]
+  const raw = XLSX.utils.sheet_to_json(ws, { defval: '' })
+
+  const rows = raw.map(r => ({
+    resort_id:      BAROS_RESORT_ID,
+    schedule_date:  date,
+    type:           catId,
+    flight_time:    fmt(r['FLIGHT TIME']   || r['TIME']          || r['TRANSFER TIME'] || r['DEPARTURE TIME'] || ''),
+    flight_number:  fmt(r['FLIGHT NUMBER'] || r['FLIGHT']        || r['FLIGHT NO']     || '').toUpperCase(),
+    transfer_time:  fmt(r['TRANSFER TIME'] || ''),
+    checkout_time:  fmt(r['CHECKOUT TIME'] || ''),
+    room:           fmt(r['ROOM']          || r['VILLA']         || ''),
+    guest_name:     fmt(r['GUEST NAME']    || r['NAME']          || r['GUEST']         || ''),
+    pax:            parseInt(r['PAX']      || r['GUESTS']        || r['NO OF GUESTS']  || 1) || 1,
+    meal_plan:      fmt(r['MP']            || r['MEAL PLAN']     || r['MEAL']          || ''),
+    operator:       fmt(r['OPERATOR']      || r['OPERTOR']       || r['TRANSFER']      || ''),
+    spc:            ['yes','1','true'].includes(String(r['SPC'] || '').toLowerCase()),
+    vip:            fmt(r['VIP'] || ''),
+    room_type:      fmt(r['ROOM TYPE']     || r['ROOM TTPE']     || ''),
+    nights:         parseInt(r['NIGHTS']   || r['NGHTS']         || 0) || null,
+    departure_date: fmt(r['DEPARTURE']     || r['CHECKOUT']      || ''),
+    member:         ['yes','1','true'].includes(String(r['MEM'] || r['MEMBER'] || '').toLowerCase()),
+    butler:         fmt(r['BUTLER'] || ''),
+    confirmation:   fmt(r['CONFIRMATION']  || r['CONF']          || ''),
+    comments:       fmt(r['COMMENTS']      || r['NOTES']         || r['REMARKS']       || ''),
+    assigned_vessel: autoVessel(
+      parseInt(r['PAX'] || 1) || 1,
+      fmt(r['VIP'] || '')
+    ),
+  })).filter(r => r.guest_name || r.room || r.flight_number)
+
+  return { rows, note: null }
+}
+
+// ─── Single upload card ───────────────────────────────────────────────────────
+function UploadCard({ cat, date, data, fr24Map, fr24Loading, onUpload, onRefreshFR24 }) {
+  const fileRef    = useRef()
+  const [busy, setBusy]       = useState(false)
+  const [msg,  setMsg]        = useState('')
+  const [open, setOpen]       = useState(false)
+  const [vessels, setVessels] = useState({})
+
+  const hasData  = data && data.length > 0
+  const totalPax = data ? data.reduce((s,r) => s + (r.pax||0), 0) : 0
 
   const handleFile = async (file) => {
     if (!file) return
-    setUploading(true)
-    setMsg('Reading file...')
+    setBusy(true)
+    setMsg('Reading file…')
     try {
-      const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs')
-      const buf  = await file.arrayBuffer()
-      const wb   = XLSX.read(buf, { type:'array', cellDates:true })
-
-      const fmt = (v) => {
-        if (!v && v !== 0) return ''
-        if (v instanceof Date) return v.toTimeString().slice(0,5)
-        return String(v).trim()
-      }
-
-      let rows = []
-      // Try sheet matching category, then first sheet
-      const sheetName = wb.SheetNames.find(s =>
-        s.toLowerCase().includes(catId) ||
-        s.toLowerCase().includes(catLabel.toLowerCase().split(' ')[0])
-      ) || wb.SheetNames[0]
-
-      const ws = wb.Sheets[sheetName]
-      const raw = XLSX.utils.sheet_to_json(ws, { defval: '' })
-
-      rows = raw.map(r => ({
-        resort_id:     BAROS_RESORT_ID,
-        schedule_date: date,
-        type:          catId,
-        flight_time:   fmt(r['FLIGHT TIME'] || r['TIME'] || r['TRANSFER TIME'] || r['DEPARTURE TIME'] || ''),
-        flight_number: fmt(r['FLIGHT NUMBER'] || r['FLIGHT'] || r['FLIGHT NO'] || '').toUpperCase(),
-        room:          fmt(r['ROOM'] || r['VILLA'] || ''),
-        guest_name:    fmt(r['GUEST NAME'] || r['NAME'] || r['GUEST'] || ''),
-        pax:           parseInt(r['PAX'] || r['GUESTS'] || r['NO OF GUESTS'] || 1) || 1,
-        meal_plan:     fmt(r['MP'] || r['MEAL PLAN'] || r['MEAL'] || ''),
-        operator:      fmt(r['OPERATOR'] || r['OPERTOR'] || r['TRANSFER'] || ''),
-        spc:           ['yes','1','true'].includes(String(r['SPC']).toLowerCase()),
-        vip:           fmt(r['VIP'] || ''),
-        room_type:     fmt(r['ROOM TYPE'] || r['ROOM TTPE'] || ''),
-        nights:        parseInt(r['NIGHTS'] || r['NGHTS'] || 0) || null,
-        departure_date:fmt(r['DEPARTURE'] || r['CHECKOUT'] || ''),
-        member:        ['yes','1','true'].includes(String(r['MEM'] || r['MEMBER']).toLowerCase()),
-        butler:        fmt(r['BUTLER'] || ''),
-        confirmation:  fmt(r['CONFIRMATION'] || r['CONF'] || ''),
-        comments:      fmt(r['COMMENTS'] || r['NOTES'] || r['REMARKS'] || ''),
-        transfer_time: fmt(r['TRANSFER TIME'] || ''),
-        checkout_time: fmt(r['CHECKOUT TIME'] || ''),
-        assigned_vessel: autoAssignVessel(
-          parseInt(r['PAX']||1)||1,
-          catId,
-          fmt(r['VIP']||'')
-        ),
-      })).filter(r => r.guest_name || r.room || r.flight_number)
-
-      setMsg(`Saving ${rows.length} records...`)
-
+      const { rows, note } = await parseFile(file, cat.id, date)
+      if (note) { setMsg(note); setBusy(false); return }
+      setMsg(`Saving ${rows.length} rows…`)
       await sb.from('boat_schedule').delete()
         .eq('resort_id', BAROS_RESORT_ID)
         .eq('schedule_date', date)
-        .eq('type', catId)
-
-      if (rows.length > 0) {
-        await sb.from('boat_schedule').insert(rows)
+        .eq('type', cat.id)
+      if (rows.length > 0) await sb.from('boat_schedule').insert(rows)
+      onUpload(cat.id, rows)
+      if (cat.id === 'arrivals') {
+        const fns = [...new Set(rows.map(r => r.flight_number).filter(Boolean))]
+        if (fns.length) onRefreshFR24(fns)
       }
-
-      onUpload(catId, date, rows)
-
-      // Fetch FR24 for arrival flights
-      if (catId === 'arrivals') {
-        const flights = [...new Set(rows.map(r=>r.flight_number).filter(Boolean))]
-        if (flights.length) onRefreshFR24(flights)
-      }
-
       setMsg(`✓ ${rows.length} records loaded`)
-      setExpanded(true)
+      setOpen(true)
     } catch(e) {
       setMsg('Error: ' + e.message)
     }
-    setUploading(false)
+    setBusy(false)
   }
 
-  const hasData = data && data.length > 0
-  const totalPax = data ? data.reduce((s,r)=>s+(r.pax||0),0) : 0
-
   return (
-    <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:10, overflow:'hidden', marginBottom:12 }}>
-      {/* Category header */}
+    <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:10, overflow:'hidden' }}>
+      {/* Card header */}
       <div
-        onClick={() => setExpanded(e => !e)}
-        style={{ padding:'12px 16px', display:'flex', alignItems:'center', gap:12, cursor:'pointer', background: hasData ? B.pearl : B.white, borderBottom: expanded ? `0.5px solid ${B.border}` : 'none' }}
+        onClick={() => hasData && setOpen(o => !o)}
+        style={{ padding:'14px 16px', display:'flex', alignItems:'center', gap:12, cursor:hasData?'pointer':'default', background:hasData?B.pearl:B.white }}
       >
-        <div style={{ width:36, height:36, borderRadius:8, background:catColor+'15', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>
-          {catIcon}
+        <div style={{ width:40, height:40, borderRadius:9, background:cat.color+'18', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>
+          {cat.icon}
         </div>
         <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontWeight:600, color:B.textPrimary, fontSize:13 }}>{catLabel}</div>
+          <div style={{ fontWeight:600, fontSize:13, color:B.textPrimary }}>{cat.label}</div>
           {hasData
-            ? <div style={{ fontSize:11, color:catColor, fontWeight:500 }}>{data.length} trips · {totalPax} guests loaded</div>
-            : <div style={{ fontSize:11, color:B.textMuted }}>No data uploaded</div>
+            ? <div style={{ fontSize:11, color:cat.color, fontWeight:500, marginTop:1 }}>{data.length} trips · {totalPax} pax · {[...new Set(data.map(r=>r.assigned_vessel).filter(Boolean))].join(', ')}</div>
+            : <div style={{ fontSize:11, color:B.textMuted, marginTop:1 }}>No data — upload a file to load</div>
           }
         </div>
-        {hasData && (
-          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-            {[...new Set(data.map(r=>r.assigned_vessel).filter(Boolean))].map(v => (
-              <span key={v} style={{ fontSize:10, padding:'2px 8px', borderRadius:99, background:VESSEL_COLORS[v]+'20', color:VESSEL_COLORS[v], fontWeight:600 }}>{v}</span>
-            ))}
-          </div>
-        )}
         <div style={{ display:'flex', gap:8, alignItems:'center' }} onClick={e=>e.stopPropagation()}>
-          <input ref={fileRef} type="file" accept=".ods,.xlsx,.xls,.csv" style={{ display:'none' }} onChange={e=>handleFile(e.target.files[0])} />
-          <button
-            onClick={() => fileRef.current.click()}
-            disabled={uploading}
-            style={{ padding:'5px 12px', borderRadius:6, border:`0.5px solid ${catColor}`, background:'transparent', color:catColor, fontSize:11, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}
-          >
-            {uploading ? '⏳' : hasData ? '↻ Re-upload' : '⬆ Upload'}
-          </button>
-          {catId === 'arrivals' && hasData && (
-            <button
-              onClick={() => { const f=[...new Set(data.map(r=>r.flight_number).filter(Boolean))]; if(f.length)onRefreshFR24(f) }}
-              disabled={fr24Loading}
-              style={{ padding:'5px 10px', borderRadius:6, border:`0.5px solid ${B.border}`, background:'transparent', color:B.textSecond, fontSize:11, cursor:'pointer' }}
-            >
-              {fr24Loading ? '↻' : '✈ FR24'}
+          {cat.id === 'arrivals' && hasData && (
+            <button onClick={()=>{const f=[...new Set(data.map(r=>r.flight_number).filter(Boolean))];if(f.length)onRefreshFR24(f)}} disabled={fr24Loading}
+              style={{ padding:'5px 10px', borderRadius:6, border:`0.5px solid ${B.border}`, background:'transparent', color:B.textSecond, fontSize:11, cursor:'pointer', whiteSpace:'nowrap' }}>
+              {fr24Loading?'↻':'✈ FR24'}
             </button>
           )}
+          <input ref={fileRef} type="file" accept=".ods,.xlsx,.xls,.csv,.pdf,image/*" style={{ display:'none' }} onChange={e=>handleFile(e.target.files[0])} />
+          <button onClick={()=>fileRef.current.click()} disabled={busy}
+            style={{ padding:'6px 14px', borderRadius:6, border:`1.5px solid ${cat.color}`, background:hasData?'transparent':cat.color, color:hasData?cat.color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
+            {busy ? '⏳' : hasData ? '↻ Update' : '⬆ Upload'}
+          </button>
         </div>
-        <span style={{ color:B.textMuted, fontSize:12, marginLeft:4 }}>{expanded ? '▲' : '▼'}</span>
+        {hasData && <span style={{ color:B.textMuted, fontSize:11 }}>{open?'▲':'▼'}</span>}
       </div>
 
+      {/* Upload message */}
       {msg && (
-        <div style={{ padding:'6px 16px', fontSize:11, color: msg.startsWith('✓') ? '#059669' : msg.startsWith('Error') ? '#DC2626' : B.textMuted, background: msg.startsWith('✓') ? '#ECFDF5' : msg.startsWith('Error') ? '#FEF2F2' : B.pearl, borderBottom:`0.5px solid ${B.border}` }}>
+        <div style={{ padding:'6px 16px', fontSize:11, borderTop:`0.5px solid ${B.border}`,
+          color: msg.startsWith('✓')?'#059669': msg.startsWith('Error')?'#DC2626':B.textSecond,
+          background: msg.startsWith('✓')?'#F0FDF4': msg.startsWith('Error')?'#FEF2F2':B.pearl }}>
           {msg}
         </div>
       )}
 
-      {/* Data table */}
-      {expanded && hasData && (
-        <ScheduleTable rows={data} catId={catId} fr24Map={fr24Map} />
+      {/* Supported formats note */}
+      {!hasData && (
+        <div style={{ padding:'8px 16px', fontSize:10, color:B.textMuted, borderTop:`0.5px solid ${B.border}`, display:'flex', gap:8 }}>
+          {['Excel (.xlsx)', 'ODS', 'CSV', 'PDF (text)', 'Image'].map(f => (
+            <span key={f} style={{ background:B.pearl, borderRadius:4, padding:'2px 7px' }}>{f}</span>
+          ))}
+        </div>
       )}
+
+      {/* Data table */}
+      {open && hasData && <SchedTable rows={data} catId={cat.id} fr24Map={fr24Map} vessels={vessels} setVessels={setVessels} />}
     </div>
   )
 }
 
-function ScheduleTable({ rows, catId, fr24Map }) {
-  const [editVessel, setEditVessel] = useState({})
-
-  const getVessel = (r, i) => editVessel[i] || r.assigned_vessel || '—'
-
-  const calcBoat = (eta) => {
-    if (!eta || !eta.includes(':')) return '—'
-    const [h,m] = eta.split(':').map(Number)
-    const tot = h*60+m-57
-    if (tot < 0) return '—'
-    return `${String(Math.floor(tot/60)).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`
-  }
-
-  const isArrival = catId === 'arrivals'
+// ─── Table ────────────────────────────────────────────────────────────────────
+function SchedTable({ rows, catId, fr24Map, vessels, setVessels }) {
+  const isArr = catId === 'arrivals'
   const isDep = catId === 'departures'
 
+  const TH = { padding:'8px 10px', textAlign:'left', fontSize:10, color:'rgba(255,255,255,0.75)', fontWeight:600, letterSpacing:'1px', textTransform:'uppercase', whiteSpace:'nowrap' }
+  const TD = { padding:'8px 10px', verticalAlign:'middle', borderBottom:`0.5px solid ${B.border}` }
+
+  const hdr = isArr
+    ? ['', 'Flight', 'Sched', 'Status', 'FR24 ETA', '⚓ Boat Out', 'Vessel', 'Room', 'Guest', 'PAX', 'Operator', 'Meal', 'Butler', 'Notes']
+    : isDep
+    ? ['Transfer', 'Checkout', '', 'Flight', 'Flt Time', 'Vessel', 'Room', 'Guest', 'PAX', 'Operator', 'Meal', 'Butler', 'Notes']
+    : ['Time', 'Vessel', 'Room', 'Guest', 'PAX', 'Notes']
+
   return (
-    <div style={{ overflowX:'auto' }}>
-      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, minWidth: isArrival?1100:900 }}>
+    <div style={{ overflowX:'auto', borderTop:`0.5px solid ${B.border}` }}>
+      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, minWidth: isArr?1050:isDep?900:600 }}>
         <thead>
-          <tr style={{ background:'#F8FAF8', borderBottom:`0.5px solid ${B.border}` }}>
-            {isArrival && <>
-              <th style={TH}>Airline</th>
-              <th style={TH}>Flight</th>
-              <th style={TH}>Sched</th>
-              <th style={TH}>Status</th>
-              <th style={{...TH,color:'#2563EB'}}>FR24 ETA</th>
-              <th style={{...TH,color:B.gold}}>⚓ Boat Out</th>
-              <th style={TH}>Vessel</th>
-              <th style={TH}>Room</th>
-              <th style={TH}>Guest</th>
-              <th style={{...TH,textAlign:'center'}}>PAX</th>
-              <th style={TH}>Operator</th>
-              <th style={TH}>Meal</th>
-              <th style={TH}>Butler</th>
-              <th style={TH}>Notes</th>
-            </>}
-            {isDep && <>
-              <th style={{...TH,color:B.gold}}>Transfer</th>
-              <th style={TH}>Checkout</th>
-              <th style={TH}>Airline</th>
-              <th style={TH}>Flight</th>
-              <th style={TH}>Flt Time</th>
-              <th style={TH}>Vessel</th>
-              <th style={TH}>Room</th>
-              <th style={TH}>Guest</th>
-              <th style={{...TH,textAlign:'center'}}>PAX</th>
-              <th style={TH}>Operator</th>
-              <th style={TH}>Meal</th>
-              <th style={TH}>Butler</th>
-              <th style={TH}>Notes</th>
-            </>}
-            {!isArrival && !isDep && <>
-              <th style={TH}>Time</th>
-              <th style={TH}>Vessel</th>
-              <th style={TH}>Room</th>
-              <th style={TH}>Guest</th>
-              <th style={{...TH,textAlign:'center'}}>PAX</th>
-              <th style={TH}>Operator</th>
-              <th style={TH}>Notes</th>
-            </>}
+          <tr style={{ background:B.freshPalm }}>
+            {hdr.map((h,i) => <th key={i} style={TH}>{h}</th>)}
           </tr>
         </thead>
         <tbody>
           {rows.map((r, i) => {
-            const fr   = fr24Map[r.flight_number] || {}
-            const eta  = fr.eta || r.fr24_eta || r.flight_time || '—'
-            const boat = fr.boat_dispatch || calcBoat(eta)
-            const status = fr.status || (r.flight_number ? 'Scheduled' : '—')
-            const statusColor = status==='Landed'?'#059669':status==='Airborne'?'#2563EB':'#9CA3AF'
-            const statusBg    = status==='Landed'?'#ECFDF5':status==='Airborne'?'#EFF6FF':'#F9FAFB'
-            const isVip = r.vip && r.vip.toLowerCase()!=='no' && r.vip!==''
-            const rowBg = isVip?'#FFFBEB':r.spc?'#F0F9FF':i%2===0?B.white:B.pearl
-            const code  = r.flight_number?.replace(/[0-9]/g,'').trim()
-            const info  = AIRLINE_INFO[code] || {}
-            const vessel = getVessel(r, i)
+            const fr       = fr24Map[r.flight_number] || {}
+            const eta      = fr.eta || r.fr24_eta || r.flight_time || '—'
+            const boat     = fr.boat_dispatch || calcBoatDispatch(eta)
+            const status   = fr.status || (r.flight_number ? 'Scheduled' : '—')
+            const sColor   = status==='Landed'?'#059669':status==='Airborne'?'#2563EB':'#9CA3AF'
+            const sBg      = status==='Landed'?'#ECFDF5':status==='Airborne'?'#EFF6FF':'#F9FAFB'
+            const isVip    = r.vip && r.vip.toLowerCase()!=='no' && r.vip!==''
+            const rowBg    = isVip?'#FFFBEB':r.spc?'#EFF6FF':i%2===0?B.white:B.pearl
+            const code     = r.flight_number?.replace(/[0-9]/g,'').trim()
+            const info     = AIRLINE_INFO?.[code] || {}
+            const vessel   = vessels[i] || r.assigned_vessel || 'Ixora'
 
-            if (isArrival) return (
-              <tr key={i} style={{ borderBottom:`0.5px solid ${B.border}`, background:rowBg }}>
-                <td style={TD}>
-                  {info.logo
-                    ? <img src={info.logo} alt={code} style={{ width:26,height:26,objectFit:'contain' }} onError={e=>e.target.style.display='none'} />
-                    : <div style={{ width:26,height:26,background:info.color||B.freshPalm,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:9,fontWeight:700 }}>{code}</div>
-                  }
-                </td>
+            const VesselPicker = () => (
+              <select value={vessel} onChange={e=>setVessels(v=>({...v,[i]:e.target.value}))}
+                style={{ fontSize:11, padding:'3px 6px', borderRadius:5, border:`1.5px solid ${VESSEL_COL[vessel]||B.border}`, color:VESSEL_COL[vessel]||B.textPrimary, fontWeight:600, background:'#fff', cursor:'pointer', outline:'none' }}>
+                {VESSELS_LIST.map(v=><option key={v} value={v}>{v}</option>)}
+              </select>
+            )
+
+            const Logo = () => info.logo
+              ? <img src={info.logo} alt={code} style={{ width:28,height:28,objectFit:'contain' }} onError={e=>e.target.style.display='none'} />
+              : <div style={{ width:28,height:28,background:info.color||B.freshPalm,borderRadius:5,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:9,fontWeight:700 }}>{code}</div>
+
+            const GuestCell = () => (
+              <td style={{...TD,maxWidth:150,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                <div style={{ fontWeight:500 }}>{r.guest_name||'—'}</div>
+                {isVip && <div style={{ fontSize:9,color:B.gold,fontWeight:700 }}>⭐ {r.vip}</div>}
+                {r.spc  && <div style={{ fontSize:9,color:'#2563EB',fontWeight:700 }}>★ Special</div>}
+              </td>
+            )
+
+            if (isArr) return (
+              <tr key={i} style={{ background:rowBg }}>
+                <td style={TD}><Logo/></td>
                 <td style={{...TD,fontFamily:'monospace',fontWeight:700,fontSize:13}}>{r.flight_number||'—'}</td>
                 <td style={{...TD,fontFamily:'monospace',color:'#9CA3AF'}}>{r.flight_time||'—'}</td>
-                <td style={TD}><span style={{ background:statusBg,color:statusColor,borderRadius:99,padding:'2px 8px',fontSize:10,fontWeight:600,whiteSpace:'nowrap' }}>{status}</span></td>
+                <td style={TD}><span style={{ background:sBg,color:sColor,borderRadius:99,padding:'2px 9px',fontSize:10,fontWeight:600,whiteSpace:'nowrap' }}>{status}</span></td>
                 <td style={{...TD,fontFamily:'monospace',fontWeight:700,color:'#2563EB',fontSize:14}}>{eta}</td>
                 <td style={{...TD,fontFamily:'monospace',fontWeight:700,color:B.gold,fontSize:14}}>{boat}</td>
-                <td style={TD}>
-                  <select value={vessel} onChange={e=>setEditVessel(v=>({...v,[i]:e.target.value}))} style={{ fontSize:11,padding:'2px 6px',borderRadius:4,border:`0.5px solid ${VESSEL_COLORS[vessel]||B.border}`,color:VESSEL_COLORS[vessel]||B.textPrimary,fontWeight:600,background:'transparent',cursor:'pointer' }}>
-                    {VESSELS.map(v=><option key={v} value={v}>{v}</option>)}
-                  </select>
-                </td>
+                <td style={TD}><VesselPicker/></td>
                 <td style={{...TD,fontWeight:600}}>{r.room||'—'}</td>
-                <td style={{...TD,maxWidth:140,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                  <div style={{ fontWeight:500 }}>{r.guest_name||'—'}</div>
-                  {isVip && <div style={{ fontSize:9,color:B.gold,fontWeight:700 }}>⭐ {r.vip}</div>}
-                  {r.spc && <div style={{ fontSize:9,color:'#2563EB',fontWeight:700 }}>★ SPC</div>}
-                </td>
-                <td style={{...TD,textAlign:'center',fontWeight:700}}>{r.pax||'—'}</td>
+                <GuestCell/>
+                <td style={{...TD,textAlign:'center',fontWeight:700}}>{r.pax}</td>
                 <td style={{...TD,fontSize:11,color:B.textSecond}}>{r.operator||'—'}</td>
                 <td style={{...TD,fontSize:11}}>{r.meal_plan||'—'}</td>
                 <td style={{...TD,fontSize:11}}>{r.butler||'—'}</td>
@@ -829,28 +806,16 @@ function ScheduleTable({ rows, catId, fr24Map }) {
             )
 
             if (isDep) return (
-              <tr key={i} style={{ borderBottom:`0.5px solid ${B.border}`, background:rowBg }}>
+              <tr key={i} style={{ background:rowBg }}>
                 <td style={{...TD,fontFamily:'monospace',fontWeight:700,color:B.gold,fontSize:14}}>{r.transfer_time||r.flight_time||'—'}</td>
                 <td style={{...TD,fontFamily:'monospace',color:'#9CA3AF'}}>{r.checkout_time||'—'}</td>
-                <td style={TD}>
-                  {info.logo
-                    ? <img src={info.logo} alt={code} style={{ width:26,height:26,objectFit:'contain' }} onError={e=>e.target.style.display='none'} />
-                    : <div style={{ width:26,height:26,background:info.color||B.freshPalm,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:9,fontWeight:700 }}>{code}</div>
-                  }
-                </td>
+                <td style={TD}><Logo/></td>
                 <td style={{...TD,fontFamily:'monospace',fontWeight:700,fontSize:13}}>{r.flight_number||'—'}</td>
                 <td style={{...TD,fontFamily:'monospace',color:'#9CA3AF'}}>{r.flight_time||'—'}</td>
-                <td style={TD}>
-                  <select value={vessel} onChange={e=>setEditVessel(v=>({...v,[i]:e.target.value}))} style={{ fontSize:11,padding:'2px 6px',borderRadius:4,border:`0.5px solid ${VESSEL_COLORS[vessel]||B.border}`,color:VESSEL_COLORS[vessel]||B.textPrimary,fontWeight:600,background:'transparent',cursor:'pointer' }}>
-                    {VESSELS.map(v=><option key={v} value={v}>{v}</option>)}
-                  </select>
-                </td>
+                <td style={TD}><VesselPicker/></td>
                 <td style={{...TD,fontWeight:600}}>{r.room||'—'}</td>
-                <td style={{...TD,maxWidth:140,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                  <div style={{ fontWeight:500 }}>{r.guest_name||'—'}</div>
-                  {isVip && <div style={{ fontSize:9,color:B.gold,fontWeight:700 }}>⭐ {r.vip}</div>}
-                </td>
-                <td style={{...TD,textAlign:'center',fontWeight:700}}>{r.pax||'—'}</td>
+                <GuestCell/>
+                <td style={{...TD,textAlign:'center',fontWeight:700}}>{r.pax}</td>
                 <td style={{...TD,fontSize:11,color:B.textSecond}}>{r.operator||'—'}</td>
                 <td style={{...TD,fontSize:11}}>{r.meal_plan||'—'}</td>
                 <td style={{...TD,fontSize:11}}>{r.butler||'—'}</td>
@@ -859,19 +824,12 @@ function ScheduleTable({ rows, catId, fr24Map }) {
             )
 
             return (
-              <tr key={i} style={{ borderBottom:`0.5px solid ${B.border}`, background:rowBg }}>
+              <tr key={i} style={{ background:rowBg }}>
                 <td style={{...TD,fontFamily:'monospace',fontWeight:700,color:B.freshPalm}}>{r.flight_time||r.transfer_time||'—'}</td>
-                <td style={TD}>
-                  <select value={vessel} onChange={e=>setEditVessel(v=>({...v,[i]:e.target.value}))} style={{ fontSize:11,padding:'2px 6px',borderRadius:4,border:`0.5px solid ${VESSEL_COLORS[vessel]||B.border}`,color:VESSEL_COLORS[vessel]||B.textPrimary,fontWeight:600,background:'transparent',cursor:'pointer' }}>
-                    {VESSELS.map(v=><option key={v} value={v}>{v}</option>)}
-                  </select>
-                </td>
+                <td style={TD}><VesselPicker/></td>
                 <td style={{...TD,fontWeight:600}}>{r.room||'—'}</td>
-                <td style={{...TD,maxWidth:140,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                  <div style={{ fontWeight:500 }}>{r.guest_name||'—'}</div>
-                  {isVip && <div style={{ fontSize:9,color:B.gold,fontWeight:700 }}>⭐ {r.vip}</div>}
-                </td>
-                <td style={{...TD,textAlign:'center',fontWeight:700}}>{r.pax||'—'}</td>
+                <GuestCell/>
+                <td style={{...TD,textAlign:'center',fontWeight:700}}>{r.pax}</td>
                 <td style={{...TD,fontSize:11,color:B.textSecond}}>{r.operator||'—'}</td>
                 <td style={{...TD,fontSize:11,color:B.textMuted,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.comments||'—'}</td>
               </tr>
@@ -883,90 +841,82 @@ function ScheduleTable({ rows, catId, fr24Map }) {
   )
 }
 
-const TH = { padding:'8px 10px', textAlign:'left', fontSize:10, color:'#6B7280', fontWeight:600, letterSpacing:'1px', textTransform:'uppercase', whiteSpace:'nowrap', borderRight:`0.5px solid ${B.border}` }
-const TD = { padding:'8px 10px', borderRight:`0.5px solid rgba(0,0,0,0.04)`, verticalAlign:'middle' }
-
+// ─── Main Scheduler View ───────────────────────────────────────────────────────
 function SchedulerView({ isMobile }) {
   const today    = new Date().toLocaleDateString('en-CA', { timeZone:'Indian/Maldives' })
   const tomorrow = new Date(Date.now()+86400000).toLocaleDateString('en-CA', { timeZone:'Indian/Maldives' })
 
-  const [dayTab,     setDayTab]     = useState('today')
-  const [schedData,  setSchedData]  = useState({})  // { 'today-arrivals': [...], 'tomorrow-departures': [...] }
-  const [fr24Map,    setFr24Map]    = useState({})
-  const [fr24Loading,setFr24Loading]= useState(false)
-  const [lastSync,   setLastSync]   = useState(null)
-  const [clock,      setClock]      = useState(new Date())
+  const [dayTab,      setDayTab]      = useState('today')
+  const [schedData,   setSchedData]   = useState({})
+  const [fr24Map,     setFr24Map]     = useState({})
+  const [fr24Loading, setFr24Loading] = useState(false)
+  const [lastSync,    setLastSync]    = useState(null)
+  const [clock,       setClock]       = useState(new Date())
 
   const viewDate = dayTab === 'today' ? today : tomorrow
 
   useEffect(() => {
-    const t = setInterval(()=>setClock(new Date()),1000)
-    return ()=>clearInterval(t)
-  },[])
+    const t = setInterval(() => setClock(new Date()), 1000)
+    return () => clearInterval(t)
+  }, [])
 
-  // Load from Supabase on mount
+  // Load from Supabase
   useEffect(() => {
-    const loadDate = async (date, label) => {
+    const load = async (date, label) => {
       try {
         const { data } = await sb.from('boat_schedule').select('*')
           .eq('resort_id', BAROS_RESORT_ID)
           .eq('schedule_date', date)
-          .order('flight_time', { ascending:true })
-        if (data && data.length > 0) {
+          .order('flight_time', { ascending: true })
+        if (data?.length) {
           const map = {}
-          TRIP_CATEGORIES.forEach(cat => {
+          SCHED_GROUPS.forEach(g => g.cats.forEach(cat => {
             const rows = data.filter(r => r.type === cat.id)
             if (rows.length) map[`${label}-${cat.id}`] = rows
-          })
+          }))
           setSchedData(prev => ({ ...prev, ...map }))
-          // Auto-fetch FR24 for arrivals
-          const arrFlights = data.filter(r=>r.type==='arrivals').map(r=>r.flight_number).filter(Boolean)
-          const unique = [...new Set(arrFlights)]
-          if (unique.length) fetchFR24(unique)
+          const fns = [...new Set(data.filter(r=>r.type==='arrivals').map(r=>r.flight_number).filter(Boolean))]
+          if (fns.length) fetchFR24(fns)
         }
-      } catch(e) { console.log('Supabase error:', e) }
+      } catch(e) {}
     }
-    loadDate(today,    'today')
-    loadDate(tomorrow, 'tomorrow')
-  },[])
+    load(today, 'today')
+    load(tomorrow, 'tomorrow')
+  }, [])
 
   const fetchFR24 = async (flightNos) => {
     setFr24Loading(true)
     try {
       const callsigns = flightNos.map(f => {
-        const code = f.toUpperCase()
+        const u = f.toUpperCase()
         for (const [iata, icao] of Object.entries(IATA_TO_ICAO)) {
-          if (code.startsWith(iata)) return icao + code.slice(iata.length)
+          if (u.startsWith(iata)) return icao + u.slice(iata.length)
         }
-        return code
+        return u
       }).join(',')
       const res  = await fetch(`/.netlify/functions/fr24?flights=${callsigns}&mode=live`)
       const json = await res.json()
-      if (json.data && json.data.length > 0) {
+      if (json.data?.length) {
         const map = {}
         json.data.forEach(d => {
           flightNos.forEach(f => {
-            const cs = f.toUpperCase()
-            const icao = (() => {
+            const u = f.toUpperCase()
+            const cs = (() => {
               for (const [iata,icao] of Object.entries(IATA_TO_ICAO)) {
-                if (cs.startsWith(iata)) return icao + cs.slice(iata.length)
+                if (u.startsWith(iata)) return icao + u.slice(iata.length)
               }
-              return cs
+              return u
             })()
-            if (icao === d.callsign) {
+            if (cs === d.callsign) {
               const now = Date.now()/1000
-              const kmLeft = d.lat ? (() => {
-                const R=6371,dLat=(4.1755-d.lat)*Math.PI/180,dLon=(73.5293-d.lon)*Math.PI/180
-                const a=Math.sin(dLat/2)**2+Math.cos(d.lat*Math.PI/180)*Math.cos(4.1755*Math.PI/180)*Math.sin(dLon/2)**2
-                return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))
-              })() : null
-              const speedKmh = d.gspeed>0 ? d.gspeed*1.852 : null
-              const etaSecs  = kmLeft && speedKmh ? (kmLeft/speedKmh*3600)*1.05 : null
-              const etaTs    = etaSecs ? now+etaSecs : null
-              const boatTs   = etaTs ? etaTs-57*60 : null
-              const status   = !d.alt || d.alt<100 ? 'Landed' : 'Airborne'
-              const fmtT     = ts => ts ? new Date(ts*1000).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Indian/Maldives'}) : null
-              map[f] = { status, eta:fmtT(etaTs), boat_dispatch:fmtT(boatTs), alt:d.alt, gspeed:d.gspeed }
+              const R=6371,dLat=(4.1755-d.lat)*Math.PI/180,dLon=(73.5293-d.lon)*Math.PI/180
+              const a=Math.sin(dLat/2)**2+Math.cos(d.lat*Math.PI/180)*Math.cos(4.1755*Math.PI/180)*Math.sin(dLon/2)**2
+              const km=R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))
+              const secs = d.gspeed>0 ? (km/(d.gspeed*1.852))*3600*1.05 : null
+              const etaTs  = secs ? now+secs : null
+              const boatTs = etaTs ? etaTs-57*60 : null
+              const fmtT   = ts => ts ? new Date(ts*1000).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Indian/Maldives'}) : null
+              map[f] = { status: d.alt<100?'Landed':'Airborne', eta:fmtT(etaTs), boat_dispatch:fmtT(boatTs) }
             }
           })
         })
@@ -977,22 +927,21 @@ function SchedulerView({ isMobile }) {
     setFr24Loading(false)
   }
 
-  const handleUpload = (catId, date, rows) => {
-    const label = date === today ? 'today' : 'tomorrow'
-    setSchedData(prev => ({ ...prev, [`${label}-${catId}`]: rows }))
+  const handleUpload = (catId, rows) => {
+    setSchedData(prev => ({ ...prev, [`${dayTab}-${catId}`]: rows }))
   }
 
-  const getDayData = (catId) => schedData[`${dayTab}-${catId}`] || []
+  const getData = (catId) => schedData[`${dayTab}-${catId}`] || []
 
-  // Stats
-  const totalArr  = getDayData('arrivals').length
-  const totalDep  = getDayData('departures').length
-  const totalPax  = [...getDayData('arrivals'),...getDayData('departures')].reduce((s,r)=>s+(r.pax||0),0)
-  const vipCount  = [...getDayData('arrivals'),...getDayData('departures')].filter(r=>r.vip&&r.vip.toLowerCase()!=='no'&&r.vip!=='').length
-  const airborne  = Object.values(fr24Map).filter(f=>f.status==='Airborne').length
+  const allRows = SCHED_GROUPS.flatMap(g => g.cats.flatMap(c => getData(c.id)))
+  const totalPax  = allRows.reduce((s,r) => s+(r.pax||0), 0)
+  const totalArr  = getData('arrivals').length
+  const totalDep  = getData('departures').length
+  const vipCount  = allRows.filter(r => r.vip && r.vip.toLowerCase()!=='no' && r.vip!=='').length
+  const airborne  = Object.values(fr24Map).filter(f => f.status==='Airborne').length
 
-  const todayLabel    = new Date(today+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})
-  const tomorrowLabel = new Date(tomorrow+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})
+  const todayLabel    = new Date(today+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short'})
+  const tomorrowLabel = new Date(tomorrow+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short'})
 
   return (
     <div>
@@ -1000,69 +949,79 @@ function SchedulerView({ isMobile }) {
       <div style={{ background:B.freshPalm, borderRadius:10, padding:isMobile?'14px':'18px 24px', marginBottom:16 }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
           <div>
-            <div style={{ fontSize:10, letterSpacing:'2px', color:'rgba(255,255,255,0.45)', textTransform:'uppercase', marginBottom:4 }}>Baros Maldives · Operations</div>
+            <div style={{ fontSize:10, letterSpacing:'2px', color:'rgba(255,255,255,0.4)', textTransform:'uppercase', marginBottom:4 }}>Baros Maldives · Operations</div>
             <div style={{ fontSize:isMobile?16:22, fontWeight:600, color:'#fff' }}>Smart Scheduler</div>
-            <div style={{ fontSize:11, color:'rgba(255,255,255,0.5)', marginTop:2 }}>Boat Transfer Planning · All Operations</div>
+            <div style={{ fontSize:11, color:'rgba(255,255,255,0.45)', marginTop:2 }}>Boat Transfer & Activity Planning</div>
           </div>
           <div style={{ textAlign:'right' }}>
             <div style={{ fontSize:isMobile?22:30, fontWeight:300, color:B.gold, fontFamily:'monospace', letterSpacing:2 }}>
               {clock.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Indian/Maldives'})}
             </div>
-            <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', marginTop:2 }}>
-              {lastSync ? `FR24 sync ${lastSync.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}` : 'Maldives Time (MVT)'}
+            <div style={{ fontSize:10, color:'rgba(255,255,255,0.35)', marginTop:2 }}>
+              {lastSync ? `FR24 synced ${lastSync.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} MVT` : 'Maldives Time (MVT)'}
             </div>
           </div>
         </div>
 
-        {/* Day tabs */}
-        <div style={{ display:'flex', gap:10, marginTop:14, alignItems:'center' }}>
+        {/* Day selector */}
+        <div style={{ display:'flex', gap:10, marginTop:14, flexWrap:'wrap', alignItems:'center' }}>
           {[
             { id:'today',    label:'Today',    sub:todayLabel },
             { id:'tomorrow', label:'Tomorrow', sub:tomorrowLabel },
           ].map(d => (
-            <button key={d.id} onClick={()=>setDayTab(d.id)} style={{ padding:'8px 20px', borderRadius:7, border:`1.5px solid ${dayTab===d.id?'#fff':'rgba(255,255,255,0.2)'}`, background:dayTab===d.id?'rgba(255,255,255,0.15)':'transparent', color:'#fff', fontSize:13, fontWeight:dayTab===d.id?600:400, cursor:'pointer', textAlign:'left' }}>
+            <button key={d.id} onClick={() => setDayTab(d.id)}
+              style={{ padding:'8px 22px', borderRadius:7, cursor:'pointer', textAlign:'left',
+                border:`1.5px solid ${dayTab===d.id?'#fff':'rgba(255,255,255,0.2)'}`,
+                background: dayTab===d.id?'rgba(255,255,255,0.15)':'transparent', color:'#fff',
+                fontWeight: dayTab===d.id?600:400, fontSize:13 }}>
               <div>{d.label}</div>
-              <div style={{ fontSize:10, opacity:.6 }}>{d.sub}</div>
+              <div style={{ fontSize:10, opacity:.55, marginTop:1 }}>{d.sub}</div>
             </button>
           ))}
           <div style={{ marginLeft:'auto', display:'flex', gap:8, alignItems:'center' }}>
-            {fr24Loading && <span style={{ fontSize:11, color:'#34D399' }}>↻ FR24...</span>}
-            {airborne > 0 && <span style={{ fontSize:11, background:'rgba(52,211,153,0.15)', color:'#34D399', borderRadius:99, padding:'4px 10px' }}>● {airborne} airborne</span>}
+            {fr24Loading && <span style={{ fontSize:11, color:'#34D399' }}>↻ Syncing FR24…</span>}
+            {airborne > 0 && <span style={{ fontSize:11, background:'rgba(52,211,153,0.15)', color:'#34D399', borderRadius:99, padding:'4px 10px', border:'0.5px solid rgba(52,211,153,0.3)' }}>● {airborne} airborne</span>}
           </div>
         </div>
       </div>
 
-      {/* Stats row */}
+      {/* Stats */}
       <div style={{ display:'flex', gap:10, marginBottom:16, flexWrap:'wrap' }}>
         {[
           { label:'Arrivals',   val:totalArr,  color:B.freshPalm },
-          { label:'Departures', val:totalDep,  color:'#374151' },
-          { label:'Total Pax',  val:totalPax,  color:'#0369A1' },
-          { label:'VIP',        val:vipCount,  color:B.gold },
-          { label:'Airborne',   val:airborne,  color:'#2563EB' },
+          { label:'Departures', val:totalDep,  color:'#374151'   },
+          { label:'Total PAX',  val:totalPax,  color:'#0369A1'   },
+          { label:'VIP',        val:vipCount,  color:B.gold      },
+          { label:'Airborne',   val:airborne,  color:'#2563EB'   },
         ].map(s => (
           <div key={s.label} style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:8, padding:'8px 16px', display:'flex', gap:10, alignItems:'center' }}>
-            <div style={{ fontSize:20, fontWeight:700, color:s.color, fontFamily:'monospace' }}>{s.val}</div>
+            <div style={{ fontSize:22, fontWeight:700, color:s.color, fontFamily:'monospace' }}>{s.val}</div>
             <div style={{ fontSize:10, color:B.textMuted, textTransform:'uppercase', letterSpacing:'.8px' }}>{s.label}</div>
           </div>
         ))}
       </div>
 
-      {/* Category upload zones */}
-      {TRIP_CATEGORIES.map(cat => (
-        <UploadZone
-          key={cat.id}
-          catId={cat.id}
-          catLabel={cat.label}
-          catIcon={cat.icon}
-          catColor={cat.color}
-          date={viewDate}
-          data={getDayData(cat.id)}
-          onUpload={handleUpload}
-          onRefreshFR24={fetchFR24}
-          fr24Map={fr24Map}
-          fr24Loading={fr24Loading}
-        />
+      {/* Groups */}
+      {SCHED_GROUPS.map(group => (
+        <div key={group.id} style={{ marginBottom:20 }}>
+          <div style={{ fontSize:11, fontWeight:600, color:B.textMuted, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:10, paddingLeft:2 }}>
+            {group.label}
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {group.cats.map(cat => (
+              <UploadCard
+                key={cat.id}
+                cat={cat}
+                date={viewDate}
+                data={getData(cat.id)}
+                fr24Map={fr24Map}
+                fr24Loading={fr24Loading}
+                onUpload={(_catId, rows) => handleUpload(cat.id, rows)}
+                onRefreshFR24={fetchFR24}
+              />
+            ))}
+          </div>
+        </div>
       ))}
     </div>
   )
