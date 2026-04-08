@@ -1372,7 +1372,7 @@ function RosterView({ user, isMobile }) {
                           style={{ width:'100%', fontSize:10, border:'none', background:shift.bg, color:shift.text, fontWeight:700, padding:'6px 2px', cursor:'pointer', outline:'none', minWidth:34, textAlign:'center' }}
                         />
                         <datalist id={`shift-codes-${m.id}`}>
-                          {SHIFT_CODES.map(s => <option key={s.code} value={s.code}>{s.code} – {s.label}</option>)}
+                          {SHIFT_CODES.map(s => <option key={s.code} value={s.code}>{s.code} - {s.label}</option>)}
                         </datalist>
                       ) : (
                         <div
