@@ -3080,6 +3080,163 @@ function FuelLogView({ isMobile }) {
   )
 }
 
+// ─── Users View ──────────────────────────────────────────────────────────────────
+function UsersView({ isMobile, user }) {
+  const [users,    setUsers]    = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [editing,  setEditing]  = useState(null)
+  const EMPTY_U = { username:'', password_hash:'', full_name:'', department:'transport', role:'staff', can_upload:false, can_edit:false, can_approve:false, can_delete:false, notify_eta:false, notify_boats:false, active:true }
+  const [form, setForm] = useState(EMPTY_U)
+
+  const DEPTS = ['transport','front_office','activities','diving','fnb','marina','housekeeping','all_staff']
+  const DNAMES = { transport:'Transport', front_office:'Front Office', activities:'Activities', diving:'Diving', fnb:'F&B', marina:'Marina', housekeeping:'Housekeeping', all_staff:'All Staff' }
+  const ROLES = ['manager','asst_manager','supervisor','staff','view_only']
+  const DCOL = { transport:'#1A4530', front_office:'#0369A1', activities:'#7C3AED', diving:'#0891B2', fnb:'#B45309', marina:'#059669', housekeeping:'#6B7280', all_staff:'#9CA3AF' }
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const { data } = await sb.from('staff_users').select('*').eq('resort_id', BAROS_RESORT_ID).order('department')
+      if (data) setUsers(data)
+    } catch(e) {}
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  const upd = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
+  const openAdd = () => { setEditing(null); setForm({...EMPTY_U}); setShowForm(true) }
+  const openEdit = (u) => { setEditing(u); setForm({...u}); setShowForm(true) }
+
+  const save = async () => {
+    if (!form.username.trim()) { alert('Username required'); return }
+    if (!form.password_hash.trim()) { alert('Password required'); return }
+    const payload = { ...form, resort_id: BAROS_RESORT_ID }
+    try {
+      if (editing && editing.id) {
+        await sb.from('staff_users').update(payload).eq('id', editing.id)
+      } else {
+        await sb.from('staff_users').insert(payload)
+      }
+      setShowForm(false)
+      load()
+    } catch(e) { alert('Error: ' + e.message) }
+  }
+
+  const toggleActive = async (u) => {
+    await sb.from('staff_users').update({ active: !u.active }).eq('id', u.id)
+    setUsers(prev => prev.map(x => x.id === u.id ? {...x, active: !x.active} : x))
+  }
+
+  const del = async (id) => {
+    if (!confirm('Delete this user?')) return
+    await sb.from('staff_users').delete().eq('id', id)
+    setUsers(prev => prev.filter(x => x.id !== id))
+  }
+
+  const IS = { width:'100%', padding:'8px 10px', border:'0.5px solid #D1D5DB', borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff', outline:'none' }
+  const FL = ({ t }) => <div style={{ fontSize:10, fontWeight:600, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.8px', marginBottom:4 }}>{t}</div>
+
+  return (
+    <div>
+      <div style={{ background:B.freshPalm, borderRadius:10, padding:'18px 24px', marginBottom:16 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <div style={{ fontSize:22, fontWeight:600, color:'#fff' }}>User Management</div>
+            <div style={{ fontSize:11, color:'rgba(255,255,255,0.5)', marginTop:2 }}>{users.length} users registered</div>
+          </div>
+          <button onClick={openAdd} style={{ padding:'8px 20px', borderRadius:7, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.1)', color:'#fff', fontSize:13, cursor:'pointer' }}>+ New User</button>
+        </div>
+      </div>
+
+      {showForm && (
+        <div style={{ background:'#fff', border:'0.5px solid #E5E7EB', borderRadius:12, overflow:'hidden', marginBottom:16 }}>
+          <div style={{ background:B.freshPalm, padding:'14px 20px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ fontSize:15, fontWeight:600, color:'#fff' }}>{editing ? 'Edit User' : 'New User'}</div>
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={()=>setShowForm(false)} style={{ padding:'6px 14px', borderRadius:6, border:'1px solid rgba(255,255,255,0.3)', background:'transparent', color:'#fff', fontSize:12, cursor:'pointer' }}>Cancel</button>
+              <button onClick={save} style={{ padding:'6px 14px', borderRadius:6, border:'none', background:B.gold, color:B.midnight, fontSize:12, fontWeight:600, cursor:'pointer' }}>Save</button>
+            </div>
+          </div>
+          <div style={{ padding:20 }}>
+            <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr':'1fr 1fr', gap:12, marginBottom:16 }}>
+              <div><FL t="Full Name" /><input value={form.full_name||''} onChange={upd('full_name')} style={IS} /></div>
+              <div><FL t="Username *" /><input value={form.username||''} onChange={upd('username')} disabled={!!editing} style={{...IS, background:editing?'#F9FAFB':'#fff'}} /></div>
+              <div><FL t="Password *" /><input value={form.password_hash||''} onChange={upd('password_hash')} style={IS} /></div>
+              <div><FL t="Department" /><select value={form.department||'transport'} onChange={upd('department')} style={IS}>{DEPTS.map(d=><option key={d} value={d}>{DNAMES[d]}</option>)}</select></div>
+              <div><FL t="Role" /><select value={form.role||'staff'} onChange={upd('role')} style={IS}>{ROLES.map(r=><option key={r} value={r}>{r}</option>)}</select></div>
+              <div style={{ display:'flex', alignItems:'center', paddingTop:20 }}>
+                <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontSize:13 }}>
+                  <input type="checkbox" checked={form.active!==false} onChange={upd('active')} style={{ width:16, height:16 }} />
+                  Active account
+                </label>
+              </div>
+            </div>
+            <div style={{ fontWeight:600, fontSize:12, color:'#374151', marginBottom:10, paddingTop:12, borderTop:'0.5px solid #E5E7EB' }}>Permissions</div>
+            <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr 1fr':'repeat(3,1fr)', gap:10 }}>
+              {[['can_upload','Can Upload'],['can_edit','Can Edit'],['can_approve','Can Approve'],['can_delete','Can Delete'],['notify_eta','ETA Alerts'],['notify_boats','Boat Alerts']].map(([k,lbl]) => (
+                <label key={k} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontSize:12 }}>
+                  <input type="checkbox" checked={form[k]||false} onChange={upd(k)} style={{ width:16, height:16 }} />
+                  {lbl}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loading ? <div style={{ padding:40, textAlign:'center', color:B.textMuted }}>Loading...</div> : (
+        <div style={{ background:'#fff', border:'0.5px solid #E5E7EB', borderRadius:10, overflow:'hidden' }}>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+              <thead>
+                <tr style={{ background:B.freshPalm }}>
+                  {['User','Department','Role','Permissions','Status','Actions'].map(h => (
+                    <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:10, color:'rgba(255,255,255,0.75)', fontWeight:600, letterSpacing:'1px', textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u, i) => {
+                  const dc = DCOL[u.department] || '#6B7280'
+                  const perms = [u.can_upload&&'Upload',u.can_edit&&'Edit',u.can_approve&&'Approve',u.can_delete&&'Delete'].filter(Boolean)
+                  return (
+                    <tr key={u.id} style={{ borderBottom:'0.5px solid #F3F4F6', background:i%2===0?'#fff':'#F9FAFB' }}>
+                      <td style={{ padding:'10px 14px' }}>
+                        <div style={{ fontWeight:600 }}>{u.full_name||u.username}</div>
+                        <div style={{ fontSize:11, color:'#6B7280', fontFamily:'monospace' }}>{u.username}</div>
+                      </td>
+                      <td style={{ padding:'10px 14px' }}><span style={{ fontSize:11, padding:'2px 9px', borderRadius:99, background:dc+'15', color:dc, fontWeight:600 }}>{DNAMES[u.department]||u.department}</span></td>
+                      <td style={{ padding:'10px 14px', fontSize:12, color:'#6B7280' }}>{u.role}</td>
+                      <td style={{ padding:'10px 14px' }}>
+                        <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+                          {perms.length > 0 ? perms.map(p => <span key={p} style={{ fontSize:10, padding:'1px 7px', borderRadius:99, background:'#ECFDF5', color:'#059669', fontWeight:500 }}>{p}</span>) : <span style={{ fontSize:11, color:'#9CA3AF' }}>View only</span>}
+                          {u.notify_eta && <span style={{ fontSize:10, padding:'1px 7px', borderRadius:99, background:'#EFF6FF', color:'#2563EB', fontWeight:500 }}>ETA</span>}
+                        </div>
+                      </td>
+                      <td style={{ padding:'10px 14px' }}>
+                        <button onClick={()=>toggleActive(u)} style={{ fontSize:10, padding:'2px 10px', borderRadius:99, border:'none', cursor:'pointer', fontWeight:600, background:u.active?'#ECFDF5':'#FEF2F2', color:u.active?'#059669':'#DC2626' }}>{u.active?'Active':'Inactive'}</button>
+                      </td>
+                      <td style={{ padding:'10px 14px' }}>
+                        <div style={{ display:'flex', gap:6 }}>
+                          <button onClick={()=>openEdit(u)} style={{ padding:'4px 10px', borderRadius:5, border:'0.5px solid #1A4530', background:'transparent', color:'#1A4530', fontSize:11, cursor:'pointer' }}>Edit</button>
+                          <button onClick={()=>del(u.id)} style={{ padding:'4px 10px', borderRadius:5, border:'0.5px solid #DC2626', background:'transparent', color:'#DC2626', fontSize:11, cursor:'pointer' }}>Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+                {users.length === 0 && <tr><td colSpan={6} style={{ padding:40, textAlign:'center', color:B.textMuted }}>No users yet</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── App Shell ────────────────────────────────────────────────────────────────
 export default function DhirumbaaFMS() {
   const [user, setUser] = useState(null)
