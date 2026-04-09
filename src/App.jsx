@@ -2123,246 +2123,311 @@ function VGrid({ children, cols=2, isMobile }) {
 }
 
 function VesselForm({ vessel, onSave, onCancel, isMobile }) {
-  const [tab,        setTab]        = useState('general')
-  const [saving,     setSaving]     = useState(false)
-  const [engines,    setEngines]    = useState([{ brand:'', model:'', serial_number:'', power_hp:'', running_hours:'', last_overhaul:'', fuel_consumption_hr:'', notes:'' }])
-  const [generators, setGenerators] = useState([{ brand:'', model:'', running_hours:'', last_service:'', capacity_kw:'', notes:'' }])
-  const [activities, setActivities] = useState([])
-  const [f, setF2] = useState({
-    name:'', vessel_type:'', length_m:'', beam_m:'', draft_m:'', year_built:'',
-    registry_port:'', registry_country:'', seaworthiness:'valid', max_pax:'',
-    fuel_type:'diesel', fuel_tank_capacity:'', avg_consumption_hr:'',
-    last_dry_dock:'', next_dry_dock:'', maintenance_notes:'',
-    avg_fuel_per_trip:'', avg_trip_duration:'', cost_per_hour:'', cost_per_trip:'',
-    status:'active', notes:''
-  })
+  const [tab, setTab] = useState('general')
+  const [saving, setSaving] = useState(false)
+  const [name, setName] = useState(vessel?.name || '')
+  const [vesselType, setVesselType] = useState(vessel?.vessel_type || '')
+  const [status, setStatus] = useState(vessel?.status || 'active')
+  const [lengthM, setLengthM] = useState(vessel?.length_m || '')
+  const [beamM, setBeamM] = useState(vessel?.beam_m || '')
+  const [draftM, setDraftM] = useState(vessel?.draft_m || '')
+  const [yearBuilt, setYearBuilt] = useState(vessel?.year_built || '')
+  const [maxPax, setMaxPax] = useState(vessel?.max_pax || '')
+  const [registryPort, setRegistryPort] = useState(vessel?.registry_port || '')
+  const [registryCountry, setRegistryCountry] = useState(vessel?.registry_country || '')
+  const [seaworthiness, setSeaworthiness] = useState(vessel?.seaworthiness || 'valid')
+  const [imageUrl, setImageUrl] = useState(vessel?.image_url || '')
+  const [notes, setNotes] = useState(vessel?.notes || '')
+  const [fuelType, setFuelType] = useState(vessel?.fuel_type || 'Diesel')
+  const [tankCapacity, setTankCapacity] = useState(vessel?.fuel_tank_capacity || '')
+  const [avgConsumption, setAvgConsumption] = useState(vessel?.avg_consumption_hr || '')
+  const [lastDryDock, setLastDryDock] = useState(vessel?.last_dry_dock || '')
+  const [nextDryDock, setNextDryDock] = useState(vessel?.next_dry_dock || '')
+  const [maintNotes, setMaintNotes] = useState(vessel?.maintenance_notes || '')
+  const [certUrl, setCertUrl] = useState(vessel?.seaworthiness_cert_url || '')
+  const [certExpiry, setCertExpiry] = useState(vessel?.seaworthiness_expiry || '')
+  const [registryNumber, setRegistryNumber] = useState(vessel?.registry_number || '')
+  const [avgFuelTrip, setAvgFuelTrip] = useState(vessel?.avg_fuel_per_trip || '')
+  const [avgTripDur, setAvgTripDur] = useState(vessel?.avg_trip_duration || '')
+  const [costPerHour, setCostPerHour] = useState(vessel?.cost_per_hour || '')
+  const [costPerTrip, setCostPerTrip] = useState(vessel?.cost_per_trip || '')
+  const [activities, setActivities] = useState(vessel?.activities || [])
+  const [documents, setDocuments] = useState(vessel?.documents || [])
+  const [engines, setEngines] = useState([{brand:'',model:'',serial_number:'',power_hp:'',running_hours:'',last_overhaul:'',fuel_consumption_hr:'',notes:''}])
+  const [generators, setGenerators] = useState([{brand:'',model:'',running_hours:'',last_service:'',capacity_kw:'',notes:''}])
+  const [newDocName, setNewDocName] = useState('')
+  const [newDocUrl, setNewDocUrl] = useState('')
+  const [newDocType, setNewDocType] = useState('Certificate')
 
   useEffect(() => {
-    if (vessel) {
-      setF2(prev => ({ ...prev, ...vessel }))
-      setActivities(vessel.activities || [])
-      sb.from('vessel_engines').select('*').eq('vessel_id', vessel.id).then(({ data }) => { if (data?.length) setEngines(data) })
-      sb.from('vessel_generators').select('*').eq('vessel_id', vessel.id).then(({ data }) => { if (data?.length) setGenerators(data) })
+    if (vessel && vessel.id) {
+      sb.from('vessel_engines').select('*').eq('vessel_id', vessel.id).order('engine_number').then(({ data }) => {
+        if (data && data.length > 0) setEngines(data)
+      })
+      sb.from('vessel_generators').select('*').eq('vessel_id', vessel.id).order('gen_number').then(({ data }) => {
+        if (data && data.length > 0) setGenerators(data)
+      })
     }
   }, [])
 
-  const upd = (k) => (e) => setF2(prev => ({ ...prev, [k]: e.target.value }))
-  const updEng = (i, k) => (e) => setEngines(prev => prev.map((x,j) => j===i ? {...x,[k]:e.target.value} : x))
-  const updGen = (i, k) => (e) => setGenerators(prev => prev.map((x,j) => j===i ? {...x,[k]:e.target.value} : x))
-  const toggleAct = (a) => setActivities(prev => prev.includes(a) ? prev.filter(x=>x!==a) : [...prev, a])
+  const IS = {
+    width: '100%',
+    padding: '8px 10px',
+    border: '0.5px solid #D1D5DB',
+    borderRadius: '6px',
+    fontSize: '13px',
+    boxSizing: 'border-box',
+    background: '#fff',
+    outline: 'none',
+    fontFamily: 'inherit'
+  }
 
-  const inp = (k, type='text', ph='') => (
-    <input type={type} value={f[k]||''} onChange={upd(k)} placeholder={ph}
-      style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, outline:'none', boxSizing:'border-box', background:'#fff', color:B.textPrimary }} />
+  const G2 = ({ children }) => (
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 12 }}>
+      {children}
+    </div>
   )
-  const sel = (k, opts) => (
-    <select value={f[k]||''} onChange={upd(k)}
-      style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, outline:'none', boxSizing:'border-box', background:'#fff', color:B.textPrimary }}>
-      <option value="">Select...</option>
-      {opts.map(o => <option key={o} value={o}>{o}</option>)}
-    </select>
+  const G3 = ({ children }) => (
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
+      {children}
+    </div>
   )
-  const lbl = (text) => <div style={{ fontSize:10, fontWeight:600, color:B.textMuted, textTransform:'uppercase', letterSpacing:'.8px', marginBottom:4 }}>{text}</div>
-  const row = (cols, children) => <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr':`repeat(${cols},1fr)`, gap:12, marginBottom:12 }}>{children}</div>
-  const fld = (label, input) => <div>{lbl(label)}{input}</div>
+  const G4 = ({ children }) => (
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
+      {children}
+    </div>
+  )
+  const L = ({ t }) => <div style={{ fontSize: 10, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.8px', marginBottom: 4 }}>{t}</div>
+
+  const toggleActivity = (act) => {
+    setActivities(prev => prev.includes(act) ? prev.filter(a => a !== act) : [...prev, act])
+  }
+
+  const addDoc = () => {
+    if (!newDocName || !newDocUrl) return
+    setDocuments(prev => [...prev, { name: newDocName, url: newDocUrl, type: newDocType, added: new Date().toISOString().slice(0, 10) }])
+    setNewDocName('')
+    setNewDocUrl('')
+  }
 
   const save = async () => {
-    if (!f.name?.trim()) { alert('Vessel name is required'); setTab('general'); return }
+    if (!name.trim()) { alert('Vessel name is required'); setTab('general'); return }
     setSaving(true)
     try {
-      const payload = { ...f, activities, resort_id: BAROS_RESORT_ID }
-      delete payload.id; delete payload.created_at
-      let vid = vessel?.id
+      const payload = {
+        name, vessel_type: vesselType, status, length_m: lengthM || null,
+        beam_m: beamM || null, draft_m: draftM || null, year_built: yearBuilt || null,
+        max_pax: maxPax || null, registry_port: registryPort, registry_country: registryCountry,
+        seaworthiness, image_url: imageUrl, notes, fuel_type: fuelType,
+        fuel_tank_capacity: tankCapacity || null, avg_consumption_hr: avgConsumption || null,
+        last_dry_dock: lastDryDock || null, next_dry_dock: nextDryDock || null,
+        maintenance_notes: maintNotes, seaworthiness_cert_url: certUrl,
+        seaworthiness_expiry: certExpiry || null, registry_number: registryNumber,
+        avg_fuel_per_trip: avgFuelTrip || null, avg_trip_duration: avgTripDur || null,
+        cost_per_hour: costPerHour || null, cost_per_trip: costPerTrip || null,
+        activities, documents, resort_id: BAROS_RESORT_ID
+      }
+      let vid = vessel && vessel.id
       if (vid) {
         await sb.from('fleet').update(payload).eq('id', vid)
       } else {
         const { data } = await sb.from('fleet').insert(payload).select().single()
-        vid = data.id
+        if (data) vid = data.id
       }
-      await sb.from('vessel_engines').delete().eq('vessel_id', vid)
-      const ed = engines.filter(e=>e.brand||e.model).map((e,i)=>({...e,vessel_id:vid,resort_id:BAROS_RESORT_ID,engine_number:i+1}))
-      if (ed.length) await sb.from('vessel_engines').insert(ed)
-      await sb.from('vessel_generators').delete().eq('vessel_id', vid)
-      const gd = generators.filter(g=>g.brand||g.model).map((g,i)=>({...g,vessel_id:vid,resort_id:BAROS_RESORT_ID,gen_number:i+1}))
-      if (gd.length) await sb.from('vessel_generators').insert(gd)
+      if (vid) {
+        await sb.from('vessel_engines').delete().eq('vessel_id', vid)
+        const ed = engines.filter(e => e.brand || e.model).map((e, i) => ({ ...e, vessel_id: vid, resort_id: BAROS_RESORT_ID, engine_number: i + 1 }))
+        if (ed.length) await sb.from('vessel_engines').insert(ed)
+        await sb.from('vessel_generators').delete().eq('vessel_id', vid)
+        const gd = generators.filter(g => g.brand || g.model).map((g, i) => ({ ...g, vessel_id: vid, resort_id: BAROS_RESORT_ID, gen_number: i + 1 }))
+        if (gd.length) await sb.from('vessel_generators').insert(gd)
+      }
       onSave()
-    } catch(e) { alert('Error: ' + e.message) }
+    } catch (err) {
+      alert('Error saving: ' + err.message)
+    }
     setSaving(false)
   }
 
-  const TABS = [['general','⛵ General'],['engines','⚙️ Engines'],['generators','🔋 Generator'],['fuel','⛽ Fuel & Maint'],['activities','🤿 Activities'],['metrics','📊 Metrics']]
-  const SEA = ['valid','expired','under_maintenance']
-  const SEA_L = { valid:'Seaworthy', expired:'Expired', under_maintenance:'Under Maintenance' }
-  const SEA_C = { valid:'#059669', expired:'#DC2626', under_maintenance:'#D97706' }
+  const TABS = [
+    { id: 'general', label: 'General' },
+    { id: 'engines', label: 'Engines' },
+    { id: 'generators', label: 'Generator' },
+    { id: 'fuel', label: 'Fuel & Maint' },
+    { id: 'activities', label: 'Activities' },
+    { id: 'metrics', label: 'Metrics & Docs' },
+  ]
+
+  const seaColors = { valid: '#059669', expired: '#DC2626', under_maintenance: '#D97706' }
+  const seaLabels = { valid: 'Seaworthy', expired: 'Expired', under_maintenance: 'Under Maintenance' }
 
   return (
-    <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:12, overflow:'hidden', marginBottom:16 }}>
-      <div style={{ background:B.freshPalm, padding:'14px 20px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div style={{ fontSize:15, fontWeight:600, color:'#fff' }}>{vessel?.id ? 'Edit Vessel' : 'Add New Vessel'}</div>
-        <div style={{ display:'flex', gap:8 }}>
-          <button onClick={onCancel} style={{ padding:'6px 14px', borderRadius:6, border:'1px solid rgba(255,255,255,0.3)', background:'transparent', color:'#fff', fontSize:12, cursor:'pointer' }}>Cancel</button>
-          <button onClick={save} disabled={saving} style={{ padding:'6px 14px', borderRadius:6, border:'none', background:B.gold, color:B.midnight, fontSize:12, fontWeight:600, cursor:'pointer' }}>{saving?'Saving...':'OK Save'}</button>
+    <div style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
+      <div style={{ background: '#1A4530', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>{vessel && vessel.id ? 'Edit Vessel' : 'Add New Vessel'}</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={onCancel} style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.3)', background: 'transparent', color: '#fff', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={save} disabled={saving} style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: '#A4A260', color: '#1A1F1C', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{saving ? 'Saving...' : 'Save Vessel'}</button>
         </div>
       </div>
 
-      <div style={{ display:'flex', overflowX:'auto', borderBottom:`0.5px solid ${B.border}`, background:B.pearl }}>
-        {TABS.map(([id,lbl2]) => (
-          <button key={id} onClick={()=>setTab(id)} style={{ padding:'10px 16px', border:'none', background:'transparent', cursor:'pointer', whiteSpace:'nowrap', fontSize:12, fontWeight:tab===id?600:400, color:tab===id?B.freshPalm:B.textSecond, borderBottom:tab===id?`2px solid ${B.freshPalm}`:'2px solid transparent' }}>
-            {lbl2}
+      <div style={{ display: 'flex', overflowX: 'auto', borderBottom: '0.5px solid #E5E7EB', background: '#F9FAF8' }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: '10px 16px', border: 'none', background: 'transparent', cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 12, fontWeight: tab === t.id ? 600 : 400, color: tab === t.id ? '#1A4530' : '#6B7280', borderBottom: tab === t.id ? '2px solid #1A4530' : '2px solid transparent' }}>
+            {t.label}
           </button>
         ))}
       </div>
 
-      <div style={{ padding:20 }}>
-        {tab==='general' && (
+      <div style={{ padding: 20 }}>
+
+        {tab === 'general' && (
           <div>
-            {/* Vessel Image */}
-            <div style={{ marginBottom:16, display:'flex', gap:16, alignItems:'center' }}>
-              {f.image_url
-                ? <img src={f.image_url} alt="vessel" style={{ width:80, height:80, borderRadius:10, objectFit:'cover', border:`0.5px solid ${B.border}` }} />
-                : <div style={{ width:80, height:80, borderRadius:10, background:B.pearl, border:`1px dashed ${B.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:28 }}>⛵</div>
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 16, padding: 14, background: '#F9FAF8', borderRadius: 10, border: '0.5px solid #E5E7EB' }}>
+              {imageUrl
+                ? <img src={imageUrl} alt="vessel" style={{ width: 80, height: 80, borderRadius: 10, objectFit: 'cover' }} />
+                : <div style={{ width: 80, height: 80, borderRadius: 10, background: '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>&#9961;</div>
               }
-              <div>
-                <div style={{ fontSize:12, fontWeight:500, color:B.textPrimary, marginBottom:4 }}>Vessel Photo</div>
-                <input type="text" value={f.image_url||''} onChange={upd('image_url')} placeholder="Paste image URL..." style={{ ...si, width:280, fontSize:12 }} />
-                <div style={{ fontSize:10, color:B.textMuted, marginTop:3 }}>Paste a direct image URL</div>
+              <div style={{ flex: 1 }}>
+                <L t="Vessel Photo URL" />
+                <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="Paste image URL..." style={{ ...IS }} />
               </div>
             </div>
-            {row(3, [
-              fld('Vessel Name *', inp('name','text','e.g. Ixora')),
-              fld('Vessel Type', sel('vessel_type', ['Speedboat','Dhoni','Yacht','Ferry','Catamaran','Tender','RIB','Supply Boat','Other'])),
-              fld('Status', sel('status', ['active','inactive','maintenance'])),
-            ])}
-            {row(4, [
-              fld('Length (m)', inp('length_m','number','0.0')),
-              fld('Beam (m)',   inp('beam_m','number','0.0')),
-              fld('Draft (m)', inp('draft_m','number','0.0')),
-              fld('Year Built',inp('year_built','number','2020')),
-            ])}
-            {row(3, [
-              fld('Max Passengers *', inp('max_pax','number','12')),
-              fld('Registry Port',    inp('registry_port','text','e.g. Malé')),
-              fld('Registry Country', inp('registry_country','text','e.g. Maldives')),
-            ])}
-            <div style={{ marginBottom:12 }}>
-              {lbl('Seaworthiness Status')}
-              <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-                {SEA.map(s => (
-                  <button key={s} onClick={()=>setF2(p=>({...p,seaworthiness:s}))}
-                    style={{ padding:'6px 16px', borderRadius:99, border:`1.5px solid ${f.seaworthiness===s?SEA_C[s]:B.border}`, background:f.seaworthiness===s?SEA_C[s]+'15':'transparent', color:f.seaworthiness===s?SEA_C[s]:B.textSecond, fontSize:12, fontWeight:f.seaworthiness===s?600:400, cursor:'pointer' }}>
-                    {SEA_L[s]}
+            <G3>
+              <div><L t="Vessel Name *" /><input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Ixora" style={IS} /></div>
+              <div><L t="Vessel Type" />
+                <select value={vesselType} onChange={e => setVesselType(e.target.value)} style={IS}>
+                  <option value="">Select...</option>
+                  {['Speedboat','Dhoni','Yacht','Ferry','Catamaran','Tender','RIB','Supply Boat','Other'].map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div><L t="Status" />
+                <select value={status} onChange={e => setStatus(e.target.value)} style={IS}>
+                  {['active','inactive','maintenance'].map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+            </G3>
+            <G4>
+              <div><L t="Length (m)" /><input type="number" value={lengthM} onChange={e => setLengthM(e.target.value)} style={IS} /></div>
+              <div><L t="Beam (m)" /><input type="number" value={beamM} onChange={e => setBeamM(e.target.value)} style={IS} /></div>
+              <div><L t="Draft (m)" /><input type="number" value={draftM} onChange={e => setDraftM(e.target.value)} style={IS} /></div>
+              <div><L t="Year Built" /><input type="number" value={yearBuilt} onChange={e => setYearBuilt(e.target.value)} style={IS} /></div>
+            </G4>
+            <G3>
+              <div><L t="Max Passengers" /><input type="number" value={maxPax} onChange={e => setMaxPax(e.target.value)} style={IS} /></div>
+              <div><L t="Registry Port" /><input value={registryPort} onChange={e => setRegistryPort(e.target.value)} style={IS} /></div>
+              <div><L t="Registry Country" /><input value={registryCountry} onChange={e => setRegistryCountry(e.target.value)} style={IS} /></div>
+            </G3>
+            <div style={{ marginBottom: 12 }}>
+              <L t="Seaworthiness Status" />
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {['valid','expired','under_maintenance'].map(s => (
+                  <button key={s} onClick={() => setSeaworthiness(s)} style={{ padding: '6px 16px', borderRadius: 99, border: '1.5px solid ' + (seaworthiness === s ? seaColors[s] : '#E5E7EB'), background: seaworthiness === s ? seaColors[s] + '15' : 'transparent', color: seaworthiness === s ? seaColors[s] : '#6B7280', fontSize: 12, fontWeight: seaworthiness === s ? 600 : 400, cursor: 'pointer' }}>
+                    {seaLabels[s]}
                   </button>
                 ))}
               </div>
             </div>
-            <div>{lbl('Notes')}<textarea value={f.notes||''} onChange={upd('notes')} rows={3} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, resize:'vertical', boxSizing:'border-box', background:'#fff' }} /></div>
+            <div><L t="Notes" /><textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} style={{ ...IS, resize: 'vertical' }} /></div>
           </div>
         )}
 
-        {tab==='engines' && (
+        {tab === 'engines' && (
           <div>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-              <div style={{ fontSize:13, color:B.textSecond }}>{engines.length} engine{engines.length!==1?'s':''}</div>
-              <button onClick={()=>setEngines(e=>[...e,{brand:'',model:'',serial_number:'',power_hp:'',running_hours:'',last_overhaul:'',fuel_consumption_hr:'',notes:''}])} style={{ padding:'6px 14px', borderRadius:6, border:`0.5px solid ${B.freshPalm}`, background:B.freshPalm, color:'#fff', fontSize:12, cursor:'pointer' }}>+ Add Engine</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontSize: 13, color: '#6B7280' }}>{engines.length} engine{engines.length !== 1 ? 's' : ''}</div>
+              <button onClick={() => setEngines(e => [...e, {brand:'',model:'',serial_number:'',power_hp:'',running_hours:'',last_overhaul:'',fuel_consumption_hr:'',notes:''}])} style={{ padding: '6px 14px', borderRadius: 6, background: '#1A4530', color: '#fff', border: 'none', fontSize: 12, cursor: 'pointer' }}>+ Add Engine</button>
             </div>
-            {engines.map((eng,i) => (
-              <div key={i} style={{ background:B.pearl, border:`0.5px solid ${B.border}`, borderRadius:10, padding:16, marginBottom:12 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:12 }}>
-                  <div style={{ fontWeight:600 }}>Engine {i+1}</div>
-                  {engines.length>1 && <button onClick={()=>setEngines(e=>e.filter((_,j)=>j!==i))} style={{ padding:'3px 10px', border:`0.5px solid #DC2626`, borderRadius:5, color:'#DC2626', background:'transparent', fontSize:11, cursor:'pointer' }}>Remove</button>}
+            {engines.map((eng, i) => (
+              <div key={i} style={{ background: '#F9FAF8', border: '0.5px solid #E5E7EB', borderRadius: 10, padding: 16, marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>Engine {i + 1}</div>
+                  {engines.length > 1 && <button onClick={() => setEngines(e => e.filter((_, j) => j !== i))} style={{ padding: '3px 10px', border: '0.5px solid #DC2626', borderRadius: 5, color: '#DC2626', background: 'transparent', fontSize: 11, cursor: 'pointer' }}>Remove</button>}
                 </div>
-                {row(3,[
-                  fld('Brand',   <input value={eng.brand||''} onChange={updEng(i,'brand')} placeholder="e.g. Yamaha" style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
-                  fld('Model',   <input value={eng.model||''} onChange={updEng(i,'model')} placeholder="e.g. F350" style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
-                  fld('Serial',  <input value={eng.serial_number||''} onChange={updEng(i,'serial_number')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
-                  fld('HP',      <input type="number" value={eng.power_hp||''} onChange={updEng(i,'power_hp')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
-                  fld('Hours',   <input type="number" value={eng.running_hours||''} onChange={updEng(i,'running_hours')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
-                  fld('L/hr',    <input type="number" value={eng.fuel_consumption_hr||''} onChange={updEng(i,'fuel_consumption_hr')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
-                  fld('Last Overhaul', <input type="date" value={eng.last_overhaul||''} onChange={updEng(i,'last_overhaul')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
-                  fld('Notes',   <input value={eng.notes||''} onChange={updEng(i,'notes')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
-                ])}
+                <G3>
+                  <div><L t="Brand" /><input value={eng.brand || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, brand: e.target.value} : x))} style={IS} /></div>
+                  <div><L t="Model" /><input value={eng.model || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, model: e.target.value} : x))} style={IS} /></div>
+                  <div><L t="Serial No." /><input value={eng.serial_number || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, serial_number: e.target.value} : x))} style={IS} /></div>
+                  <div><L t="HP" /><input type="number" value={eng.power_hp || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, power_hp: e.target.value} : x))} style={IS} /></div>
+                  <div><L t="Running Hours" /><input type="number" value={eng.running_hours || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, running_hours: e.target.value} : x))} style={IS} /></div>
+                  <div><L t="L/hr" /><input type="number" value={eng.fuel_consumption_hr || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, fuel_consumption_hr: e.target.value} : x))} style={IS} /></div>
+                  <div><L t="Last Overhaul" /><input type="date" value={eng.last_overhaul || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, last_overhaul: e.target.value} : x))} style={IS} /></div>
+                  <div><L t="Notes" /><input value={eng.notes || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, notes: e.target.value} : x))} style={IS} /></div>
+                </G3>
               </div>
             ))}
           </div>
         )}
 
-        {tab==='generators' && (
+        {tab === 'generators' && (
           <div>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-              <div style={{ fontSize:13, color:B.textSecond }}>{generators.length} generator{generators.length!==1?'s':''}</div>
-              <button onClick={()=>setGenerators(g=>[...g,{brand:'',model:'',running_hours:'',last_service:'',capacity_kw:'',notes:''}])} style={{ padding:'6px 14px', borderRadius:6, border:`0.5px solid ${B.freshPalm}`, background:B.freshPalm, color:'#fff', fontSize:12, cursor:'pointer' }}>+ Add Generator</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontSize: 13, color: '#6B7280' }}>{generators.length} generator{generators.length !== 1 ? 's' : ''}</div>
+              <button onClick={() => setGenerators(g => [...g, {brand:'',model:'',running_hours:'',last_service:'',capacity_kw:'',notes:''}])} style={{ padding: '6px 14px', borderRadius: 6, background: '#1A4530', color: '#fff', border: 'none', fontSize: 12, cursor: 'pointer' }}>+ Add Generator</button>
             </div>
-            {generators.map((gen,i) => (
-              <div key={i} style={{ background:B.pearl, border:`0.5px solid ${B.border}`, borderRadius:10, padding:16, marginBottom:12 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:12 }}>
-                  <div style={{ fontWeight:600 }}>Generator {i+1}</div>
-                  {generators.length>1 && <button onClick={()=>setGenerators(g=>g.filter((_,j)=>j!==i))} style={{ padding:'3px 10px', border:`0.5px solid #DC2626`, borderRadius:5, color:'#DC2626', background:'transparent', fontSize:11, cursor:'pointer' }}>Remove</button>}
+            {generators.map((gen, i) => (
+              <div key={i} style={{ background: '#F9FAF8', border: '0.5px solid #E5E7EB', borderRadius: 10, padding: 16, marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>Generator {i + 1}</div>
+                  {generators.length > 1 && <button onClick={() => setGenerators(g => g.filter((_, j) => j !== i))} style={{ padding: '3px 10px', border: '0.5px solid #DC2626', borderRadius: 5, color: '#DC2626', background: 'transparent', fontSize: 11, cursor: 'pointer' }}>Remove</button>}
                 </div>
-                {row(3,[
-                  fld('Brand',    <input value={gen.brand||''} onChange={updGen(i,'brand')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
-                  fld('Model',    <input value={gen.model||''} onChange={updGen(i,'model')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
-                  fld('KW',       <input type="number" value={gen.capacity_kw||''} onChange={updGen(i,'capacity_kw')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
-                  fld('Hours',    <input type="number" value={gen.running_hours||''} onChange={updGen(i,'running_hours')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
-                  fld('Last Service', <input type="date" value={gen.last_service||''} onChange={updGen(i,'last_service')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
-                  fld('Notes',    <input value={gen.notes||''} onChange={updGen(i,'notes')} style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, boxSizing:'border-box', background:'#fff' }} />),
-                ])}
+                <G3>
+                  <div><L t="Brand" /><input value={gen.brand || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, brand: e.target.value} : x))} style={IS} /></div>
+                  <div><L t="Model" /><input value={gen.model || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, model: e.target.value} : x))} style={IS} /></div>
+                  <div><L t="KW" /><input type="number" value={gen.capacity_kw || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, capacity_kw: e.target.value} : x))} style={IS} /></div>
+                  <div><L t="Running Hours" /><input type="number" value={gen.running_hours || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, running_hours: e.target.value} : x))} style={IS} /></div>
+                  <div><L t="Last Service" /><input type="date" value={gen.last_service || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, last_service: e.target.value} : x))} style={IS} /></div>
+                  <div><L t="Notes" /><input value={gen.notes || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, notes: e.target.value} : x))} style={IS} /></div>
+                </G3>
               </div>
             ))}
           </div>
         )}
 
-        {tab==='fuel' && (
+        {tab === 'fuel' && (
           <div>
-            {/* Seaworthiness Certificate */}
-            <div style={{ marginBottom:20, padding:16, background:B.pearl, borderRadius:10, border:`0.5px solid ${B.border}` }}>
-              <div style={{ fontWeight:600, fontSize:13, marginBottom:12 }}>📋 Seaworthiness Certificate</div>
-              <div style={{ display:'grid', gridTemplateColumns: isMobile?'1fr':'1fr 1fr', gap:12, marginBottom:12 }}>
-                <div>{lbl('Certificate URL')}<input value={f.seaworthiness_cert_url||''} onChange={upd('seaworthiness_cert_url')} placeholder="Paste certificate image URL..." style={si} /></div>
-                <div>{lbl('Expiry Date')}<input type="date" value={f.seaworthiness_expiry||''} onChange={upd('seaworthiness_expiry')} style={si} /></div>
-                <div>{lbl('Registry Number')}<input value={f.registry_number||''} onChange={upd('registry_number')} style={si} /></div>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, paddingBottom: 8, borderBottom: '0.5px solid #E5E7EB' }}>Fuel</div>
+            <G3>
+              <div><L t="Fuel Type" />
+                <select value={fuelType} onChange={e => setFuelType(e.target.value)} style={IS}>
+                  {['Diesel','Petrol','Hybrid','Electric','Other'].map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
               </div>
-              {f.seaworthiness_cert_url && (
-                <div>
-                  <ClauseVisionCertExtractor url={f.seaworthiness_cert_url} onExtract={(data) => {
-                    if (data.expiry) setF2(prev => ({...prev, seaworthiness_expiry: data.expiry}))
-                    if (data.registry_number) setF2(prev => ({...prev, registry_number: data.registry_number}))
-                    if (data.cert_extracted) setF2(prev => ({...prev, cert_extracted: data.cert_extracted}))
-                  }} />
-                </div>
-              )}
-              {f.seaworthiness_expiry && (
-                <div style={{ marginTop:8, padding:'8px 12px', borderRadius:6, background: new Date(f.seaworthiness_expiry) < new Date() ? '#FEF2F2' : new Date(f.seaworthiness_expiry) < new Date(Date.now()+30*24*60*60*1000) ? '#FFF7ED' : '#ECFDF5', color: new Date(f.seaworthiness_expiry) < new Date() ? '#DC2626' : new Date(f.seaworthiness_expiry) < new Date(Date.now()+30*24*60*60*1000) ? '#D97706' : '#059669', fontSize:12, fontWeight:500 }}>
-                  {new Date(f.seaworthiness_expiry) < new Date() ? '⚠️ Certificate EXPIRED' : new Date(f.seaworthiness_expiry) < new Date(Date.now()+30*24*60*60*1000) ? '⚠️ Expiring within 30 days' : 'OK Certificate valid until ' + f.seaworthiness_expiry}
-                </div>
-              )}
-            </div>
-            <div style={{ fontWeight:600, fontSize:13, marginBottom:12, paddingBottom:8, borderBottom:`0.5px solid ${B.border}` }}>⛽ Fuel</div>
-            {row(3,[
-              fld('Fuel Type', sel('fuel_type',['Diesel','Petrol','Hybrid','Electric','Other'])),
-              fld('Tank Capacity (L)', inp('fuel_tank_capacity','number')),
-              fld('Avg Consumption (L/hr)', inp('avg_consumption_hr','number')),
-            ])}
-            <div style={{ fontWeight:600, fontSize:13, marginBottom:12, marginTop:16, paddingBottom:8, borderBottom:`0.5px solid ${B.border}` }}>🔧 Maintenance</div>
-            {row(2,[
-              fld('Last Dry Dock', inp('last_dry_dock','date')),
-              fld('Next Dry Dock Due', inp('next_dry_dock','date')),
-            ])}
-            <div>{lbl('Maintenance Notes')}<textarea value={f.maintenance_notes||''} onChange={upd('maintenance_notes')} rows={4} placeholder="Maintenance history..." style={{ width:'100%', padding:'8px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:13, resize:'vertical', boxSizing:'border-box', background:'#fff' }} /></div>
+              <div><L t="Tank Capacity (L)" /><input type="number" value={tankCapacity} onChange={e => setTankCapacity(e.target.value)} style={IS} /></div>
+              <div><L t="Avg Consumption (L/hr)" /><input type="number" value={avgConsumption} onChange={e => setAvgConsumption(e.target.value)} style={IS} /></div>
+            </G3>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, marginTop: 16, paddingBottom: 8, borderBottom: '0.5px solid #E5E7EB' }}>Maintenance</div>
+            <G2>
+              <div><L t="Last Dry Dock" /><input type="date" value={lastDryDock} onChange={e => setLastDryDock(e.target.value)} style={IS} /></div>
+              <div><L t="Next Dry Dock Due" /><input type="date" value={nextDryDock} onChange={e => setNextDryDock(e.target.value)} style={IS} /></div>
+            </G2>
+            <div><L t="Maintenance Notes" /><textarea value={maintNotes} onChange={e => setMaintNotes(e.target.value)} rows={3} style={{ ...IS, resize: 'vertical' }} /></div>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, marginTop: 16, paddingBottom: 8, borderBottom: '0.5px solid #E5E7EB' }}>Seaworthiness Certificate</div>
+            <G3>
+              <div><L t="Certificate URL" /><input value={certUrl} onChange={e => setCertUrl(e.target.value)} placeholder="Paste certificate image URL" style={IS} /></div>
+              <div><L t="Expiry Date" /><input type="date" value={certExpiry} onChange={e => setCertExpiry(e.target.value)} style={IS} /></div>
+              <div><L t="Registry Number" /><input value={registryNumber} onChange={e => setRegistryNumber(e.target.value)} style={IS} /></div>
+            </G3>
+            {certExpiry && (
+              <div style={{ padding: '8px 12px', borderRadius: 6, marginTop: 4, background: new Date(certExpiry) < new Date() ? '#FEF2F2' : '#ECFDF5', color: new Date(certExpiry) < new Date() ? '#DC2626' : '#059669', fontSize: 12, fontWeight: 500 }}>
+                {new Date(certExpiry) < new Date() ? 'Certificate EXPIRED' : 'Certificate valid until ' + certExpiry}
+              </div>
+            )}
           </div>
         )}
 
-        {tab==='activities' && (
+        {tab === 'activities' && (
           <div>
-            <div style={{ fontSize:12, color:B.textSecond, marginBottom:14 }}><strong>{activities.length}</strong> activities selected</div>
+            <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 14 }}><strong>{activities.length}</strong> activities selected. Click to toggle.</div>
             {ALL_ACTIVITIES.map(group => (
-              <div key={group.group} style={{ marginBottom:18 }}>
-                <div style={{ fontSize:10, fontWeight:700, color:B.textMuted, textTransform:'uppercase', letterSpacing:'1.2px', marginBottom:8 }}>{group.group}</div>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+              <div key={group.group} style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: 8 }}>{group.group}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {group.items.map(act => {
-                    const sel2 = activities.includes(act)
+                    const selected = activities.includes(act)
                     return (
-                      <button key={act} onClick={()=>toggleAct(act)} style={{ padding:'5px 12px', borderRadius:99, border:`1.5px solid ${sel2?B.freshPalm:B.border}`, background:sel2?B.freshPalm:'transparent', color:sel2?'#fff':B.textSecond, fontSize:12, cursor:'pointer', fontWeight:sel2?500:400 }}>
-                        {sel2?'OK ':''}{act}
+                      <button key={act} onClick={() => toggleActivity(act)} style={{ padding: '5px 12px', borderRadius: 99, border: '1.5px solid ' + (selected ? '#1A4530' : '#E5E7EB'), background: selected ? '#1A4530' : 'transparent', color: selected ? '#fff' : '#6B7280', fontSize: 12, cursor: 'pointer', fontWeight: selected ? 500 : 400 }}>
+                        {selected ? 'OK ' : ''}{act}
                       </button>
                     )
                   })}
@@ -2372,26 +2437,46 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
           </div>
         )}
 
-        {tab==='metrics' && (
+        {tab === 'metrics' && (
           <div>
-            {row(2,[
-              fld('Avg Fuel Per Trip (L)', inp('avg_fuel_per_trip','number')),
-              fld('Avg Trip Duration (hrs)', inp('avg_trip_duration','number')),
-              fld('Cost Per Hour (MVR)', inp('cost_per_hour','number')),
-              fld('Cost Per Trip (MVR)', inp('cost_per_trip','number')),
-            ])}
-
-            <div style={{ marginTop:20 }}>
-              <div style={{ fontWeight:600, fontSize:13, marginBottom:12, paddingBottom:8, borderBottom:`0.5px solid ${B.border}` }}>📁 Documents</div>
-              <div style={{ fontSize:12, color:B.textSecond, marginBottom:10 }}>Add links to vessel documents (certificates, reports, surveys)</div>
-              <VesselDocuments docs={f.documents||[]} onChange={(docs) => setF2(prev => ({...prev, documents:docs}))} />
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, paddingBottom: 8, borderBottom: '0.5px solid #E5E7EB' }}>Operational Metrics</div>
+            <G2>
+              <div><L t="Avg Fuel Per Trip (L)" /><input type="number" value={avgFuelTrip} onChange={e => setAvgFuelTrip(e.target.value)} style={IS} /></div>
+              <div><L t="Avg Trip Duration (hrs)" /><input type="number" value={avgTripDur} onChange={e => setAvgTripDur(e.target.value)} style={IS} /></div>
+              <div><L t="Cost Per Hour (MVR)" /><input type="number" value={costPerHour} onChange={e => setCostPerHour(e.target.value)} style={IS} /></div>
+              <div><L t="Cost Per Trip (MVR)" /><input type="number" value={costPerTrip} onChange={e => setCostPerTrip(e.target.value)} style={IS} /></div>
+            </G2>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, marginTop: 16, paddingBottom: 8, borderBottom: '0.5px solid #E5E7EB' }}>Documents</div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              <input value={newDocName} onChange={e => setNewDocName(e.target.value)} placeholder="Document name" style={{ ...IS, flex: 2, minWidth: 120 }} />
+              <input value={newDocUrl} onChange={e => setNewDocUrl(e.target.value)} placeholder="URL or link" style={{ ...IS, flex: 3, minWidth: 180 }} />
+              <select value={newDocType} onChange={e => setNewDocType(e.target.value)} style={{ ...IS, flex: 1, minWidth: 100 }}>
+                {['Certificate','Survey','Insurance','Registration','Maintenance','Other'].map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <button onClick={addDoc} style={{ padding: '8px 14px', borderRadius: 6, background: '#1A4530', color: '#fff', border: 'none', fontSize: 12, cursor: 'pointer' }}>Add</button>
             </div>
+            {documents.length === 0
+              ? <div style={{ fontSize: 12, color: '#9CA3AF', padding: '12px 0' }}>No documents added yet</div>
+              : documents.map((doc, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#F9FAF8', borderRadius: 8, border: '0.5px solid #E5E7EB', marginBottom: 8 }}>
+                  <span style={{ fontSize: 16 }}>&#128196;</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 500, fontSize: 12 }}>{doc.name}</div>
+                    <div style={{ fontSize: 10, color: '#9CA3AF' }}>{doc.type} - {doc.added}</div>
+                  </div>
+                  {doc.url && <a href={doc.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#1A4530', fontWeight: 500 }}>Open</a>}
+                  <button onClick={() => setDocuments(d => d.filter((_, j) => j !== i))} style={{ background: 'transparent', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>x</button>
+                </div>
+              ))
+            }
           </div>
         )}
+
       </div>
     </div>
   )
 }
+
 
 function VesselCard({ vessel, engines, onEdit, onDelete }) {
   const [open, setOpen] = useState(false)
