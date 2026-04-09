@@ -161,6 +161,7 @@ const NAV = [
   { id: 'vessels',   icon: '⛵', label: 'Vessels'          },
   { id: 'team',      icon: '👥', label: 'Team'             },
   { id: 'fuel-log',  icon: '⛽', label: 'Fuel Log'         },
+  { id: 'users',     icon: '👤', label: 'Users'             },
   { id: 'settings',  icon: '⚙️', label: 'Settings'         },
 ]
 
@@ -174,8 +175,9 @@ const NAV_ACCESS = {
   marina:       ['vessels','team'],
   housekeeping: ['roster'],
   all_staff:    ['scheduler','roster'],
-  super_admin:  null,  // null = all access
+  super_admin:  null,
   resort_admin: null,
+  // settings always hidden from non-admins
 }
 
 const getVisibleNav = (user) => {
@@ -187,7 +189,9 @@ const getVisibleNav = (user) => {
   const customAccess = window.__NAV_ACCESS__ || (() => { try { return JSON.parse(localStorage.getItem('nav_access') || 'null') } catch(e) { return null } })()
   const allowed = (customAccess && customAccess[dept]) || NAV_ACCESS[dept]
   if (!allowed) return NAV
-  return NAV.filter(n => allowed.includes(n.id))
+  // Always hide users and settings from non-admins
+  const filtered = NAV.filter(n => allowed.includes(n.id))
+  return filtered.filter(n => !['users','settings'].includes(n.id))
 }
 
 const getDefaultNav = (user) => {
@@ -3158,6 +3162,7 @@ export default function DhirumbaaFMS() {
             {nav==='vessels'   && <VesselsView isMobile={isMobile} />}
             {nav==='team'      && <TeamView isMobile={isMobile} />}
             {nav==='fuel-log'  && <FuelLogView isMobile={isMobile} />}
+            {nav==='users'     && <UsersView isMobile={isMobile} user={user} />}
             {nav==='settings'  && <SettingsView isMobile={isMobile} user={user} />}
           </div>
 
