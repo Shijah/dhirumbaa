@@ -2122,6 +2122,20 @@ function VGrid({ children, cols=2, isMobile }) {
   )
 }
 
+// Vessel form grid helpers (outside to prevent re-render on typing)
+function VG2({ children, isMobile }) {
+  return <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 12 }}>{children}</div>
+}
+function VG3({ children, isMobile }) {
+  return <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>{children}</div>
+}
+function VG4({ children, isMobile }) {
+  return <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>{children}</div>
+}
+function VL({ t }) {
+  return <div style={{ fontSize: 10, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.8px', marginBottom: 4 }}>{t}</div>
+}
+
 // Vessel image upload component
 function VesselImageUpload({ imageUrl, onUpload }) {
   const [uploading, setUploading] = useState(false)
@@ -2228,22 +2242,7 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
     fontFamily: 'inherit'
   }
 
-  const G2 = ({ children }) => (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 12 }}>
-      {children}
-    </div>
-  )
-  const G3 = ({ children }) => (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
-      {children}
-    </div>
-  )
-  const G4 = ({ children }) => (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
-      {children}
-    </div>
-  )
-  const L = ({ t }) => <div style={{ fontSize: 10, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.8px', marginBottom: 4 }}>{t}</div>
+
 
   const toggleActivity = (act) => {
     setActivities(prev => prev.includes(act) ? prev.filter(a => a !== act) : [...prev, act])
@@ -2330,33 +2329,33 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
         {tab === 'general' && (
           <div>
             <VesselImageUpload imageUrl={imageUrl} onUpload={setImageUrl} />
-            <G3>
-              <div><L t="Vessel Name *" /><input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Ixora" style={IS} /></div>
-              <div><L t="Vessel Type" />
+            <VG3 isMobile={isMobile}>
+              <div><VL t="Vessel Name *" /><input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Ixora" style={IS} /></div>
+              <div><VL t="Vessel Type" />
                 <select value={vesselType} onChange={e => setVesselType(e.target.value)} style={IS}>
                   <option value="">Select...</option>
                   {['Speedboat','Dhoni','Yacht','Ferry','Catamaran','Tender','RIB','Supply Boat','Other'].map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
-              <div><L t="Status" />
+              <div><VL t="Status" />
                 <select value={status} onChange={e => setStatus(e.target.value)} style={IS}>
                   {['active','inactive','maintenance'].map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
-            </G3>
-            <G4>
-              <div><L t="Length (m)" /><input type="number" value={lengthM} onChange={e => setLengthM(e.target.value)} style={IS} /></div>
-              <div><L t="Beam (m)" /><input type="number" value={beamM} onChange={e => setBeamM(e.target.value)} style={IS} /></div>
-              <div><L t="Draft (m)" /><input type="number" value={draftM} onChange={e => setDraftM(e.target.value)} style={IS} /></div>
-              <div><L t="Year Built" /><input type="number" value={yearBuilt} onChange={e => setYearBuilt(e.target.value)} style={IS} /></div>
-            </G4>
-            <G3>
-              <div><L t="Max Passengers" /><input type="number" value={maxPax} onChange={e => setMaxPax(e.target.value)} style={IS} /></div>
-              <div><L t="Registry Port" /><input value={registryPort} onChange={e => setRegistryPort(e.target.value)} style={IS} /></div>
-              <div><L t="Registry Country" /><input value={registryCountry} onChange={e => setRegistryCountry(e.target.value)} style={IS} /></div>
-            </G3>
+            </VG3>
+            <VG4 isMobile={isMobile}>
+              <div><VL t="Length (m)" /><input type="number" value={lengthM} onChange={e => setLengthM(e.target.value)} style={IS} /></div>
+              <div><VL t="Beam (m)" /><input type="number" value={beamM} onChange={e => setBeamM(e.target.value)} style={IS} /></div>
+              <div><VL t="Draft (m)" /><input type="number" value={draftM} onChange={e => setDraftM(e.target.value)} style={IS} /></div>
+              <div><VL t="Year Built" /><input type="number" value={yearBuilt} onChange={e => setYearBuilt(e.target.value)} style={IS} /></div>
+            </VG4>
+            <VG3 isMobile={isMobile}>
+              <div><VL t="Max Passengers" /><input type="number" value={maxPax} onChange={e => setMaxPax(e.target.value)} style={IS} /></div>
+              <div><VL t="Registry Port" /><input value={registryPort} onChange={e => setRegistryPort(e.target.value)} style={IS} /></div>
+              <div><VL t="Registry Country" /><input value={registryCountry} onChange={e => setRegistryCountry(e.target.value)} style={IS} /></div>
+            </VG3>
             <div style={{ marginBottom: 12 }}>
-              <L t="Seaworthiness Status" />
+              <VL t="Seaworthiness Status" />
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {['valid','expired','under_maintenance'].map(s => (
                   <button key={s} onClick={() => setSeaworthiness(s)} style={{ padding: '6px 16px', borderRadius: 99, border: '1.5px solid ' + (seaworthiness === s ? seaColors[s] : '#E5E7EB'), background: seaworthiness === s ? seaColors[s] + '15' : 'transparent', color: seaworthiness === s ? seaColors[s] : '#6B7280', fontSize: 12, fontWeight: seaworthiness === s ? 600 : 400, cursor: 'pointer' }}>
@@ -2365,7 +2364,7 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
                 ))}
               </div>
             </div>
-            <div><L t="Notes" /><textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} style={{ ...IS, resize: 'vertical' }} /></div>
+            <div><VL t="Notes" /><textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} style={{ ...IS, resize: 'vertical' }} /></div>
           </div>
         )}
 
@@ -2381,16 +2380,16 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
                   <div style={{ fontWeight: 600, fontSize: 13 }}>Engine {i + 1}</div>
                   {engines.length > 1 && <button onClick={() => setEngines(e => e.filter((_, j) => j !== i))} style={{ padding: '3px 10px', border: '0.5px solid #DC2626', borderRadius: 5, color: '#DC2626', background: 'transparent', fontSize: 11, cursor: 'pointer' }}>Remove</button>}
                 </div>
-                <G3>
-                  <div><L t="Brand" /><input value={eng.brand || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, brand: e.target.value} : x))} style={IS} /></div>
-                  <div><L t="Model" /><input value={eng.model || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, model: e.target.value} : x))} style={IS} /></div>
-                  <div><L t="Serial No." /><input value={eng.serial_number || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, serial_number: e.target.value} : x))} style={IS} /></div>
-                  <div><L t="HP" /><input type="number" value={eng.power_hp || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, power_hp: e.target.value} : x))} style={IS} /></div>
-                  <div><L t="Running Hours" /><input type="number" value={eng.running_hours || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, running_hours: e.target.value} : x))} style={IS} /></div>
-                  <div><L t="L/hr" /><input type="number" value={eng.fuel_consumption_hr || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, fuel_consumption_hr: e.target.value} : x))} style={IS} /></div>
-                  <div><L t="Last Overhaul" /><input type="date" value={eng.last_overhaul || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, last_overhaul: e.target.value} : x))} style={IS} /></div>
-                  <div><L t="Notes" /><input value={eng.notes || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, notes: e.target.value} : x))} style={IS} /></div>
-                </G3>
+                <VG3 isMobile={isMobile}>
+                  <div><VL t="Brand" /><input value={eng.brand || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, brand: e.target.value} : x))} style={IS} /></div>
+                  <div><VL t="Model" /><input value={eng.model || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, model: e.target.value} : x))} style={IS} /></div>
+                  <div><VL t="Serial No." /><input value={eng.serial_number || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, serial_number: e.target.value} : x))} style={IS} /></div>
+                  <div><VL t="HP" /><input type="number" value={eng.power_hp || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, power_hp: e.target.value} : x))} style={IS} /></div>
+                  <div><VL t="Running Hours" /><input type="number" value={eng.running_hours || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, running_hours: e.target.value} : x))} style={IS} /></div>
+                  <div><VL t="L/hr" /><input type="number" value={eng.fuel_consumption_hr || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, fuel_consumption_hr: e.target.value} : x))} style={IS} /></div>
+                  <div><VL t="Last Overhaul" /><input type="date" value={eng.last_overhaul || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, last_overhaul: e.target.value} : x))} style={IS} /></div>
+                  <div><VL t="Notes" /><input value={eng.notes || ''} onChange={e => setEngines(es => es.map((x, j) => j === i ? {...x, notes: e.target.value} : x))} style={IS} /></div>
+                </VG3>
               </div>
             ))}
           </div>
@@ -2408,14 +2407,14 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
                   <div style={{ fontWeight: 600, fontSize: 13 }}>Generator {i + 1}</div>
                   {generators.length > 1 && <button onClick={() => setGenerators(g => g.filter((_, j) => j !== i))} style={{ padding: '3px 10px', border: '0.5px solid #DC2626', borderRadius: 5, color: '#DC2626', background: 'transparent', fontSize: 11, cursor: 'pointer' }}>Remove</button>}
                 </div>
-                <G3>
-                  <div><L t="Brand" /><input value={gen.brand || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, brand: e.target.value} : x))} style={IS} /></div>
-                  <div><L t="Model" /><input value={gen.model || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, model: e.target.value} : x))} style={IS} /></div>
-                  <div><L t="KW" /><input type="number" value={gen.capacity_kw || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, capacity_kw: e.target.value} : x))} style={IS} /></div>
-                  <div><L t="Running Hours" /><input type="number" value={gen.running_hours || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, running_hours: e.target.value} : x))} style={IS} /></div>
-                  <div><L t="Last Service" /><input type="date" value={gen.last_service || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, last_service: e.target.value} : x))} style={IS} /></div>
-                  <div><L t="Notes" /><input value={gen.notes || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, notes: e.target.value} : x))} style={IS} /></div>
-                </G3>
+                <VG3 isMobile={isMobile}>
+                  <div><VL t="Brand" /><input value={gen.brand || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, brand: e.target.value} : x))} style={IS} /></div>
+                  <div><VL t="Model" /><input value={gen.model || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, model: e.target.value} : x))} style={IS} /></div>
+                  <div><VL t="KW" /><input type="number" value={gen.capacity_kw || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, capacity_kw: e.target.value} : x))} style={IS} /></div>
+                  <div><VL t="Running Hours" /><input type="number" value={gen.running_hours || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, running_hours: e.target.value} : x))} style={IS} /></div>
+                  <div><VL t="Last Service" /><input type="date" value={gen.last_service || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, last_service: e.target.value} : x))} style={IS} /></div>
+                  <div><VL t="Notes" /><input value={gen.notes || ''} onChange={e => setGenerators(gs => gs.map((x, j) => j === i ? {...x, notes: e.target.value} : x))} style={IS} /></div>
+                </VG3>
               </div>
             ))}
           </div>
@@ -2424,27 +2423,27 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
         {tab === 'fuel' && (
           <div>
             <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, paddingBottom: 8, borderBottom: '0.5px solid #E5E7EB' }}>Fuel</div>
-            <G3>
-              <div><L t="Fuel Type" />
+            <VG3 isMobile={isMobile}>
+              <div><VL t="Fuel Type" />
                 <select value={fuelType} onChange={e => setFuelType(e.target.value)} style={IS}>
                   {['Diesel','Petrol','Hybrid','Electric','Other'].map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
-              <div><L t="Tank Capacity (L)" /><input type="number" value={tankCapacity} onChange={e => setTankCapacity(e.target.value)} style={IS} /></div>
-              <div><L t="Avg Consumption (L/hr)" /><input type="number" value={avgConsumption} onChange={e => setAvgConsumption(e.target.value)} style={IS} /></div>
-            </G3>
+              <div><VL t="Tank Capacity (L)" /><input type="number" value={tankCapacity} onChange={e => setTankCapacity(e.target.value)} style={IS} /></div>
+              <div><VL t="Avg Consumption (L/hr)" /><input type="number" value={avgConsumption} onChange={e => setAvgConsumption(e.target.value)} style={IS} /></div>
+            </VG3>
             <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, marginTop: 16, paddingBottom: 8, borderBottom: '0.5px solid #E5E7EB' }}>Maintenance</div>
-            <G2>
-              <div><L t="Last Dry Dock" /><input type="date" value={lastDryDock} onChange={e => setLastDryDock(e.target.value)} style={IS} /></div>
-              <div><L t="Next Dry Dock Due" /><input type="date" value={nextDryDock} onChange={e => setNextDryDock(e.target.value)} style={IS} /></div>
-            </G2>
-            <div><L t="Maintenance Notes" /><textarea value={maintNotes} onChange={e => setMaintNotes(e.target.value)} rows={3} style={{ ...IS, resize: 'vertical' }} /></div>
+            <VG2 isMobile={isMobile}>
+              <div><VL t="Last Dry Dock" /><input type="date" value={lastDryDock} onChange={e => setLastDryDock(e.target.value)} style={IS} /></div>
+              <div><VL t="Next Dry Dock Due" /><input type="date" value={nextDryDock} onChange={e => setNextDryDock(e.target.value)} style={IS} /></div>
+            </VG2>
+            <div><VL t="Maintenance Notes" /><textarea value={maintNotes} onChange={e => setMaintNotes(e.target.value)} rows={3} style={{ ...IS, resize: 'vertical' }} /></div>
             <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, marginTop: 16, paddingBottom: 8, borderBottom: '0.5px solid #E5E7EB' }}>Seaworthiness Certificate</div>
-            <G3>
-              <div><L t="Certificate URL" /><input value={certUrl} onChange={e => setCertUrl(e.target.value)} placeholder="Paste certificate image URL" style={IS} /></div>
-              <div><L t="Expiry Date" /><input type="date" value={certExpiry} onChange={e => setCertExpiry(e.target.value)} style={IS} /></div>
-              <div><L t="Registry Number" /><input value={registryNumber} onChange={e => setRegistryNumber(e.target.value)} style={IS} /></div>
-            </G3>
+            <VG3 isMobile={isMobile}>
+              <div><VL t="Certificate URL" /><input value={certUrl} onChange={e => setCertUrl(e.target.value)} placeholder="Paste certificate image URL" style={IS} /></div>
+              <div><VL t="Expiry Date" /><input type="date" value={certExpiry} onChange={e => setCertExpiry(e.target.value)} style={IS} /></div>
+              <div><VL t="Registry Number" /><input value={registryNumber} onChange={e => setRegistryNumber(e.target.value)} style={IS} /></div>
+            </VG3>
             {certExpiry && (
               <div style={{ padding: '8px 12px', borderRadius: 6, marginTop: 4, background: new Date(certExpiry) < new Date() ? '#FEF2F2' : '#ECFDF5', color: new Date(certExpiry) < new Date() ? '#DC2626' : '#059669', fontSize: 12, fontWeight: 500 }}>
                 {new Date(certExpiry) < new Date() ? 'Certificate EXPIRED' : 'Certificate valid until ' + certExpiry}
@@ -2477,12 +2476,12 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
         {tab === 'metrics' && (
           <div>
             <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, paddingBottom: 8, borderBottom: '0.5px solid #E5E7EB' }}>Operational Metrics</div>
-            <G2>
-              <div><L t="Avg Fuel Per Trip (L)" /><input type="number" value={avgFuelTrip} onChange={e => setAvgFuelTrip(e.target.value)} style={IS} /></div>
-              <div><L t="Avg Trip Duration (hrs)" /><input type="number" value={avgTripDur} onChange={e => setAvgTripDur(e.target.value)} style={IS} /></div>
-              <div><L t="Cost Per Hour (MVR)" /><input type="number" value={costPerHour} onChange={e => setCostPerHour(e.target.value)} style={IS} /></div>
-              <div><L t="Cost Per Trip (MVR)" /><input type="number" value={costPerTrip} onChange={e => setCostPerTrip(e.target.value)} style={IS} /></div>
-            </G2>
+            <VG2 isMobile={isMobile}>
+              <div><VL t="Avg Fuel Per Trip (L)" /><input type="number" value={avgFuelTrip} onChange={e => setAvgFuelTrip(e.target.value)} style={IS} /></div>
+              <div><VL t="Avg Trip Duration (hrs)" /><input type="number" value={avgTripDur} onChange={e => setAvgTripDur(e.target.value)} style={IS} /></div>
+              <div><VL t="Cost Per Hour (MVR)" /><input type="number" value={costPerHour} onChange={e => setCostPerHour(e.target.value)} style={IS} /></div>
+              <div><VL t="Cost Per Trip (MVR)" /><input type="number" value={costPerTrip} onChange={e => setCostPerTrip(e.target.value)} style={IS} /></div>
+            </VG2>
             <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, marginTop: 16, paddingBottom: 8, borderBottom: '0.5px solid #E5E7EB' }}>Documents</div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
               <input value={newDocName} onChange={e => setNewDocName(e.target.value)} placeholder="Document name" style={{ ...IS, flex: 2, minWidth: 120 }} />
