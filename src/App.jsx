@@ -677,7 +677,7 @@ function GroupCard({ group, allGroups, groupIdx }) {
             )
           })}
           <div style={S.timingBar}>
-            <span>-> arrives VIA {toT(arrVIA)}</span>
+            <span>arrives VIA {toT(arrVIA)}</span>
             {recTrf && <span style={{ color: buf!==null&&buf<0?'#92400E':'#065F46' }}>formula TRF: {recTrf} ({buf!==null?fmtB(buf):'—'})</span>}
             {hasRL&&next && <span style={{ color:B.success }}>window {toT(arrVIA)}-{toT(arrVIA+ALGO.RL)}</span>}
           </div>
