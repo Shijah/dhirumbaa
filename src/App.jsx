@@ -2144,12 +2144,25 @@ function VesselImageUpload({ imageUrl, onUpload }) {
   const handleFile = (file) => {
     if (!file) return
     if (!file.type.startsWith('image/')) { alert('Please select an image file'); return }
-    if (file.size > 3 * 1024 * 1024) { alert('Image must be under 3MB'); return }
     setUploading(true)
     const reader = new FileReader()
     reader.onload = (e) => {
-      onUpload(e.target.result)
-      setUploading(false)
+      // Compress image using canvas before storing
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const MAX = 400
+        let w = img.width, h = img.height
+        if (w > h) { if (w > MAX) { h = h * MAX / w; w = MAX } }
+        else { if (h > MAX) { w = w * MAX / h; h = MAX } }
+        canvas.width = w
+        canvas.height = h
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+        const compressed = canvas.toDataURL('image/jpeg', 0.7)
+        onUpload(compressed)
+        setUploading(false)
+      }
+      img.src = e.target.result
     }
     reader.onerror = () => { alert('Failed to read file'); setUploading(false) }
     reader.readAsDataURL(file)
@@ -2531,7 +2544,12 @@ function VesselCard({ vessel, engines, onEdit, onDelete }) {
   return (
     <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:12, overflow:'hidden', boxShadow:'0 1px 4px rgba(0,0,0,0.05)' }}>
       <div style={{ padding:'14px 16px', display:'flex', alignItems:'center', gap:12 }}>
-        <div style={{ width:44, height:44, borderRadius:10, background:B.freshPalm+'15', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>⛵</div>
+        <div style={{ width:52, height:52, borderRadius:10, background:B.freshPalm+'15', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0, overflow:'hidden' }}>
+          {vessel.image_url
+            ? <img src={vessel.image_url} alt={vessel.name} style={{ width:'100%', height:'100%', objectFit:'cover' }} onError={e=>e.target.style.display='none'} />
+            : <span>&#9961;</span>
+          }
+        </div>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontWeight:700, fontSize:15, color:B.textPrimary }}>{vessel.name}</div>
           <div style={{ fontSize:12, color:B.textSecond, marginTop:2 }}>
