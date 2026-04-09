@@ -2154,29 +2154,26 @@ function VesselImageUpload({ imageUrl, onUpload }) {
       const { data } = sb.storage.from('vessel-images').getPublicUrl(path)
       onUpload(data.publicUrl)
     } catch(e) {
-      alert('Upload failed: ' + e.message + '. Please use an image URL instead.')
-      // Fallback to URL input
+      alert('Upload failed: ' + e.message)
     }
     setUploading(false)
   }
 
   return (
     <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 16, padding: 14, background: '#F9FAF8', borderRadius: 10, border: '0.5px solid #E5E7EB' }}>
-      <div onClick={() => fileRef.current.click()} style={{ width: 90, height: 90, borderRadius: 10, background: '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, cursor: 'pointer', overflow: 'hidden', flexShrink: 0, position: 'relative' }}>
+      <div onClick={() => !uploading && fileRef.current.click()} style={{ width: 100, height: 100, borderRadius: 10, background: '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', flexShrink: 0, position: 'relative' }}>
         {imageUrl
           ? <img src={imageUrl} alt="vessel" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          : <span style={{ fontSize: 36 }}>&#9961;</span>
+          : <div style={{ textAlign: 'center' }}><div style={{ fontSize: 32 }}>&#9961;</div><div style={{ fontSize: 10, color: '#6B7280', marginTop: 4 }}>Tap to upload</div></div>
         }
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 9, textAlign: 'center', padding: '3px 0' }}>
-          {uploading ? 'Uploading...' : 'Click to upload'}
-        </div>
+        {uploading && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11 }}>Uploading...</div>}
+        {imageUrl && !uploading && <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 9, textAlign: 'center', padding: '3px 0' }}>Click to change</div>}
       </div>
-      <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Vessel Photo</div>
-        <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 8 }}>Click the image area to upload a photo, or paste a URL below</div>
-        <input value={imageUrl || ''} onChange={e => onUpload(e.target.value)} placeholder="Or paste image URL..." style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #D1D5DB', borderRadius: 6, fontSize: 12, boxSizing: 'border-box', background: '#fff', outline: 'none' }} />
-        {uploading && <div style={{ fontSize: 11, color: '#1A4530', marginTop: 4 }}>Uploading image...</div>}
+      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 4 }}>Vessel Photo</div>
+        <div style={{ fontSize: 11, color: '#6B7280', lineHeight: 1.5 }}>Click the image area to upload.<br/>Supported: JPG, PNG, WEBP. Max 5MB.</div>
+        {imageUrl && <button onClick={() => onUpload('')} style={{ marginTop: 8, fontSize: 11, color: '#DC2626', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>Remove photo</button>}
       </div>
     </div>
   )
