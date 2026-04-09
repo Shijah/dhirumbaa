@@ -2122,6 +2122,52 @@ function VGrid({ children, cols=2, isMobile }) {
   )
 }
 
+// Vessel image upload component
+function VesselImageUpload({ imageUrl, onUpload }) {
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef()
+
+  const handleFile = async (file) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) { alert('Please select an image file'); return }
+    if (file.size > 5 * 1024 * 1024) { alert('Image must be under 5MB'); return }
+    setUploading(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = 'vessels/' + Date.now() + '.' + ext
+      const { error } = await sb.storage.from('vessel-images').upload(path, file, { upsert: true })
+      if (error) throw error
+      const { data } = sb.storage.from('vessel-images').getPublicUrl(path)
+      onUpload(data.publicUrl)
+    } catch(e) {
+      alert('Upload failed: ' + e.message + '. Please use an image URL instead.')
+      // Fallback to URL input
+    }
+    setUploading(false)
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 16, padding: 14, background: '#F9FAF8', borderRadius: 10, border: '0.5px solid #E5E7EB' }}>
+      <div onClick={() => fileRef.current.click()} style={{ width: 90, height: 90, borderRadius: 10, background: '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, cursor: 'pointer', overflow: 'hidden', flexShrink: 0, position: 'relative' }}>
+        {imageUrl
+          ? <img src={imageUrl} alt="vessel" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <span style={{ fontSize: 36 }}>&#9961;</span>
+        }
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 9, textAlign: 'center', padding: '3px 0' }}>
+          {uploading ? 'Uploading...' : 'Click to upload'}
+        </div>
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Vessel Photo</div>
+        <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 8 }}>Click the image area to upload a photo, or paste a URL below</div>
+        <input value={imageUrl || ''} onChange={e => onUpload(e.target.value)} placeholder="Or paste image URL..." style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #D1D5DB', borderRadius: 6, fontSize: 12, boxSizing: 'border-box', background: '#fff', outline: 'none' }} />
+        {uploading && <div style={{ fontSize: 11, color: '#1A4530', marginTop: 4 }}>Uploading image...</div>}
+      </div>
+    </div>
+  )
+}
+
 function VesselForm({ vessel, onSave, onCancel, isMobile }) {
   const [tab, setTab] = useState('general')
   const [saving, setSaving] = useState(false)
@@ -2283,16 +2329,7 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
 
         {tab === 'general' && (
           <div>
-            <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 16, padding: 14, background: '#F9FAF8', borderRadius: 10, border: '0.5px solid #E5E7EB' }}>
-              {imageUrl
-                ? <img src={imageUrl} alt="vessel" style={{ width: 80, height: 80, borderRadius: 10, objectFit: 'cover' }} />
-                : <div style={{ width: 80, height: 80, borderRadius: 10, background: '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>&#9961;</div>
-              }
-              <div style={{ flex: 1 }}>
-                <L t="Vessel Photo URL" />
-                <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="Paste image URL..." style={{ ...IS }} />
-              </div>
-            </div>
+            <VesselImageUpload imageUrl={imageUrl} onUpload={setImageUrl} />
             <G3>
               <div><L t="Vessel Name *" /><input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Ixora" style={IS} /></div>
               <div><L t="Vessel Type" />
