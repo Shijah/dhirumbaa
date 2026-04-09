@@ -164,6 +164,35 @@ const NAV = [
   { id: 'settings',  icon: '⚙️', label: 'Settings'         },
 ]
 
+// Nav access control per department
+const NAV_ACCESS = {
+  transport:    ['vessels','team'],
+  front_office: ['scheduler','flights'],
+  activities:   ['scheduler'],
+  diving:       ['scheduler'],
+  fnb:          ['scheduler'],
+  marina:       ['vessels','team'],
+  housekeeping: ['roster'],
+  all_staff:    ['scheduler','roster'],
+  super_admin:  null,  // null = all access
+  resort_admin: null,
+}
+
+const getVisibleNav = (user) => {
+  if (!user) return NAV
+  const role = user.role
+  const dept = user.department
+  if (role === 'super_admin' || role === 'resort_admin' || dept === 'super_admin' || dept === 'resort_admin') return NAV
+  const allowed = NAV_ACCESS[dept]
+  if (!allowed) return NAV
+  return NAV.filter(n => allowed.includes(n.id))
+}
+
+const getDefaultNav = (user) => {
+  const visible = getVisibleNav(user)
+  return visible.length > 0 ? visible[0].id : 'dashboard'
+}
+
 const VESSELS = [
   { name: 'Ixora',    type: 'Main transfer', cap: 12, status: 'active'  },
   { name: 'Tara',     type: 'Main transfer', cap: 12, status: 'active'  },
@@ -3039,7 +3068,7 @@ function FuelLogView({ isMobile }) {
 // ─── App Shell ────────────────────────────────────────────────────────────────
 export default function DhirumbaaFMS() {
   const [user, setUser] = useState(null)
-  const [nav,  setNav]  = useState('dashboard')
+  const [nav,  setNav]  = useState(() => getDefaultNav(user))
   const isMobile = useIsMobile()
 
   useEffect(() => {
@@ -3092,7 +3121,7 @@ export default function DhirumbaaFMS() {
         {!isMobile && (
           <div style={{ width:210, background:B.midnight, display:'flex', flexDirection:'column', flexShrink:0, overflowY:'auto' }}>
             <div style={{ padding:'20px 18px 8px', fontSize:9, color:'rgba(255,255,255,0.2)', letterSpacing:'2px', textTransform:'uppercase' }}>Navigation</div>
-            {NAV.map(item => (
+            {getVisibleNav(user).map(item => (
               <div key={item.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'11px 18px', cursor:'pointer', background: nav===item.id?'rgba(255,255,255,0.07)':'transparent', color: nav===item.id?B.white:'rgba(255,255,255,0.45)', borderLeft: nav===item.id?`3px solid ${B.gold}`:'3px solid transparent', fontSize:12, transition:'all .15s', userSelect:'none', letterSpacing:'.3px' }} onClick={()=>setNav(item.id)}>
                 <span style={{ fontSize:15, flexShrink:0, opacity: nav===item.id?1:0.6 }}>{item.icon}</span>
                 <span>{item.label}</span>
@@ -3141,7 +3170,7 @@ export default function DhirumbaaFMS() {
       {/* Mobile bottom tab bar */}
       {isMobile && (
         <div style={{ position:'fixed', bottom:0, left:0, right:0, background:B.midnight, borderTop:`1px solid rgba(255,255,255,0.08)`, display:'flex', zIndex:100, paddingBottom:'env(safe-area-inset-bottom)' }}>
-          {NAV.map(item => (
+          {getVisibleNav(user).map(item => (
             <button key={item.id} onClick={()=>setNav(item.id)} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'8px 4px', border:'none', background:'transparent', cursor:'pointer', gap:3, borderTop: nav===item.id?`2px solid ${B.gold}`:'2px solid transparent' }}>
               <span style={{ fontSize:18 }}>{item.icon}</span>
               <span style={{ fontSize:9, color: nav===item.id?B.gold:'rgba(255,255,255,0.35)', letterSpacing:'.3px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:52 }}>{item.label}</span>
