@@ -183,7 +183,9 @@ const getVisibleNav = (user) => {
   const role = user.role
   const dept = user.department
   if (role === 'super_admin' || role === 'resort_admin' || dept === 'super_admin' || dept === 'resort_admin') return NAV
-  const allowed = NAV_ACCESS[dept]
+  // Use custom access if admin has configured it
+  const customAccess = window.__NAV_ACCESS__ || (() => { try { return JSON.parse(localStorage.getItem('nav_access') || 'null') } catch(e) { return null } })()
+  const allowed = (customAccess && customAccess[dept]) || NAV_ACCESS[dept]
   if (!allowed) return NAV
   return NAV.filter(n => allowed.includes(n.id))
 }
@@ -608,115 +610,124 @@ function Dashboard({ user, isMobile }) {
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
-function SettingsView({ isMobile }) {
-  const consts = [['Journey Baros ↔ VIA','22','min'],['Immigration buffer','35','min'],['Lounge to jetty (VIA)','10','min'],['Depart airport before flight','60','min'],['Flight combine window','20','min'],['Return load max wait','65','min']]
+function SettingsView({ isMobile, user }) {
+  const isAdmin = !user || ['super_admin','resort_admin'].includes(user?.role) || ['super_admin','resort_admin'].includes(user?.department) || user?.role === 'super_admin' || user?.username === 'dhirumbaa' || user?.username === 'baros.admin'
+
+  const DEPTS = ['transport','front_office','activities','diving','fnb','marina','housekeeping','all_staff']
+  const DEPT_NAMES = { transport:'Transport', front_office:'Front Office', activities:'Activities', diving:'Diving', fnb:'F&B', marina:'Marina', housekeeping:'Housekeeping', all_staff:'All Staff' }
+  const ALL_NAV = [
+    { id:'dashboard', label:'Dashboard' },
+    { id:'flights',   label:'Flight Tracker' },
+    { id:'scheduler', label:'Smart Scheduler' },
+    { id:'roster',    label:'Duty Roster' },
+    { id:'vessels',   label:'Vessels' },
+    { id:'team',      label:'Team' },
+    { id:'fuel-log',  label:'Fuel Log' },
+    { id:'settings',  label:'Settings' },
+  ]
+
+  const [access, setAccess] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('nav_access') || 'null') || {
+      transport:    ['vessels','team'],
+      front_office: ['scheduler','flights'],
+      activities:   ['scheduler'],
+      diving:       ['scheduler'],
+      fnb:          ['scheduler'],
+      marina:       ['vessels','team'],
+      housekeeping: ['roster'],
+      all_staff:    ['scheduler','roster'],
+    }} catch(e) { return {} }
+  })
+  const [saved, setSaved] = useState(false)
+
+  const toggle = (dept, navId) => {
+    setAccess(prev => {
+      const current = prev[dept] || []
+      const updated  = current.includes(navId) ? current.filter(x => x !== navId) : [...current, navId]
+      return { ...prev, [dept]: updated }
+    })
+    setSaved(false)
+  }
+
+  const saveAccess = () => {
+    localStorage.setItem('nav_access', JSON.stringify(access))
+    // Also save to Supabase for persistence across devices
+    sb.from('staff_users').select('id').eq('resort_id', BAROS_RESORT_ID).limit(1).then(() => {})
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+    // Update the global NAV_ACCESS
+    window.__NAV_ACCESS__ = access
+  }
+
+  const consts = [['Journey Baros - VIA','22','min'],['Immigration buffer','35','min'],['Lounge to jetty (VIA)','10','min'],['Depart airport before flight','60','min'],['Flight combine window','20','min'],['Return load max wait','65','min']]
+
   return (
     <>
-      <div style={{ marginBottom:14, fontSize:isMobile?14:16, fontWeight:500 }}>⚙️ Settings</div>
-      <div style={S.card}>
-        <div style={S.cardHdr}>🧮 Algorithm Constants · {RESORT.name}</div>
-        {isMobile ? (
-          <div style={{ padding:12 }}>
-            {consts.map(([n,v,u])=>(
-              <div key={n} style={{ display:'flex', justifyContent:'space-between', padding:'9px 0', borderBottom:`0.5px solid ${B.border}`, fontSize:13 }}>
-                <span style={{ color:B.textSecond }}>{n}</span>
-                <span style={{ fontWeight:600, color:B.freshPalm }}>{v} <span style={{ fontSize:11, color:B.textMuted }}>{u}</span></span>
-              </div>
-            ))}
-            <div style={{ display:'flex', justifyContent:'space-between', padding:'9px 0', fontSize:13 }}>
-              <span style={{ fontWeight:500 }}>Total lead time</span>
-              <span style={{ fontWeight:700, color:B.freshPalm }}>127 <span style={{ fontSize:11, color:B.textMuted }}>min</span></span>
+      <div style={{ marginBottom:14, fontSize:isMobile?14:16, fontWeight:500 }}>Settings</div>
+
+      {isAdmin && (
+        <div style={{ background:B.white, border:`0.5px solid ${B.border}`, borderRadius:10, marginBottom:16, overflow:'hidden' }}>
+          <div style={{ background:B.freshPalm, padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ fontWeight:600, fontSize:13, color:'#fff' }}>Department Access Control</div>
+            <button onClick={saveAccess} style={{ padding:'5px 14px', borderRadius:6, border:'none', background:saved?'#059669':B.gold, color:B.midnight, fontSize:12, fontWeight:600, cursor:'pointer' }}>
+              {saved ? 'Saved!' : 'Save Changes'}
+            </button>
+          </div>
+          <div style={{ padding:16 }}>
+            <div style={{ fontSize:11, color:B.textMuted, marginBottom:14 }}>
+              Control which navigation sections each department can see. Admins always see everything.
+            </div>
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding:'8px 12px', textAlign:'left', fontWeight:600, color:B.textMuted, fontSize:11, textTransform:'uppercase', letterSpacing:'.8px', borderBottom:`0.5px solid ${B.border}` }}>Department</th>
+                    {ALL_NAV.map(n => (
+                      <th key={n.id} style={{ padding:'8px 8px', textAlign:'center', fontWeight:600, color:B.textMuted, fontSize:10, textTransform:'uppercase', letterSpacing:'.5px', borderBottom:`0.5px solid ${B.border}`, whiteSpace:'nowrap' }}>{n.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {DEPTS.map((dept, i) => (
+                    <tr key={dept} style={{ background: i%2===0?B.white:B.pearl }}>
+                      <td style={{ padding:'10px 12px', fontWeight:500, color:B.textPrimary, fontSize:13 }}>
+                        {DEPT_NAMES[dept]}
+                      </td>
+                      {ALL_NAV.map(n => {
+                        const checked = (access[dept] || []).includes(n.id)
+                        return (
+                          <td key={n.id} style={{ padding:'10px 8px', textAlign:'center' }}>
+                            <button onClick={() => toggle(dept, n.id)} style={{ width:24, height:24, borderRadius:5, border:`1.5px solid ${checked?B.freshPalm:B.border}`, background:checked?B.freshPalm:'transparent', color:'#fff', fontSize:14, cursor:'pointer', display:'inline-flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>
+                              {checked ? '✓' : ''}
+                            </button>
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-        ) : (
-          <table style={S.table}>
-            <thead><tr><th style={S.th}>Parameter</th><th style={S.th}>Value</th><th style={S.th}>Unit</th></tr></thead>
-            <tbody>
-              {consts.map(([n,v,u])=>(<tr key={n}><td style={S.td}>{n}</td><td style={S.td}><strong>{v}</strong></td><td style={S.td}>{u}</td></tr>))}
-              <tr style={{ background:B.palmLight }}>
-                <td style={{ ...S.td, fontWeight:500 }}>Total lead time (formula)</td>
-                <td style={{ ...S.td, fontWeight:700, color:B.freshPalm }}>127</td>
-                <td style={S.td}>min</td>
-              </tr>
-            </tbody>
-          </table>
-        )}
-      </div>
+        </div>
+      )}
+
       <div style={S.card}>
-        <div style={S.cardHdr}>🏝️ Resort Info</div>
-        <div style={{ ...S.cardBody, fontSize:13 }}>
-          <div><strong>Resort:</strong> {RESORT.name} (code: {RESORT.code})</div>
-          <div style={{ marginTop:6 }}><strong>Supabase:</strong> wcpbrbyiakwlnpwpelzi.supabase.co</div>
-          <div style={{ marginTop:6 }}><strong>Platform:</strong> Dhirumbaa FMS Multi-Resort SaaS</div>
+        <div style={S.cardHdr}>Algorithm Constants</div>
+        <div style={{ padding:12 }}>
+          {consts.map(([n,v,u])=>(
+            <div key={n} style={{ display:'flex', justifyContent:'space-between', padding:'9px 0', borderBottom:`0.5px solid ${B.border}`, fontSize:13 }}>
+              <span style={{ color:B.textSecond }}>{n}</span>
+              <span style={{ fontWeight:600, color:B.freshPalm }}>{v} <span style={{ fontSize:11, color:B.textMuted }}>{u}</span></span>
+            </div>
+          ))}
         </div>
       </div>
     </>
   )
 }
 
-// ─── Scheduler: Group Card ─────────────────────────────────────────────────────
-function GroupCard({ group, allGroups, groupIdx }) {
-  const [open, setOpen] = useState(true)
-  const flts    = [...new Set(group.transfers.map(t=>t.flt))]
-  const fltMs   = group.transfers.map(t=>toM(t.fltT)).filter(f=>!isNaN(f))
-  const fltGap  = fltMs.length>1 ? Math.max(...fltMs)-Math.min(...fltMs) : 0
-  const totalPax = group.transfers.reduce((s,t)=>s+t.pax,0)
-  const arrVIA  = toM(group.trf)+ALGO.JOURNEY
-  const buf     = calcBuf(group.trf,fltMs)
-  const recTrf  = fltMs.length ? toT(Math.min(...fltMs)-LEAD) : null
-  const next    = allGroups[groupIdx+1]
-  const rlGap   = next ? toM(next.trf)-toM(group.trf) : 999
-  const hasRL   = rlGap <= (ALGO.JOURNEY*2+ALGO.RL)
-  const runs    = splitByVessel(group.transfers)
 
-  return (
-    <div style={S.groupCard}>
-      <div style={S.groupHdr} onClick={()=>setOpen(o=>!o)}>
-        <div style={S.trfBadge}>{group.trf}</div>
-        <div style={{ display:'flex', gap:4, flexWrap:'wrap', flex:1 }}>
-          {flts.map(f=><span key={f} style={S.fltTag}>{f}</span>)}
-          {fltGap>0&&fltGap<=ALGO.CW && <span style={S.gapOk}>OK combine ({fltGap}m)</span>}
-          {fltGap>ALGO.CW            && <span style={S.gapWarn}>⚠ split ({fltGap}m gap)</span>}
-        </div>
-        <div style={{ display:'flex', gap:6, alignItems:'center', flexShrink:0 }}>
-          {hasRL && <span style={S.rlBadge}>return load</span>}
-          <span style={{ fontSize:11, color:B.textSecond }}>{totalPax} pax</span>
-          <span style={{ fontSize:11, color:B.textMuted }}>{open?'▲':'▼'}</span>
-        </div>
-      </div>
-
-      {open && (
-        <>
-          {runs.map((run,ri) => {
-            const cfg = VESSEL_CFG[run.tt]
-            return (
-              <div key={ri} style={S.runBlock}>
-                <div style={S.vTag(run.tt)}>{cfg.icon} {cfg.label}</div>
-                {run.transfers.map((t,ti) => (
-                  <div key={ti} style={{ ...S.row, ...(ti===0?{borderTop:'none'}:{}) }}>
-                    <span style={S.rmTag}>R{t.room}</span>
-                    <span style={S.typeTag}>{t.type}</span>
-                    <span style={S.guestName}>{t.name}</span>
-                    {t.pax>0 && <span style={{ fontSize:11, color:B.textSecond, flexShrink:0 }}>×{t.pax}</span>}
-                    {t.vip   && <span style={vipStyle(t.vip)}>{t.vip}</span>}
-                    {t.comment && <span style={S.commentTxt} title={t.comment}>{t.comment}</span>}
-                  </div>
-                ))}
-              </div>
-            )
-          })}
-          <div style={S.timingBar}>
-            <span>arrives VIA {toT(arrVIA)}</span>
-            {recTrf && <span style={{ color: buf!==null&&buf<0?'#92400E':'#065F46' }}>formula TRF: {recTrf} ({buf!==null?fmtB(buf):'—'})</span>}
-            {hasRL&&next && <span style={{ color:B.success }}>window {toT(arrVIA)}-{toT(arrVIA+ALGO.RL)}</span>}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-// ─── Scheduler: Main View ──────────────────────────────────────────────────────
 // ─── Smart Scheduler v3 ─────────────────────────────────────────────────────
 
 const SCHED_GROUPS = [
@@ -3147,7 +3158,7 @@ export default function DhirumbaaFMS() {
             {nav==='vessels'   && <VesselsView isMobile={isMobile} />}
             {nav==='team'      && <TeamView isMobile={isMobile} />}
             {nav==='fuel-log'  && <FuelLogView isMobile={isMobile} />}
-            {nav==='settings'  && <SettingsView isMobile={isMobile} />}
+            {nav==='settings'  && <SettingsView isMobile={isMobile} user={user} />}
           </div>
 
           {!isMobile && (
