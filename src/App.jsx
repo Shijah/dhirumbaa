@@ -142,9 +142,9 @@ function NotificationBell({ user }) {
           <div style={{ padding:'10px 16px', borderTop:`0.5px solid ${B.border}`, background:B.pearl }}>
             <div style={{ fontSize:10, color:B.textMuted, textTransform:'uppercase', letterSpacing:'1px', marginBottom:6 }}>You receive alerts for:</div>
             <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-              {user?.notify_eta && <span style={{ fontSize:10, background:'#ECFDF5', color:'#059669', borderRadius:99, padding:'2px 8px', fontWeight:500 }}>✓ Flight ETA changes</span>}
-              {['transport','super_admin','resort_admin'].includes(user?.department) && <span style={{ fontSize:10, background:'#EFF6FF', color:'#2563EB', borderRadius:99, padding:'2px 8px', fontWeight:500 }}>✓ Boat dispatch alerts</span>}
-              {['transport','front_office','super_admin','resort_admin'].includes(user?.department) && <span style={{ fontSize:10, background:'#FFF7ED', color:'#B45309', borderRadius:99, padding:'2px 8px', fontWeight:500 }}>✓ Schedule approvals</span>}
+              {user?.notify_eta && <span style={{ fontSize:10, background:'#ECFDF5', color:'#059669', borderRadius:99, padding:'2px 8px', fontWeight:500 }}>OK Flight ETA changes</span>}
+              {['transport','super_admin','resort_admin'].includes(user?.department) && <span style={{ fontSize:10, background:'#EFF6FF', color:'#2563EB', borderRadius:99, padding:'2px 8px', fontWeight:500 }}>OK Boat dispatch alerts</span>}
+              {['transport','front_office','super_admin','resort_admin'].includes(user?.department) && <span style={{ fontSize:10, background:'#FFF7ED', color:'#B45309', borderRadius:99, padding:'2px 8px', fontWeight:500 }}>OK Schedule approvals</span>}
             </div>
           </div>
         </div>
@@ -450,11 +450,11 @@ function LoginPage({ onLogin }) {
             </div>
             <div style={{ marginBottom:6 }}>
               <label style={S.label}>Password</label>
-              <input style={S.input} type="password" value={creds.password} onChange={e=>setCreds(p=>({...p,password:e.target.value}))} placeholder="••••••••" />
+              <input style={S.input} type="password" value={creds.password} onChange={e=>setCreds(p=>({...p,password:e.target.value}))} placeholder="********" />
             </div>
             {error && <div style={{ fontSize:12, color:'#E87070', marginTop:10 }}>{error}</div>}
             <button style={S.loginBtn} type="submit" disabled={loading}>
-              {loading ? 'Signing in…' : 'Sign In →'}
+              {loading ? 'Signing in...' : 'Sign In ->'}
             </button>
           </form>
           <div style={{ marginTop:32, padding:'14px 16px', background:'rgba(255,255,255,0.03)', borderRadius:6, border:'0.5px solid rgba(255,255,255,0.06)', fontSize:11, color:'rgba(255,255,255,0.25)' }}>
@@ -646,11 +646,11 @@ function GroupCard({ group, allGroups, groupIdx }) {
         <div style={S.trfBadge}>{group.trf}</div>
         <div style={{ display:'flex', gap:4, flexWrap:'wrap', flex:1 }}>
           {flts.map(f=><span key={f} style={S.fltTag}>{f}</span>)}
-          {fltGap>0&&fltGap<=ALGO.CW && <span style={S.gapOk}>✓ combine ({fltGap}m)</span>}
+          {fltGap>0&&fltGap<=ALGO.CW && <span style={S.gapOk}>OK combine ({fltGap}m)</span>}
           {fltGap>ALGO.CW            && <span style={S.gapWarn}>⚠ split ({fltGap}m gap)</span>}
         </div>
         <div style={{ display:'flex', gap:6, alignItems:'center', flexShrink:0 }}>
-          {hasRL && <span style={S.rlBadge}>↩ return load</span>}
+          {hasRL && <span style={S.rlBadge}><- return load</span>}
           <span style={{ fontSize:11, color:B.textSecond }}>{totalPax} pax</span>
           <span style={{ fontSize:11, color:B.textMuted }}>{open?'▲':'▼'}</span>
         </div>
@@ -677,9 +677,9 @@ function GroupCard({ group, allGroups, groupIdx }) {
             )
           })}
           <div style={S.timingBar}>
-            <span>→ arrives VIA {toT(arrVIA)}</span>
+            <span>-> arrives VIA {toT(arrVIA)}</span>
             {recTrf && <span style={{ color: buf!==null&&buf<0?'#92400E':'#065F46' }}>formula TRF: {recTrf} ({buf!==null?fmtB(buf):'—'})</span>}
-            {hasRL&&next && <span style={{ color:B.success }}>↩ window {toT(arrVIA)}-{toT(arrVIA+ALGO.RL)}</span>}
+            {hasRL&&next && <span style={{ color:B.success }}><- window {toT(arrVIA)}-{toT(arrVIA+ALGO.RL)}</span>}
           </div>
         </>
       )}
@@ -825,11 +825,11 @@ function UploadCard({ cat, date, data, fr24Map, fr24Loading, onUpload, onRefresh
   const handleFile = async (file) => {
     if (!file) return
     setBusy(true)
-    setMsg('Reading file…')
+    setMsg('Reading file...')
     try {
       const { rows, note } = await parseFile(file, cat.id, date)
       if (note) { setMsg(note); setBusy(false); return }
-      setMsg(`Saving ${rows.length} rows…`)
+      setMsg(`Saving ${rows.length} rows...`)
       await sb.from('boat_schedule').delete()
         .eq('resort_id', BAROS_RESORT_ID)
         .eq('schedule_date', date)
@@ -840,7 +840,7 @@ function UploadCard({ cat, date, data, fr24Map, fr24Loading, onUpload, onRefresh
         const fns = [...new Set(rows.map(r => r.flight_number).filter(Boolean))]
         if (fns.length) onRefreshFR24(fns)
       }
-      setMsg(`✓ ${rows.length} records loaded`)
+      setMsg(`OK ${rows.length} records loaded`)
       setOpen(true)
     } catch(e) {
       setMsg('Error: ' + e.message)
@@ -881,8 +881,8 @@ function UploadCard({ cat, date, data, fr24Map, fr24Loading, onUpload, onRefresh
           )}
         </div>
         {user?.can_approve && hasData && cat.id==='arrivals' && (
-          <button onClick={async e=>{e.stopPropagation();try{await sb.from('boat_schedule').update({status:'confirmed',approved_by:user.username,approved_at:new Date().toISOString()}).eq('resort_id',BAROS_RESORT_ID).eq('schedule_date',date).eq('type',cat.id);setMsg('✓ Schedule approved')}catch(e){setMsg('Error approving')}}} style={{ padding:'5px 12px',borderRadius:6,border:'1.5px solid #059669',background:'transparent',color:'#059669',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap' }}>
-            ✓ Approve
+          <button onClick={async e=>{e.stopPropagation();try{await sb.from('boat_schedule').update({status:'confirmed',approved_by:user.username,approved_at:new Date().toISOString()}).eq('resort_id',BAROS_RESORT_ID).eq('schedule_date',date).eq('type',cat.id);setMsg('OK Schedule approved')}catch(e){setMsg('Error approving')}}} style={{ padding:'5px 12px',borderRadius:6,border:'1.5px solid #059669',background:'transparent',color:'#059669',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap' }}>
+            OK Approve
           </button>
         )}
         {hasData && <span style={{ color:B.textMuted, fontSize:11 }}>{open?'▲':'▼'}</span>}
@@ -891,8 +891,8 @@ function UploadCard({ cat, date, data, fr24Map, fr24Loading, onUpload, onRefresh
       {/* Upload message */}
       {msg && (
         <div style={{ padding:'6px 16px', fontSize:11, borderTop:`0.5px solid ${B.border}`,
-          color: msg.startsWith('✓')?'#059669': msg.startsWith('Error')?'#DC2626':B.textSecond,
-          background: msg.startsWith('✓')?'#F0FDF4': msg.startsWith('Error')?'#FEF2F2':B.pearl }}>
+          color: msg.startsWith('OK')?'#059669': msg.startsWith('Error')?'#DC2626':B.textSecond,
+          background: msg.startsWith('OK')?'#F0FDF4': msg.startsWith('Error')?'#FEF2F2':B.pearl }}>
           {msg}
         </div>
       )}
@@ -1160,7 +1160,7 @@ function SchedulerView({ isMobile, user }) {
             </button>
           ))}
           <div style={{ marginLeft:'auto', display:'flex', gap:8, alignItems:'center' }}>
-            {fr24Loading && <span style={{ fontSize:11, color:'#34D399' }}>↻ Syncing FR24…</span>}
+            {fr24Loading && <span style={{ fontSize:11, color:'#34D399' }}>↻ Syncing FR24...</span>}
             {airborne > 0 && <span style={{ fontSize:11, background:'rgba(52,211,153,0.15)', color:'#34D399', borderRadius:99, padding:'4px 10px', border:'0.5px solid rgba(52,211,153,0.3)' }}>● {airborne} airborne</span>}
           </div>
         </div>
@@ -1648,7 +1648,7 @@ function TodayScheduleTable({ onTrack, trackedFlights }) {
               const isLanded   = arrMins !== null && nowMins > arrMins + 20
               const isArriving = arrMins !== null && !isLanded && nowMins > arrMins - 90
               const isTracked  = trackedFlights.includes(f.flight)
-              const statusLabel = isLanded ? '✓ Landed' : isArriving ? '● Arriving' : 'Scheduled'
+              const statusLabel = isLanded ? 'OK Landed' : isArriving ? '● Arriving' : 'Scheduled'
               const statusColor = isLanded ? '#059669' : isArriving ? '#2563EB' : B.textMuted
               const statusBg    = isLanded ? '#ECFDF5' : isArriving ? '#EFF6FF' : B.pearl
               return (
@@ -1953,7 +1953,7 @@ function FlightTrackerView({ isMobile }) {
             {isLive && <span style={{fontSize:10,background:'rgba(52,211,153,0.15)',color:'#34D399',border:'0.5px solid rgba(52,211,153,0.3)',borderRadius:99,padding:'3px 10px'}}>● Live</span>}
             <span style={{fontSize:10,color:'rgba(255,255,255,0.3)'}}>↻ {refreshIn}s</span>
             <button onClick={()=>fetchAll(tracked)} disabled={loading} style={{fontSize:10,background:'rgba(255,255,255,0.1)',border:'0.5px solid rgba(255,255,255,0.15)',color:'rgba(255,255,255,0.7)',borderRadius:99,padding:'4px 12px',cursor:'pointer'}}>
-              {loading?'Loading…':'↻ Refresh'}
+              {loading?'Loading...':'↻ Refresh'}
             </button>
           </div>
         </div>
@@ -2062,12 +2062,13 @@ function VesselDocuments({ docs, onChange }) {
   )
 }
 
-// Claude Vision certificate extractor
+// Claude Vision certificate extractor (simplified)
 function ClauseVisionCertExtractor({ url, onExtract }) {
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState(null)
+  const [done, setDone] = useState(false)
 
   const extract = async () => {
+    if (!url) return
     setLoading(true)
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -2075,45 +2076,31 @@ function ClauseVisionCertExtractor({ url, onExtract }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: [
-              { type:'image', source:{ type:'url', url } },
-              { type:'text', text:'This is a vessel seaworthiness or registration certificate. Extract: 1) Expiry/valid until date (format YYYY-MM-DD), 2) Registry/certificate number, 3) Vessel name, 4) Issuing authority, 5) Any other key dates. Respond only in JSON format like: {"expiry":"YYYY-MM-DD","registry_number":"X","vessel_name":"X","authority":"X","issue_date":"YYYY-MM-DD","notes":"any other info"}' }
-            ]
-          }]
+          max_tokens: 500,
+          messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'url', url: url } },
+            { type: 'text', text: 'Extract from this vessel certificate: expiry date (YYYY-MM-DD), certificate number, vessel name, issuing authority. Reply ONLY in JSON: {"expiry":"","registry_number":"","vessel_name":"","authority":""}' }
+          ]}]
         })
       })
       const data = await res.json()
-      const text = data.content?.[0]?.text || '{}'
-      const clean = text.replace(/```json/g,'').replace(/```/g,'').trim()
+      const text = (data.content && data.content[0] && data.content[0].text) || '{}'
+      const fence = '```'
+      const clean = text.split(fence + 'json').join('').split(fence).join('').trim()
       const parsed = JSON.parse(clean)
-      setResult(parsed)
-      onExtract({ ...parsed, cert_extracted: parsed })
+      onExtract(parsed)
+      setDone(true)
     } catch(e) {
-      setResult({ error: 'Could not extract. Please enter details manually.' })
+      alert('Could not extract. Please enter details manually.')
     }
     setLoading(false)
   }
 
   return (
-    <div>
-      <button onClick={extract} disabled={loading} style={{ padding:'6px 14px', borderRadius:6, border:`0.5px solid #7C3AED`, background:loading?B.pearl:'#7C3AED15', color:'#7C3AED', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-        {loading ? '🔍 Scanning certificate...' : '🤖 Extract with AI'}
+    <div style={{ marginTop: 8 }}>
+      <button onClick={extract} disabled={loading} style={{ padding: '6px 14px', borderRadius: 6, border: '0.5px solid #7C3AED', background: 'transparent', color: '#7C3AED', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+        {loading ? 'Scanning...' : done ? 'Done - Re-scan' : 'Extract with AI'}
       </button>
-      {result && !result.error && (
-        <div style={{ marginTop:10, padding:12, background:'#F5F3FF', borderRadius:8, fontSize:12 }}>
-          <div style={{ fontWeight:600, color:'#7C3AED', marginBottom:6 }}>✓ Extracted successfully</div>
-          {Object.entries(result).filter(([k,v])=>v&&k!=='cert_extracted').map(([k,v]) => (
-            <div key={k} style={{ display:'flex', gap:8, marginBottom:2 }}>
-              <span style={{ color:'#6B7280', minWidth:100, textTransform:'capitalize' }}>{k.replace(/_/g,' ')}:</span>
-              <span style={{ fontWeight:500 }}>{v}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {result?.error && <div style={{ marginTop:8, fontSize:11, color:'#DC2626' }}>{result.error}</div>}
     </div>
   )
 }
@@ -2214,7 +2201,7 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
         <div style={{ fontSize:15, fontWeight:600, color:'#fff' }}>{vessel?.id ? 'Edit Vessel' : 'Add New Vessel'}</div>
         <div style={{ display:'flex', gap:8 }}>
           <button onClick={onCancel} style={{ padding:'6px 14px', borderRadius:6, border:'1px solid rgba(255,255,255,0.3)', background:'transparent', color:'#fff', fontSize:12, cursor:'pointer' }}>Cancel</button>
-          <button onClick={save} disabled={saving} style={{ padding:'6px 14px', borderRadius:6, border:'none', background:B.gold, color:B.midnight, fontSize:12, fontWeight:600, cursor:'pointer' }}>{saving?'Saving…':'✓ Save'}</button>
+          <button onClick={save} disabled={saving} style={{ padding:'6px 14px', borderRadius:6, border:'none', background:B.gold, color:B.midnight, fontSize:12, fontWeight:600, cursor:'pointer' }}>{saving?'Saving...':'OK Save'}</button>
         </div>
       </div>
 
@@ -2345,7 +2332,7 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
               )}
               {f.seaworthiness_expiry && (
                 <div style={{ marginTop:8, padding:'8px 12px', borderRadius:6, background: new Date(f.seaworthiness_expiry) < new Date() ? '#FEF2F2' : new Date(f.seaworthiness_expiry) < new Date(Date.now()+30*24*60*60*1000) ? '#FFF7ED' : '#ECFDF5', color: new Date(f.seaworthiness_expiry) < new Date() ? '#DC2626' : new Date(f.seaworthiness_expiry) < new Date(Date.now()+30*24*60*60*1000) ? '#D97706' : '#059669', fontSize:12, fontWeight:500 }}>
-                  {new Date(f.seaworthiness_expiry) < new Date() ? '⚠️ Certificate EXPIRED' : new Date(f.seaworthiness_expiry) < new Date(Date.now()+30*24*60*60*1000) ? '⚠️ Expiring within 30 days' : '✓ Certificate valid until ' + f.seaworthiness_expiry}
+                  {new Date(f.seaworthiness_expiry) < new Date() ? '⚠️ Certificate EXPIRED' : new Date(f.seaworthiness_expiry) < new Date(Date.now()+30*24*60*60*1000) ? '⚠️ Expiring within 30 days' : 'OK Certificate valid until ' + f.seaworthiness_expiry}
                 </div>
               )}
             </div>
@@ -2375,7 +2362,7 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
                     const sel2 = activities.includes(act)
                     return (
                       <button key={act} onClick={()=>toggleAct(act)} style={{ padding:'5px 12px', borderRadius:99, border:`1.5px solid ${sel2?B.freshPalm:B.border}`, background:sel2?B.freshPalm:'transparent', color:sel2?'#fff':B.textSecond, fontSize:12, cursor:'pointer', fontWeight:sel2?500:400 }}>
-                        {sel2?'✓ ':''}{act}
+                        {sel2?'OK ':''}{act}
                       </button>
                     )
                   })}
@@ -2491,7 +2478,7 @@ function VesselCard({ vessel, engines, onEdit, onDelete }) {
 
 function VesselsView({ isMobile }) {
   const [vessels,  setVessels]  = useState([])
-  const [engines,  setEngines]  = useState({})  // vesselId → engines[]
+  const [engines,  setEngines]  = useState({})  // vesselId -> engines[]
   const [loading,  setLoading]  = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editing,  setEditing]  = useState(null)
@@ -2699,7 +2686,7 @@ function TeamView({ isMobile }) {
             <div style={{ fontSize:15, fontWeight:600, color:'#fff' }}>{editing ? 'Edit Member' : 'Add Team Member'}</div>
             <div style={{ display:'flex', gap:8 }}>
               <button onClick={()=>setShowForm(false)} style={{ padding:'6px 14px', borderRadius:6, border:'1px solid rgba(255,255,255,0.3)', background:'transparent', color:'#fff', fontSize:12, cursor:'pointer' }}>Cancel</button>
-              <button onClick={save} style={{ padding:'6px 14px', borderRadius:6, border:'none', background:B.gold, color:B.midnight, fontSize:12, fontWeight:600, cursor:'pointer' }}>✓ Save</button>
+              <button onClick={save} style={{ padding:'6px 14px', borderRadius:6, border:'none', background:B.gold, color:B.midnight, fontSize:12, fontWeight:600, cursor:'pointer' }}>OK Save</button>
             </div>
           </div>
           <div style={{ padding:20 }}>
@@ -2741,7 +2728,7 @@ function TeamView({ isMobile }) {
                   const sel = (form.vessels||[]).includes(v.id)
                   return (
                     <button key={v.id} onClick={()=>toggleVessel(v.id)} style={{ padding:'5px 12px', borderRadius:99, border:`1.5px solid ${sel?B.freshPalm:B.border}`, background:sel?B.freshPalm:'transparent', color:sel?'#fff':B.textSecond, fontSize:12, cursor:'pointer', fontWeight:sel?500:400 }}>
-                      {sel?'✓ ':''}{v.name}
+                      {sel?'OK ':''}{v.name}
                     </button>
                   )
                 })}
@@ -2946,7 +2933,7 @@ export default function DhirumbaaFMS() {
             {!isMobile && <div><div style={{ fontSize:12, color:'rgba(255,255,255,0.8)', fontWeight:500 }}>{user.full_name||user.username}</div><div style={{ fontSize:9, color:'rgba(255,255,255,0.35)' }}>{(DEPT_LABELS&&DEPT_LABELS[user.department])||''}</div></div>}
           </div>
           <button onClick={logout} style={{ padding:isMobile?'4px 10px':'5px 14px', border:'0.5px solid rgba(255,255,255,0.15)', borderRadius:99, background:'transparent', color:'rgba(255,255,255,0.55)', cursor:'pointer', fontSize:11 }}>
-            {isMobile ? '↩' : 'Sign out'}
+            {isMobile ? '<-' : 'Sign out'}
           </button>
         </div>
       </div>
