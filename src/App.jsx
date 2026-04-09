@@ -650,7 +650,7 @@ function GroupCard({ group, allGroups, groupIdx }) {
           {fltGap>ALGO.CW            && <span style={S.gapWarn}>⚠ split ({fltGap}m gap)</span>}
         </div>
         <div style={{ display:'flex', gap:6, alignItems:'center', flexShrink:0 }}>
-          {hasRL && <span style={S.rlBadge}><- return load</span>}
+          {hasRL && <span style={S.rlBadge}>return load</span>}
           <span style={{ fontSize:11, color:B.textSecond }}>{totalPax} pax</span>
           <span style={{ fontSize:11, color:B.textMuted }}>{open?'▲':'▼'}</span>
         </div>
@@ -679,7 +679,7 @@ function GroupCard({ group, allGroups, groupIdx }) {
           <div style={S.timingBar}>
             <span>-> arrives VIA {toT(arrVIA)}</span>
             {recTrf && <span style={{ color: buf!==null&&buf<0?'#92400E':'#065F46' }}>formula TRF: {recTrf} ({buf!==null?fmtB(buf):'—'})</span>}
-            {hasRL&&next && <span style={{ color:B.success }}><- window {toT(arrVIA)}-{toT(arrVIA+ALGO.RL)}</span>}
+            {hasRL&&next && <span style={{ color:B.success }}>window {toT(arrVIA)}-{toT(arrVIA+ALGO.RL)}</span>}
           </div>
         </>
       )}
@@ -2933,7 +2933,7 @@ export default function DhirumbaaFMS() {
             {!isMobile && <div><div style={{ fontSize:12, color:'rgba(255,255,255,0.8)', fontWeight:500 }}>{user.full_name||user.username}</div><div style={{ fontSize:9, color:'rgba(255,255,255,0.35)' }}>{(DEPT_LABELS&&DEPT_LABELS[user.department])||''}</div></div>}
           </div>
           <button onClick={logout} style={{ padding:isMobile?'4px 10px':'5px 14px', border:'0.5px solid rgba(255,255,255,0.15)', borderRadius:99, background:'transparent', color:'rgba(255,255,255,0.55)', cursor:'pointer', fontSize:11 }}>
-            {isMobile ? '<-' : 'Sign out'}
+            {isMobile ? 'Back' : 'Sign out'}
           </button>
         </div>
       </div>
