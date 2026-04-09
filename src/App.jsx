@@ -2278,10 +2278,25 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
       }
       if (vid) {
         await sb.from('vessel_engines').delete().eq('vessel_id', vid)
-        const ed = engines.filter(e => e.brand || e.model).map((e, i) => ({ ...e, vessel_id: vid, resort_id: BAROS_RESORT_ID, engine_number: i + 1 }))
+        const ed = engines.filter(e => e.brand || e.model).map((e, i) => ({
+          vessel_id: vid, resort_id: BAROS_RESORT_ID, engine_number: i + 1,
+          brand: e.brand || null, model: e.model || null, serial_number: e.serial_number || null,
+          power_hp: e.power_hp ? parseFloat(e.power_hp) : null,
+          running_hours: e.running_hours ? parseFloat(e.running_hours) : null,
+          last_overhaul: e.last_overhaul || null,
+          fuel_consumption_hr: e.fuel_consumption_hr ? parseFloat(e.fuel_consumption_hr) : null,
+          notes: e.notes || null
+        }))
         if (ed.length) await sb.from('vessel_engines').insert(ed)
         await sb.from('vessel_generators').delete().eq('vessel_id', vid)
-        const gd = generators.filter(g => g.brand || g.model).map((g, i) => ({ ...g, vessel_id: vid, resort_id: BAROS_RESORT_ID, gen_number: i + 1 }))
+        const gd = generators.filter(g => g.brand || g.model).map((g, i) => ({
+          vessel_id: vid, resort_id: BAROS_RESORT_ID, gen_number: i + 1,
+          brand: g.brand || null, model: g.model || null,
+          running_hours: g.running_hours ? parseFloat(g.running_hours) : null,
+          last_service: g.last_service || null,
+          capacity_kw: g.capacity_kw ? parseFloat(g.capacity_kw) : null,
+          notes: g.notes || null
+        }))
         if (gd.length) await sb.from('vessel_generators').insert(gd)
       }
       onSave()
