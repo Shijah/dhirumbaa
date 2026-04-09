@@ -2016,6 +2016,52 @@ const EMPTY_VESSEL = {
   activities:[], status:'active', notes:''
 }
 
+// Vessel documents manager
+function VesselDocuments({ docs, onChange }) {
+  const [newDoc, setNewDoc] = useState({ name:'', url:'', type:'certificate' })
+  const DOC_TYPES = ['Certificate', 'Survey Report', 'Insurance', 'Registration', 'Maintenance Report', 'Other']
+  
+  const add = () => {
+    if (!newDoc.name || !newDoc.url) return
+    onChange([...(docs||[]), { ...newDoc, added: new Date().toISOString().slice(0,10) }])
+    setNewDoc({ name:'', url:'', type:'certificate' })
+  }
+  
+  const remove = (i) => onChange((docs||[]).filter((_,j) => j!==i))
+  
+  const si = { padding:'7px 10px', border:`0.5px solid ${B.border}`, borderRadius:6, fontSize:12, background:'#fff', outline:'none' }
+  
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+        <input value={newDoc.name} onChange={e=>setNewDoc(d=>({...d,name:e.target.value}))} placeholder="Document name" style={{...si, flex:2, minWidth:120}} />
+        <input value={newDoc.url} onChange={e=>setNewDoc(d=>({...d,url:e.target.value}))} placeholder="URL or file path" style={{...si, flex:3, minWidth:200}} />
+        <select value={newDoc.type} onChange={e=>setNewDoc(d=>({...d,type:e.target.value}))} style={{...si, flex:1, minWidth:120}}>
+          {DOC_TYPES.map(t => <option key={t} value={t.toLowerCase()}>{t}</option>)}
+        </select>
+        <button onClick={add} style={{ padding:'7px 14px', borderRadius:6, background:B.freshPalm, color:'#fff', border:'none', fontSize:12, cursor:'pointer', fontWeight:500 }}>+ Add</button>
+      </div>
+      {(docs||[]).length === 0 ? (
+        <div style={{ fontSize:12, color:B.textMuted, padding:'12px 0' }}>No documents added yet</div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {(docs||[]).map((doc, i) => (
+            <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:B.pearl, borderRadius:8, border:`0.5px solid ${B.border}` }}>
+              <span style={{ fontSize:16 }}>📄</span>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontWeight:500, fontSize:12 }}>{doc.name}</div>
+                <div style={{ fontSize:10, color:B.textMuted }}>{doc.type} · Added {doc.added}</div>
+              </div>
+              {doc.url && <a href={doc.url} target="_blank" rel="noreferrer" style={{ fontSize:11, color:B.freshPalm, fontWeight:500 }}>Open</a>}
+              <button onClick={()=>remove(i)} style={{ background:'transparent', border:'none', color:'#DC2626', cursor:'pointer', fontSize:16 }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Claude Vision certificate extractor
 function ClauseVisionCertExtractor({ url, onExtract }) {
   const [loading, setLoading] = useState(false)
@@ -2041,7 +2087,7 @@ function ClauseVisionCertExtractor({ url, onExtract }) {
       })
       const data = await res.json()
       const text = data.content?.[0]?.text || '{}'
-      const clean = text.replace(/\`\`\`json|\`\`\`/g,'').trim()
+      const clean = text.replace(/```json/g,'').replace(/```/g,'').trim()
       const parsed = JSON.parse(clean)
       setResult(parsed)
       onExtract({ ...parsed, cert_extracted: parsed })
@@ -2347,6 +2393,12 @@ function VesselForm({ vessel, onSave, onCancel, isMobile }) {
               fld('Cost Per Hour (MVR)', inp('cost_per_hour','number')),
               fld('Cost Per Trip (MVR)', inp('cost_per_trip','number')),
             ])}
+
+            <div style={{ marginTop:20 }}>
+              <div style={{ fontWeight:600, fontSize:13, marginBottom:12, paddingBottom:8, borderBottom:`0.5px solid ${B.border}` }}>📁 Documents</div>
+              <div style={{ fontSize:12, color:B.textSecond, marginBottom:10 }}>Add links to vessel documents (certificates, reports, surveys)</div>
+              <VesselDocuments docs={f.documents||[]} onChange={(docs) => setF2(prev => ({...prev, documents:docs}))} />
+            </div>
           </div>
         )}
       </div>
